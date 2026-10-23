@@ -1,347 +1,455 @@
+```html
 <!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Mój Dziennik Diety</title>
-    <!-- Ładowanie Reacta i Tailwind CSS prosto z sieci -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Babel standalone for JSX parsing -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; -webkit-tap-highlight-color: transparent; }
+        /* Ukrywanie strzałek w input type="number" */
+        input[type="number"]::-webkit-inner-spin-button, 
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"] { -moz-appearance: textfield; }
+        /* Płynne przewijanie */
+        .scroll-smooth { scroll-behavior: smooth; }
+    </style>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans">
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
+        // --- IKONY (SVG) ---
+        const Icon = {
+            Calendar: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>,
+            Apple: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"></path><path d="M10 2c1 .5 2 2 2 3"></path></svg>,
+            Chart: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>,
+            Trash: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>,
+            Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
+            Activity: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+        };
+
+        // --- GŁÓWNY KOMPONENT APP ---
         function App() {
             const [activeTab, setActiveTab] = useState('dziennik');
-            
-            // Ładowanie danych z pamięci przeglądarki (Local Storage)
-            const [products, setProducts] = useState(() => JSON.parse(localStorage.getItem('diet_products')) || []);
-            const [diary, setDiary] = useState(() => JSON.parse(localStorage.getItem('diet_diary')) || {});
-            const [settings, setSettings] = useState(() => JSON.parse(localStorage.getItem('diet_settings')) || { startOfWeek: 1 }); // 1 = Poniedziałek, 0 = Niedziela
-            
             const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
 
-            // Zapisywanie danych przy każdej zmianie
-            useEffect(() => { localStorage.setItem('diet_products', JSON.stringify(products)); }, [products]);
-            useEffect(() => { localStorage.setItem('diet_diary', JSON.stringify(diary)); }, [diary]);
-            useEffect(() => { localStorage.setItem('diet_settings', JSON.stringify(settings)); }, [settings]);
+            // Ładowanie stanu z Local Storage
+            const [products, setProducts] = useState(() => JSON.parse(localStorage.getItem('dt_products')) || []);
+            const [diary, setDiary] = useState(() => JSON.parse(localStorage.getItem('dt_diary')) || {});
+            const [settings, setSettings] = useState(() => JSON.parse(localStorage.getItem('dt_settings')) || { startOfWeek: 1 });
 
-            // Bezpieczne pobieranie danych dla bieżącego dnia
-            const currentDayData = diary[currentDate] || { 
-                goals: { kcal: 2000, p: 150, f: 70, c: 200 }, 
-                meals: [], 
-                workouts: [], 
-                weight: '' 
+            // Zapis do Local Storage przy każdej zmianie
+            useEffect(() => { localStorage.setItem('dt_products', JSON.stringify(products)); }, [products]);
+            useEffect(() => { localStorage.setItem('dt_diary', JSON.stringify(diary)); }, [diary]);
+            useEffect(() => { localStorage.setItem('dt_settings', JSON.stringify(settings)); }, [settings]);
+
+            // Pomocnik do pobierania i aktualizacji danych bieżącego dnia
+            const currentDayData = diary[currentDate] || { goals: { kcal: 2000, p: 150, f: 70, c: 200 }, meals: [], workouts: [], weight: '' };
+
+            const updateCurrentDay = (updates) => {
+                setDiary(prev => ({ ...prev, [currentDate]: { ...currentDayData, ...updates } }));
             };
 
-            const updateCurrentDay = (newData) => {
-                setDiary(prev => ({ ...prev, [currentDate]: { ...currentDayData, ...newData } }));
-            };
-
-            // Licznik dni diety (od pierwszego wpisu do dzisiaj)
-            const dietDaysCounter = useMemo(() => {
-                const dates = Object.keys(diary).sort();
-                if (dates.length === 0) return 0;
-                const firstDate = new Date(dates[0]);
-                const today = new Date();
-                const diffTime = Math.abs(today - firstDate);
-                return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            }, [diary]);
+            // Liczenie dni z wpisami
+            const daysTracked = Object.values(diary).filter(d => d.meals.length > 0 || d.workouts.length > 0 || d.weight).length;
 
             return (
-                <div class="max-w-md mx-auto min-h-screen bg-white shadow-xl relative pb-20">
-                    {/* Pasek nawigacji górnej */}
-                    <div class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center">
-                        <h1 class="text-xl font-bold">Dziennik Diety</h1>
-                        <span class="text-sm bg-blue-700 px-2 py-1 rounded">Dzień diety: {dietDaysCounter}</span>
+                <div className="max-w-lg mx-auto bg-slate-50 min-h-screen pb-24 shadow-2xl relative overflow-hidden flex flex-col">
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white p-5 rounded-b-3xl shadow-md z-10 sticky top-0">
+                        <div className="flex justify-between items-center">
+                            <div>
+                                <h1 className="text-2xl font-extrabold tracking-tight">DietTracker</h1>
+                                <p className="text-emerald-100 text-sm font-medium opacity-90 mt-0.5">Dni na diecie: {daysTracked}</p>
+                            </div>
+                            <div className="bg-white/20 p-2 rounded-xl backdrop-blur-sm">
+                                <Icon.Apple />
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Główna zawartość */}
-                    <div class="p-4">
-                        {activeTab === 'dziennik' && <DailyLog currentDate={currentDate} setCurrentDate={setCurrentDate} currentDayData={currentDayData} updateCurrentDay={updateCurrentDay} products={products} />}
-                        {activeTab === 'baza' && <ProductDatabase products={products} setProducts={setProducts} />}
-                        {activeTab === 'podsumowanie' && <WeeklySummary diary={diary} currentDate={currentDate} settings={settings} setSettings={setSettings} />}
+                    {/* Content */}
+                    <div className="flex-1 p-4 md:p-6 overflow-y-auto scroll-smooth">
+                        {activeTab === 'dziennik' && (
+                            <DailyLog 
+                                currentDate={currentDate} 
+                                setCurrentDate={setCurrentDate} 
+                                currentDayData={currentDayData} 
+                                updateCurrentDay={updateCurrentDay} 
+                                products={products} 
+                            />
+                        )}
+                        {activeTab === 'baza' && (
+                            <ProductDatabase 
+                                products={products} 
+                                setProducts={setProducts} 
+                            />
+                        )}
+                        {activeTab === 'tydzien' && (
+                            <WeeklySummary 
+                                diary={diary} 
+                                currentDate={currentDate} 
+                                settings={settings} 
+                                setSettings={setSettings} 
+                            />
+                        )}
                     </div>
 
-                    {/* Pasek nawigacji dolnej */}
-                    <div class="fixed bottom-0 max-w-md w-full bg-white border-t flex justify-around p-3 text-sm font-semibold text-gray-500 z-10">
-                        <button onClick={() => setActiveTab('dziennik')} class={activeTab === 'dziennik' ? 'text-blue-600' : ''}>📅 Dziennik</button>
-                        <button onClick={() => setActiveTab('baza')} class={activeTab === 'baza' ? 'text-blue-600' : ''}>🍎 Baza Produktów</button>
-                        <button onClick={() => setActiveTab('podsumowanie')} class={activeTab === 'podsumowanie' ? 'text-blue-600' : ''}>📊 Tydzień</button>
+                    {/* Bottom Navigation */}
+                    <div className="fixed bottom-0 max-w-lg w-full bg-white border-t border-slate-200 px-6 py-3 flex justify-between items-center pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
+                        <NavButton active={activeTab === 'dziennik'} onClick={() => setActiveTab('dziennik')} icon={<Icon.Calendar />} label="Dziennik" color="text-emerald-600" />
+                        <NavButton active={activeTab === 'baza'} onClick={() => setActiveTab('baza')} icon={<Icon.Apple />} label="Produkty" color="text-emerald-600" />
+                        <NavButton active={activeTab === 'tydzien'} onClick={() => setActiveTab('tydzien')} icon={<Icon.Chart />} label="Tydzień" color="text-emerald-600" />
                     </div>
                 </div>
             );
         }
 
-        // --- KOMPONENT: Dziennik Dnia ---
+        // --- SUB-COMPONENTS ---
+
+        function NavButton({ active, onClick, icon, label, color }) {
+            return (
+                <button onClick={onClick} className={`flex flex-col items-center justify-center w-20 transition-all duration-200 ${active ? color : 'text-slate-400 hover:text-slate-600'}`}>
+                    <div className={`mb-1 transition-transform duration-200 ${active ? 'scale-110' : 'scale-100'}`}>{icon}</div>
+                    <span className={`text-[10px] font-bold tracking-wide ${active ? 'opacity-100' : 'opacity-70'}`}>{label}</span>
+                </button>
+            );
+        }
+
         function DailyLog({ currentDate, setCurrentDate, currentDayData, updateCurrentDay, products }) {
-            const [selectedProduct, setSelectedProduct] = useState('');
-            const [productWeight, setProductWeight] = useState('');
-
-            // Obliczenia podsumowania dnia
-            const totalEaten = currentDayData.meals.reduce((acc, meal) => {
-                acc.kcal += meal.kcal; acc.p += meal.p; acc.f += meal.f; acc.c += meal.c; return acc;
-            }, { kcal: 0, p: 0, f: 0, c: 0 });
-
-            const totalBurned = currentDayData.workouts.reduce((acc, w) => acc + w.kcal, 0);
+            const [selectedProd, setSelectedProd] = useState('');
+            const [weightInput, setWeightInput] = useState('');
+            const [errorMsg, setErrorMsg] = useState('');
             
-            // Bilans z uwzględnieniem treningów (opcjonalnie można odjąć spalone od zjedzonych)
-            const kcalLeft = currentDayData.goals.kcal - totalEaten.kcal + totalBurned;
+            // Stats calculation
+            const eaten = currentDayData.meals.reduce((acc, m) => {
+                acc.kcal += m.kcal; acc.p += m.p; acc.f += m.f; acc.c += m.c; return acc;
+            }, { kcal: 0, p: 0, f: 0, c: 0 });
+            
+            const burned = currentDayData.workouts.reduce((sum, w) => sum + w.kcal, 0);
+            const remaining = currentDayData.goals.kcal - eaten.kcal + burned;
 
-            const addMeal = () => {
-                if (!selectedProduct || !productWeight) return alert('Wybierz produkt i podaj wagę!');
-                const prod = products.find(p => p.id === selectedProduct);
-                const multiplier = productWeight / prod.weight;
-                
-                const newMeal = {
-                    id: Date.now(),
-                    name: prod.name,
-                    weight: parseFloat(productWeight),
-                    kcal: Math.round(prod.kcal * multiplier),
-                    p: Math.round(prod.p * multiplier),
-                    f: Math.round(prod.f * multiplier),
-                    c: Math.round(prod.c * multiplier)
-                };
-                
-                updateCurrentDay({ meals: [...currentDayData.meals, newMeal] });
-                setProductWeight('');
+            const changeDate = (days) => {
+                const d = new Date(currentDate);
+                d.setDate(d.getDate() + days);
+                setCurrentDate(d.toISOString().split('T')[0]);
             };
 
-            const removeMeal = (id) => {
-                updateCurrentDay({ meals: currentDayData.meals.filter(m => m.id !== id) });
+            const addMeal = () => {
+                if (!selectedProd || !weightInput) {
+                    setErrorMsg('Wybierz produkt i wpisz jego wagę.');
+                    setTimeout(() => setErrorMsg(''), 3000);
+                    return;
+                }
+                const prod = products.find(p => p.id === selectedProd);
+                const ratio = parseFloat(weightInput) / 100; // Baza ma wartości per 100g
+                
+                const meal = {
+                    id: Date.now().toString(),
+                    name: prod.name,
+                    weight: parseFloat(weightInput),
+                    kcal: Math.round(prod.kcal * ratio),
+                    p: Math.round(prod.p * ratio * 10) / 10,
+                    f: Math.round(prod.f * ratio * 10) / 10,
+                    c: Math.round(prod.c * ratio * 10) / 10,
+                };
+                
+                updateCurrentDay({ meals: [...currentDayData.meals, meal] });
+                setWeightInput('');
+                setErrorMsg('');
             };
 
             const addWorkout = (e) => {
                 e.preventDefault();
                 const name = e.target.wName.value;
-                const time = e.target.wTime.value;
+                const min = e.target.wMin.value;
                 const kcal = e.target.wKcal.value;
-                if(!name || !time || !kcal) return;
+                
+                if(!name || !kcal) {
+                    setErrorMsg('Podaj nazwę treningu i spalone kalorie.');
+                    setTimeout(() => setErrorMsg(''), 3000);
+                    return;
+                }
 
-                const newWorkout = { id: Date.now(), name, time: parseInt(time), kcal: parseInt(kcal) };
-                updateCurrentDay({ workouts: [...currentDayData.workouts, newWorkout] });
+                updateCurrentDay({ 
+                    workouts: [...currentDayData.workouts, { id: Date.now().toString(), name, min, kcal: parseInt(kcal) }]
+                });
                 e.target.reset();
             };
 
             return (
-                <div class="space-y-6">
-                    {/* Wybór daty i wagi */}
-                    <div class="flex space-x-2 items-center justify-between">
-                        <input type="date" value={currentDate} onChange={(e) => setCurrentDate(e.target.value)} class="border p-2 rounded flex-1" />
-                        <div class="flex items-center space-x-1">
-                            <span class="text-sm text-gray-500">Waga:</span>
-                            <input type="number" placeholder="kg" value={currentDayData.weight} onChange={(e) => updateCurrentDay({ weight: e.target.value })} class="border p-2 rounded w-20 text-center" />
+                <div className="space-y-5">
+                    {/* Date Navigation */}
+                    <div className="flex items-center justify-between bg-white p-3 rounded-2xl shadow-sm border border-slate-100">
+                        <button onClick={() => changeDate(-1)} className="p-2 bg-slate-50 text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 rounded-full font-bold">&larr;</button>
+                        <input type="date" value={currentDate} onChange={(e) => setCurrentDate(e.target.value)} className="font-bold text-slate-700 bg-transparent outline-none cursor-pointer" />
+                        <button onClick={() => changeDate(1)} className="p-2 bg-slate-50 text-slate-600 hover:bg-emerald-50 hover:text-emerald-600 rounded-full font-bold">&rarr;</button>
+                    </div>
+
+                    {/* Weight Log */}
+                    <div className="flex items-center justify-between bg-white px-4 py-3 rounded-2xl shadow-sm border border-slate-100">
+                        <span className="font-semibold text-slate-600 text-sm">Dzisiejsza waga:</span>
+                        <div className="flex items-center bg-slate-50 rounded-lg px-3 py-1 border border-slate-200 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 transition-all">
+                            <input type="number" step="0.1" value={currentDayData.weight} onChange={(e) => updateCurrentDay({ weight: e.target.value })} placeholder="0.0" className="w-16 bg-transparent text-right font-bold outline-none text-slate-700" />
+                            <span className="ml-1 text-slate-400 text-sm font-medium">kg</span>
                         </div>
                     </div>
 
-                    {/* Pasek postępu (Zjedzone vs Cel) */}
-                    <div class="bg-gray-50 p-4 rounded-lg border">
-                        <div class="flex justify-between items-end mb-2">
+                    {/* Summary Widget */}
+                    <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+                        <div className="p-5 flex justify-between items-center border-b border-slate-50">
                             <div>
-                                <p class="text-xs text-gray-500 uppercase">Zjedzono</p>
-                                <p class="text-2xl font-bold">{totalEaten.kcal} <span class="text-sm font-normal text-gray-500">kcal</span></p>
+                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">Zjedzono</p>
+                                <p className="text-3xl font-black text-slate-800">{eaten.kcal} <span className="text-sm font-medium text-slate-500">kcal</span></p>
                             </div>
-                            <div class="text-right">
-                                <p class="text-xs text-gray-500 uppercase">{kcalLeft >= 0 ? 'Pozostało' : 'Nadwyżka'}</p>
-                                <p class={`text-2xl font-bold ${kcalLeft < 0 ? 'text-red-500' : 'text-green-600'}`}>{Math.abs(kcalLeft)} <span class="text-sm font-normal text-gray-500">kcal</span></p>
+                            <div className="text-right">
+                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">{remaining >= 0 ? 'Pozostało' : 'Nadwyżka'}</p>
+                                <p className={`text-3xl font-black ${remaining >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>{Math.abs(remaining)} <span className="text-sm font-medium opacity-70">kcal</span></p>
                             </div>
                         </div>
-                        {/* Paski Makro */}
-                        <div class="grid grid-cols-3 gap-2 mt-4 text-center text-xs">
-                            <div class="bg-blue-100 p-1 rounded">B: {totalEaten.p} / {currentDayData.goals.p}g</div>
-                            <div class="bg-yellow-100 p-1 rounded">T: {totalEaten.f} / {currentDayData.goals.f}g</div>
-                            <div class="bg-green-100 p-1 rounded">W: {totalEaten.c} / {currentDayData.goals.c}g</div>
+                        <div className="p-5 bg-slate-50 grid grid-cols-3 gap-3">
+                            <MacroBar label="Białko" current={eaten.p} goal={currentDayData.goals.p} color="bg-blue-500" />
+                            <MacroBar label="Tłuszcz" current={eaten.f} goal={currentDayData.goals.f} color="bg-amber-500" />
+                            <MacroBar label="Węgle" current={eaten.c} goal={currentDayData.goals.c} color="bg-purple-500" />
                         </div>
                     </div>
 
-                    {/* Dodawanie posiłku */}
-                    <div class="border rounded-lg p-3 bg-white">
-                        <h3 class="font-bold mb-2">Dodaj produkt z bazy</h3>
-                        <div class="flex space-x-2">
-                            <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)} class="border p-2 rounded flex-1">
-                                <option value="">Wybierz produkt...</option>
-                                {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.kcal} kcal/{p.weight}g)</option>)}
+                    {errorMsg && <div className="bg-rose-100 text-rose-700 p-3 rounded-xl text-sm font-medium text-center animate-pulse">{errorMsg}</div>}
+
+                    {/* Add Meal */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
+                        <h3 className="font-bold text-slate-800 mb-3 flex items-center"><Icon.Apple/><span className="ml-2">Dodaj posiłek</span></h3>
+                        <div className="flex gap-2">
+                            <select value={selectedProd} onChange={(e) => setSelectedProd(e.target.value)} className="flex-1 bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500">
+                                <option value="">Wybierz z bazy...</option>
+                                {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.kcal} kcal/100g)</option>)}
                             </select>
-                            <input type="number" placeholder="Waga (g)" value={productWeight} onChange={(e) => setProductWeight(e.target.value)} class="border p-2 rounded w-24" />
-                            <button onClick={addMeal} class="bg-blue-600 text-white p-2 rounded font-bold">+</button>
+                            <input type="number" placeholder="Waga(g)" value={weightInput} onChange={(e) => setWeightInput(e.target.value)} className="w-24 bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500 text-center" />
+                            <button onClick={addMeal} className="bg-emerald-600 hover:bg-emerald-700 text-white p-2 rounded-xl flex items-center justify-center transition-colors shadow-sm"><Icon.Plus /></button>
                         </div>
-                        {/* Lista zjedzonych */}
-                        <div class="mt-4 space-y-2">
+
+                        {/* Meals List */}
+                        <div className="mt-4 space-y-2">
+                            {currentDayData.meals.length === 0 && <p className="text-center text-sm text-slate-400 py-2">Brak posiłków. Dodaj coś pysznego!</p>}
                             {currentDayData.meals.map(m => (
-                                <div key={m.id} class="flex justify-between items-center text-sm border-b pb-1">
+                                <div key={m.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
                                     <div>
-                                        <p class="font-bold">{m.name}</p>
-                                        <p class="text-gray-500 text-xs">{m.weight}g | B:{m.p} T:{m.f} W:{m.c}</p>
+                                        <p className="font-bold text-slate-800 text-sm">{m.name}</p>
+                                        <p className="text-[11px] text-slate-500 mt-0.5">{m.weight}g • B:{m.p} T:{m.f} W:{m.c}</p>
                                     </div>
-                                    <div class="flex items-center space-x-3">
-                                        <span class="font-bold">{m.kcal} kcal</span>
-                                        <button onClick={() => removeMeal(m.id)} class="text-red-500 font-bold">X</button>
+                                    <div className="flex items-center gap-3">
+                                        <span className="font-black text-emerald-600 text-sm">{m.kcal} kcal</span>
+                                        <button onClick={() => updateCurrentDay({ meals: currentDayData.meals.filter(meal => meal.id !== m.id) })} className="text-slate-300 hover:text-rose-500 transition-colors p-1"><Icon.Trash /></button>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    {/* Treningi */}
-                    <div class="border rounded-lg p-3 bg-white">
-                        <h3 class="font-bold mb-2 text-orange-600">🏋️ Treningi (-{totalBurned} kcal)</h3>
-                        <form onSubmit={addWorkout} class="flex space-x-1 mb-3">
-                            <input name="wName" placeholder="Nazwa" class="border p-1 rounded w-full text-sm" />
-                            <input name="wTime" type="number" placeholder="Min" class="border p-1 rounded w-16 text-sm" />
-                            <input name="wKcal" type="number" placeholder="Kcal" class="border p-1 rounded w-16 text-sm" />
-                            <button type="submit" class="bg-orange-500 text-white px-2 rounded">+</button>
+                    {/* Add Workout */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
+                        <h3 className="font-bold text-slate-800 mb-3 flex items-center text-orange-500"><Icon.Activity/><span className="ml-2 text-slate-800">Treningi</span> <span className="ml-auto text-sm text-orange-500 bg-orange-50 px-2 py-1 rounded-lg">-{burned} kcal</span></h3>
+                        <form onSubmit={addWorkout} className="flex gap-2">
+                            <input name="wName" placeholder="Nazwa np. Bieg" className="flex-1 bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-orange-500" />
+                            <input name="wMin" type="number" placeholder="Min" className="w-16 bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-2 py-2 outline-none focus:ring-2 focus:ring-orange-500 text-center" />
+                            <input name="wKcal" type="number" placeholder="Kcal" className="w-20 bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-2 py-2 outline-none focus:ring-2 focus:ring-orange-500 text-center" />
+                            <button type="submit" className="bg-orange-500 hover:bg-orange-600 text-white p-2 rounded-xl flex items-center justify-center transition-colors shadow-sm"><Icon.Plus /></button>
                         </form>
-                        {currentDayData.workouts.map(w => (
-                            <div key={w.id} class="flex justify-between text-sm text-gray-600">
-                                <span>{w.name} ({w.time} min)</span>
-                                <span>🔥 {w.kcal} kcal</span>
-                            </div>
-                        ))}
+
+                        <div className="mt-4 space-y-2">
+                            {currentDayData.workouts.map(w => (
+                                <div key={w.id} className="flex justify-between items-center p-3 bg-orange-50/50 rounded-xl border border-orange-100">
+                                    <div>
+                                        <p className="font-bold text-slate-800 text-sm">{w.name}</p>
+                                        <p className="text-[11px] text-slate-500 mt-0.5">{w.min ? `${w.min} min` : 'Czas nieznany'}</p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="font-black text-orange-600 text-sm">🔥 {w.kcal} kcal</span>
+                                        <button onClick={() => updateCurrentDay({ workouts: currentDayData.workouts.filter(wk => wk.id !== w.id) })} className="text-orange-200 hover:text-rose-500 transition-colors p-1"><Icon.Trash /></button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             );
         }
 
-        // --- KOMPONENT: Baza Produktów ---
+        function MacroBar({ label, current, goal, color }) {
+            const perc = Math.min((current / goal) * 100, 100) || 0;
+            return (
+                <div>
+                    <div className="flex justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                        <span>{label}</span>
+                        <span>{Math.round(current)}/{goal}</span>
+                    </div>
+                    <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
+                        <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${perc}%` }}></div>
+                    </div>
+                </div>
+            );
+        }
+
         function ProductDatabase({ products, setProducts }) {
-            const addProduct = (e) => {
+            const [errorMsg, setErrorMsg] = useState('');
+
+            const handleAdd = (e) => {
                 e.preventDefault();
                 const name = e.target.pName.value;
-                const weight = parseFloat(e.target.pWeight.value) || 100;
-                const p = parseFloat(e.target.pPro.value) || 0;
-                const f = parseFloat(e.target.pFat.value) || 0;
-                const c = parseFloat(e.target.pCarb.value) || 0;
-                
-                // RĘCZNE WPISYWANIE KALORII (jeśli puste, licz ze wzoru)
-                let kcalInput = e.target.pKcal.value;
-                let kcal = kcalInput !== "" ? parseFloat(kcalInput) : Math.round((p * 4) + (c * 4) + (f * 9));
+                const p = parseFloat(e.target.pP.value) || 0;
+                const f = parseFloat(e.target.pF.value) || 0;
+                const c = parseFloat(e.target.pC.value) || 0;
+                const manualKcal = e.target.pKcal.value;
 
-                if (!name) return alert('Podaj nazwę produktu!');
-
-                const newProd = { id: Date.now().toString(), name, weight, p, f, c, kcal };
-                setProducts([...products, newProd]);
-                e.target.reset();
-            };
-
-            const deleteProduct = (id) => {
-                if(confirm('Usunąć produkt z bazy?')) {
-                    setProducts(products.filter(p => p.id !== id));
+                if (!name) {
+                    setErrorMsg('Nazwa produktu jest wymagana!');
+                    setTimeout(() => setErrorMsg(''), 3000);
+                    return;
                 }
+
+                // Kalkulacja kcal jeśli pole jest puste
+                const kcal = manualKcal !== "" ? parseInt(manualKcal) : Math.round((p * 4) + (c * 4) + (f * 9));
+
+                const newP = { id: Date.now().toString(), name, p, f, c, kcal };
+                setProducts([...products, newP].sort((a, b) => a.name.localeCompare(b.name)));
+                e.target.reset();
+                setErrorMsg('');
             };
 
             return (
-                <div>
-                    <div class="bg-blue-50 p-4 rounded-lg border mb-6">
-                        <h2 class="font-bold mb-3 text-lg">➕ Dodaj nowy produkt</h2>
-                        <form onSubmit={addProduct} class="space-y-3 text-sm">
-                            <input name="pName" placeholder="Nazwa produktu (np. Kurczak)" class="border p-2 rounded w-full font-bold" />
-                            <div class="flex space-x-2">
-                                <div class="w-1/2">
-                                    <label class="text-xs text-gray-500">Waga porcji (g)</label>
-                                    <input name="pWeight" type="number" defaultValue="100" class="border p-2 rounded w-full" />
-                                </div>
-                                <div class="w-1/2">
-                                    <label class="text-xs text-gray-500">Kalorie (Kcal) - Opcjonalnie</label>
-                                    <input name="pKcal" type="number" placeholder="Automatycznie" class="border-2 border-green-300 bg-green-50 p-2 rounded w-full" />
-                                </div>
+                <div className="space-y-6">
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+                        <h2 className="text-lg font-extrabold text-slate-800 mb-1">Dodaj nowy produkt</h2>
+                        <p className="text-xs text-slate-500 mb-4">Wartości podawaj zawsze dla <strong className="text-emerald-600">100 gramów</strong>.</p>
+                        
+                        {errorMsg && <div className="bg-rose-100 text-rose-700 p-2 rounded-lg text-sm font-medium mb-3 text-center">{errorMsg}</div>}
+
+                        <form onSubmit={handleAdd} className="space-y-3">
+                            <input name="pName" placeholder="Nazwa produktu (np. Ryż basmati)" className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 font-medium" />
+                            
+                            <div className="grid grid-cols-3 gap-3">
+                                <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Białko (g)</label><input name="pP" type="number" step="0.1" placeholder="0" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 text-center font-medium mt-1" /></div>
+                                <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Tłuszcz (g)</label><input name="pF" type="number" step="0.1" placeholder="0" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-amber-500 text-center font-medium mt-1" /></div>
+                                <div><label className="text-[10px] font-bold text-slate-400 uppercase ml-1">Węgle (g)</label><input name="pC" type="number" step="0.1" placeholder="0" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-purple-500 text-center font-medium mt-1" /></div>
                             </div>
-                            <div class="grid grid-cols-3 gap-2">
-                                <div><label class="text-xs text-gray-500">Białko (g)</label><input name="pPro" type="number" step="0.1" class="border p-2 rounded w-full" /></div>
-                                <div><label class="text-xs text-gray-500">Tłuszcz (g)</label><input name="pFat" type="number" step="0.1" class="border p-2 rounded w-full" /></div>
-                                <div><label class="text-xs text-gray-500">Węglo (g)</label><input name="pCarb" type="number" step="0.1" class="border p-2 rounded w-full" /></div>
+
+                            <div className="bg-emerald-50/50 border border-emerald-100 p-3 rounded-xl mt-2">
+                                <label className="text-[10px] font-bold text-emerald-600 uppercase ml-1">Kalorie / 100g (Opcjonalnie)</label>
+                                <input name="pKcal" type="number" placeholder="Zostaw puste, by obliczyć ze wzoru" className="w-full bg-white border border-emerald-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-800 mt-1 placeholder-slate-400" />
                             </div>
-                            <button type="submit" class="bg-blue-600 text-white w-full py-2 rounded font-bold mt-2">Zapisz w bazie</button>
+
+                            <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-colors shadow-sm mt-2">Zapisz do bazy</button>
                         </form>
                     </div>
 
-                    <h3 class="font-bold text-gray-700 mb-2">Twoja baza ({products.length})</h3>
-                    <div class="space-y-2">
-                        {products.map(p => (
-                            <div key={p.id} class="bg-white p-3 rounded shadow-sm border flex justify-between items-center">
-                                <div>
-                                    <p class="font-bold">{p.name} <span class="text-xs text-gray-400 font-normal">({p.weight}g)</span></p>
-                                    <p class="text-xs text-gray-500">B: {p.p}g | T: {p.f}g | W: {p.c}g</p>
+                    <div>
+                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-3 ml-1">Baza produktów ({products.length})</h3>
+                        <div className="space-y-2">
+                            {products.length === 0 && <p className="text-center text-sm text-slate-400 py-6 bg-white rounded-xl border border-dashed border-slate-200">Twoja baza jest pusta.</p>}
+                            {products.map(p => (
+                                <div key={p.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex justify-between items-center group">
+                                    <div>
+                                        <p className="font-bold text-slate-800">{p.name}</p>
+                                        <div className="flex gap-2 mt-1">
+                                            <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase">100g = {p.kcal} kcal</span>
+                                            <span className="text-[11px] text-slate-400 font-medium pt-0.5">B:{p.p} T:{p.f} W:{p.c}</span>
+                                        </div>
+                                    </div>
+                                    <button onClick={() => setProducts(products.filter(prod => prod.id !== p.id))} className="text-slate-200 hover:text-rose-500 transition-colors p-2 bg-slate-50 rounded-lg group-hover:bg-rose-50"><Icon.Trash /></button>
                                 </div>
-                                <div class="flex items-center space-x-4">
-                                    <span class="font-bold text-green-600">{p.kcal} kcal</span>
-                                    <button onClick={() => deleteProduct(p.id)} class="text-red-300 hover:text-red-500">🗑️</button>
-                                </div>
-                            </div>
-                        ))}
+                            ))}
+                        </div>
                     </div>
                 </div>
             );
         }
 
-        // --- KOMPONENT: Podsumowanie Tygodnia ---
         function WeeklySummary({ diary, currentDate, settings, setSettings }) {
-            // Generowanie dni z wybranego tygodnia
-            const generateWeek = () => {
+            const getWeekDates = () => {
                 const curr = new Date(currentDate);
-                const day = curr.getDay();
-                // Przesunięcie dla poniedziałku (1) lub niedzieli (0)
-                const offset = settings.startOfWeek === 1 ? (day === 0 ? -6 : 1 - day) : -day;
+                const day = curr.getDay(); // 0-Ndz, 1-Pon
+                const isMondayStart = settings.startOfWeek === 1;
+                const offset = isMondayStart ? (day === 0 ? -6 : 1 - day) : -day;
                 
-                const firstDay = new Date(curr.setDate(curr.getDate() + offset));
-                const week = [];
-                for(let i=0; i<7; i++) {
-                    const next = new Date(firstDay);
-                    next.setDate(firstDay.getDate() + i);
-                    week.push(next.toISOString().split('T')[0]);
+                const start = new Date(curr.setDate(curr.getDate() + offset));
+                const dates = [];
+                for(let i = 0; i < 7; i++) {
+                    const next = new Date(start);
+                    next.setDate(start.getDate() + i);
+                    dates.push(next.toISOString().split('T')[0]);
                 }
-                return week;
+                return dates;
             };
 
-            const weekDates = generateWeek();
-            let totalKcal = 0, totalBurned = 0, daysCounted = 0;
-            let weights = [];
+            const weekDates = getWeekDates();
+            let totalKcal = 0, totalBurned = 0, loggedDays = 0, weights = [];
 
             weekDates.forEach(date => {
-                if(diary[date]) {
+                if (diary[date]) {
                     const eaten = diary[date].meals.reduce((sum, m) => sum + m.kcal, 0);
                     const burned = diary[date].workouts.reduce((sum, w) => sum + w.kcal, 0);
-                    if(eaten > 0) { totalKcal += eaten; daysCounted++; }
+                    if (eaten > 0) { totalKcal += eaten; loggedDays++; }
                     totalBurned += burned;
-                    if(diary[date].weight) weights.push(parseFloat(diary[date].weight));
+                    if (diary[date].weight) weights.push({ date, w: parseFloat(diary[date].weight) });
                 }
             });
 
-            const avgKcal = daysCounted ? Math.round(totalKcal / daysCounted) : 0;
-            const weightDiff = weights.length >= 2 ? (weights[weights.length-1] - weights[0]).toFixed(1) : 0;
+            const avgKcal = loggedDays ? Math.round(totalKcal / loggedDays) : 0;
+            weights.sort((a,b) => a.date.localeCompare(b.date));
+            const weightDiff = weights.length >= 2 ? (weights[weights.length-1].w - weights[0].w).toFixed(1) : 0;
 
             return (
-                <div class="space-y-6">
-                    <div class="flex justify-between items-center bg-white p-3 border rounded shadow-sm">
-                        <span class="font-bold">Początek tygodnia:</span>
-                        <select value={settings.startOfWeek} onChange={(e) => setSettings({ startOfWeek: parseInt(e.target.value)})} class="border p-1 rounded">
+                <div className="space-y-6">
+                    {/* Settings */}
+                    <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex justify-between items-center">
+                        <span className="font-bold text-slate-700 text-sm">Początek tygodnia:</span>
+                        <select 
+                            value={settings.startOfWeek} 
+                            onChange={(e) => setSettings({ startOfWeek: parseInt(e.target.value) })}
+                            className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                        >
                             <option value={1}>Poniedziałek</option>
                             <option value={0}>Niedziela</option>
                         </select>
                     </div>
 
-                    <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-lg">
-                        <h2 class="text-center font-bold text-indigo-800 mb-4">Podsumowanie dla tygodnia:<br/><span class="text-sm font-normal">{weekDates[0]} - {weekDates[6]}</span></h2>
+                    {/* Stats */}
+                    <div className="bg-gradient-to-br from-indigo-500 to-blue-600 rounded-3xl shadow-lg p-6 text-white relative overflow-hidden">
+                        <div className="absolute right-[-20px] top-[-20px] opacity-10 scale-150"><Icon.Chart /></div>
                         
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="bg-white p-3 rounded text-center shadow-sm">
-                                <p class="text-xs text-gray-500">Średnio spożyte</p>
-                                <p class="text-xl font-bold text-indigo-600">{avgKcal} kcal</p>
-                            </div>
-                            <div class="bg-white p-3 rounded text-center shadow-sm">
-                                <p class="text-xs text-gray-500">Spalone w tyg.</p>
-                                <p class="text-xl font-bold text-orange-500">🔥 {totalBurned} kcal</p>
-                            </div>
-                            <div class="bg-white p-3 rounded text-center shadow-sm col-span-2">
-                                <p class="text-xs text-gray-500">Zmiana wagi w tym tygodniu</p>
-                                <p class={`text-2xl font-bold ${weightDiff > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                                    {weightDiff > 0 ? '+' : ''}{weightDiff} kg
-                                </p>
-                                <p class="text-xs text-gray-400 mt-1">(Na podstawie pierwszego i ostatniego wpisu wagi)</p>
+                        <div className="relative z-10">
+                            <h2 className="text-xl font-extrabold mb-1">Podsumowanie</h2>
+                            <p className="text-indigo-100 text-xs font-medium bg-white/10 inline-block px-2 py-1 rounded-md mb-6">{weekDates[0]} / {weekDates[6]}</p>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20">
+                                    <p className="text-[10px] uppercase font-bold text-indigo-200 mb-1">Średnio zjedzone</p>
+                                    <p className="text-2xl font-black">{avgKcal} <span className="text-sm font-medium opacity-80">kcal</span></p>
+                                </div>
+                                <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20">
+                                    <p className="text-[10px] uppercase font-bold text-indigo-200 mb-1">Suma spalonych</p>
+                                    <p className="text-2xl font-black">🔥 {totalBurned} <span className="text-sm font-medium opacity-80">kcal</span></p>
+                                </div>
+                                <div className="col-span-2 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 flex justify-between items-center">
+                                    <div>
+                                        <p className="text-[10px] uppercase font-bold text-indigo-200 mb-1">Zmiana wagi w tyg.</p>
+                                        <p className="text-xs text-indigo-100">(Pierwszy vs Ostatni pomiar)</p>
+                                    </div>
+                                    <div className={`px-4 py-2 rounded-xl text-lg font-black ${weightDiff > 0 ? 'bg-rose-500/20 text-rose-200' : (weightDiff < 0 ? 'bg-emerald-500/30 text-emerald-100' : 'bg-white/10')}`}>
+                                        {weightDiff > 0 ? '+' : ''}{weightDiff} kg
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -354,3 +462,4 @@
     </script>
 </body>
 </html>
+```
