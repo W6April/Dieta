@@ -15,35 +15,41 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
+        // Funkcja pomocnicza do bezpiecznego ładowania z Local Storage
+        function loadFromStorage(key, defaultValue) {
+            try {
+                const stored = localStorage.getItem(key);
+                return stored ? JSON.parse(stored) : defaultValue;
+            } catch (e) {
+                console.warn(`Błąd odczytu dla klucza ${key}, ładuję wartości domyślne.`, e);
+                return defaultValue;
+            }
+        }
+
         function App() {
             const [activeTab, setActiveTab] = useState('dziennik');
             
-            // Profile użytkowników
-            const [users, setUsers] = useState(() => JSON.parse(localStorage.getItem('diet_users')) || [
+            // Bezpieczne ładowanie danych
+            const [users, setUsers] = useState(() => loadFromStorage('diet_family_users', [
                 { id: 'user1', name: 'Ja' },
                 { id: 'user2', name: 'Żona' }
-            ]);
-            const [currentUserId, setCurrentUserId] = useState(() => localStorage.getItem('diet_current_user') || 'user1');
-
-            // Wspólna baza produktów dla obojga
-            const [products, setProducts] = useState(() => JSON.parse(localStorage.getItem('diet_products')) || []);
-            
-            // Osobne dzienniki dla każdego użytkownika: { userId: { 'YYYY-MM-DD': data } }
-            const [allDiaries, setAllDiaries] = useState(() => JSON.parse(localStorage.getItem('diet_all_diaries')) || {});
-            const [settings, setSettings] = useState(() => JSON.parse(localStorage.getItem('diet_settings')) || { startOfWeek: 1 });
+            ]));
+            const [currentUserId, setCurrentUserId] = useState(() => localStorage.getItem('diet_family_current_user') || 'user1');
+            const [products, setProducts] = useState(() => loadFromStorage('diet_family_products', []));
+            const [allDiaries, setAllDiaries] = useState(() => loadFromStorage('diet_family_all_diaries', {}));
+            const [settings, setSettings] = useState(() => loadFromStorage('diet_family_settings', { startOfWeek: 1 }));
             
             const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
 
             // Synchronizacja z localStorage
-            useEffect(() => { localStorage.setItem('diet_users', JSON.stringify(users)); }, [users]);
-            useEffect(() => { localStorage.setItem('diet_current_user', currentUserId); }, [currentUserId]);
-            useEffect(() => { localStorage.setItem('diet_products', JSON.stringify(products)); }, [products]);
-            useEffect(() => { localStorage.setItem('diet_all_diaries', JSON.stringify(allDiaries)); }, [allDiaries]);
-            useEffect(() => { localStorage.setItem('diet_settings', JSON.stringify(settings)); }, [settings]);
+            useEffect(() => { localStorage.setItem('diet_family_users', JSON.stringify(users)); }, [users]);
+            useEffect(() => { localStorage.setItem('diet_family_current_user', currentUserId); }, [currentUserId]);
+            useEffect(() => { localStorage.setItem('diet_family_products', JSON.stringify(products)); }, [products]);
+            useEffect(() => { localStorage.setItem('diet_family_all_diaries', JSON.stringify(allDiaries)); }, [allDiaries]);
+            useEffect(() => { localStorage.setItem('diet_family_settings', JSON.stringify(settings)); }, [settings]);
 
             const userDiary = allDiaries[currentUserId] || {};
 
-            // Domyślne dane dla wybranego dnia danego użytkownika
             const currentDayData = userDiary[currentDate] || { 
                 goals: currentUserId === 'user1' ? { kcal: 2500, p: 170, f: 70, c: 220 } : { kcal: 2000, p: 120, f: 60, c: 180 }, 
                 meals: [], 
@@ -61,7 +67,6 @@
                 }));
             };
 
-            // Licznik dni diety aktualnego użytkownika
             const dietDaysCounter = useMemo(() => {
                 const dates = Object.keys(userDiary).sort();
                 if (dates.length === 0) return 1;
@@ -75,20 +80,20 @@
 
             return (
                 <div className="max-w-md mx-auto min-h-screen bg-white shadow-xl relative pb-20">
-                    {/* Górna belka z wyborem profilu */}
+                    {/* Nawigacja górna */}
                     <div className="bg-blue-600 text-white p-4 shadow-md">
                         <div className="flex justify-between items-center mb-2">
                             <h1 className="text-xl font-bold">Dziennik Diety</h1>
                             <span className="text-xs bg-blue-700 px-2 py-1 rounded">Dzień: {dietDaysCounter}</span>
                         </div>
                         <div className="flex items-center space-x-2 text-sm bg-blue-700 p-1.5 rounded">
-                            <span className="text-xs text-blue-200">Użytkownik:</span>
+                            <span className="text-xs text-blue-200">Profil:</span>
                             <div className="flex space-x-1 flex-1">
                                 {users.map(u => (
                                     <button 
                                         key={u.id}
                                         onClick={() => setCurrentUserId(u.id)}
-                                        className={`flex-1 py-1 rounded text-xs font-semibold ${currentUserId === u.id ? 'bg-white text-blue-700' : 'text-white hover:bg-blue-600'}`}
+                                        className={`flex-1 py-1 rounded text-xs font-semibold ${currentUserId === u.id ? 'bg-white text-blue-700 shadow' : 'text-white hover:bg-blue-600'}`}
                                     >
                                         👤 {u.name}
                                     </button>
@@ -99,38 +104,18 @@
 
                     {/* Treść */}
                     <div className="p-4">
-                        {activeTab === 'dziennik' && (
-                            <DailyLog 
-                                currentDate={currentDate} 
-                                setCurrentDate={setCurrentDate} 
-                                currentDayData={currentDayData} 
-                                updateCurrentDay={updateCurrentDay} 
-                                products={products} 
-                                userName={currentUserName}
-                            />
-                        )}
+                        {activeTab === 'dziennik' && <DailyLog currentDate={currentDate} setCurrentDate={setCurrentDate} currentDayData={currentDayData} updateCurrentDay={updateCurrentDay} products={products} userName={currentUserName} />}
                         {activeTab === 'baza' && <ProductDatabase products={products} setProducts={setProducts} />}
                         {activeTab === 'podsumowanie' && <WeeklySummary diary={userDiary} currentDate={currentDate} settings={settings} setSettings={setSettings} userName={currentUserName} />}
-                        {activeTab === 'kopia' && (
-                            <BackupSettings 
-                                products={products} 
-                                setProducts={setProducts} 
-                                allDiaries={allDiaries} 
-                                setAllDiaries={setAllDiaries} 
-                                users={users} 
-                                setUsers={setUsers} 
-                                settings={settings} 
-                                setSettings={setSettings} 
-                            />
-                        )}
+                        {activeTab === 'kopia' && <BackupSettings products={products} setProducts={setProducts} allDiaries={allDiaries} setAllDiaries={setAllDiaries} users={users} setUsers={setUsers} settings={settings} setSettings={setSettings} />}
                     </div>
 
-                    {/* Dolna nawigacja */}
-                    <div className="fixed bottom-0 max-w-md w-full bg-white border-t flex justify-around p-3 text-xs font-semibold text-gray-500 z-10 shadow-lg">
-                        <button onClick={() => setActiveTab('dziennik')} className={activeTab === 'dziennik' ? 'text-blue-600 font-bold' : ''}>📅 Dziennik</button>
-                        <button onClick={() => setActiveTab('baza')} className={activeTab === 'baza' ? 'text-blue-600 font-bold' : ''}>🍎 Baza</button>
-                        <button onClick={() => setActiveTab('podsumowanie')} className={activeTab === 'podsumowanie' ? 'text-blue-600 font-bold' : ''}>📊 Tydzień</button>
-                        <button onClick={() => setActiveTab('kopia')} className={activeTab === 'kopia' ? 'text-blue-600 font-bold' : ''}>⚙️ Kopia</button>
+                    {/* Nawigacja dolna */}
+                    <div className="fixed bottom-0 max-w-md w-full bg-white border-t flex justify-around p-3 text-[10px] sm:text-xs font-semibold text-gray-500 z-10 shadow-lg">
+                        <button onClick={() => setActiveTab('dziennik')} className={`flex flex-col items-center ${activeTab === 'dziennik' ? 'text-blue-600 font-bold' : ''}`}><span className="text-lg mb-0.5">📅</span>Dziennik</button>
+                        <button onClick={() => setActiveTab('baza')} className={`flex flex-col items-center ${activeTab === 'baza' ? 'text-blue-600 font-bold' : ''}`}><span className="text-lg mb-0.5">🍎</span>Baza</button>
+                        <button onClick={() => setActiveTab('podsumowanie')} className={`flex flex-col items-center ${activeTab === 'podsumowanie' ? 'text-blue-600 font-bold' : ''}`}><span className="text-lg mb-0.5">📊</span>Tydzień</button>
+                        <button onClick={() => setActiveTab('kopia')} className={`flex flex-col items-center ${activeTab === 'kopia' ? 'text-blue-600 font-bold' : ''}`}><span className="text-lg mb-0.5">⚙️</span>Kopia</button>
                     </div>
                 </div>
             );
@@ -148,32 +133,21 @@
             const [goalC, setGoalC] = useState(currentDayData.goals.c);
 
             useEffect(() => {
-                setGoalKcal(currentDayData.goals.kcal);
-                setGoalP(currentDayData.goals.p);
-                setGoalF(currentDayData.goals.f);
-                setGoalC(currentDayData.goals.c);
+                setGoalKcal(currentDayData.goals.kcal); setGoalP(currentDayData.goals.p);
+                setGoalF(currentDayData.goals.f); setGoalC(currentDayData.goals.c);
             }, [currentDate, currentDayData.goals]);
 
             const handleProductSelect = (e) => {
                 const prodId = e.target.value;
                 setSelectedProductId(prodId);
-                if (prodId) {
-                    const prod = products.find(p => p.id === prodId);
-                    if (prod) setInputWeight(prod.baseWeight);
-                } else {
-                    setInputWeight('');
-                }
+                const prod = products.find(p => p.id === prodId);
+                setInputWeight(prod ? prod.baseWeight : '');
             };
 
             const saveGoals = (e) => {
                 e.preventDefault();
                 updateCurrentDay({
-                    goals: {
-                        kcal: parseFloat(goalKcal) || 0,
-                        p: parseFloat(goalP) || 0,
-                        f: parseFloat(goalF) || 0,
-                        c: parseFloat(goalC) || 0
-                    }
+                    goals: { kcal: parseFloat(goalKcal) || 0, p: parseFloat(goalP) || 0, f: parseFloat(goalF) || 0, c: parseFloat(goalC) || 0 }
                 });
                 setIsEditingGoals(false);
             };
@@ -193,41 +167,24 @@
                 const actualWeight = parseFloat(inputWeight);
                 const ratio = actualWeight / prod.baseWeight;
 
-                const newMeal = {
-                    id: Date.now(),
-                    name: prod.name,
-                    weight: actualWeight,
-                    kcal: Math.round(prod.baseKcal * ratio),
-                    p: Math.round(prod.baseP * ratio * 10) / 10,
-                    f: Math.round(prod.baseF * ratio * 10) / 10,
-                    c: Math.round(prod.baseC * ratio * 10) / 10
-                };
-
-                updateCurrentDay({ meals: [...currentDayData.meals, newMeal] });
-                setSelectedProductId('');
-                setInputWeight('');
+                updateCurrentDay({ 
+                    meals: [...currentDayData.meals, {
+                        id: Date.now(), name: prod.name, weight: actualWeight,
+                        kcal: Math.round(prod.baseKcal * ratio),
+                        p: Math.round(prod.baseP * ratio * 10) / 10,
+                        f: Math.round(prod.baseF * ratio * 10) / 10,
+                        c: Math.round(prod.baseC * ratio * 10) / 10
+                    }] 
+                });
+                setSelectedProductId(''); setInputWeight('');
             };
-
-            const removeMeal = (id) => updateCurrentDay({ meals: currentDayData.meals.filter(m => m.id !== id) });
-
-            const addWorkout = (e) => {
-                e.preventDefault();
-                const name = e.target.wName.value;
-                const time = e.target.wTime.value;
-                const kcal = e.target.wKcal.value;
-                if(!name || !time || !kcal) return;
-                updateCurrentDay({ workouts: [...currentDayData.workouts, { id: Date.now(), name, time: parseInt(time), kcal: parseInt(kcal) }] });
-                e.target.reset();
-            };
-
-            const removeWorkout = (id) => updateCurrentDay({ workouts: currentDayData.workouts.filter(w => w.id !== id) });
 
             return (
                 <div className="space-y-5">
                     <div className="flex space-x-2 items-center justify-between">
                         <input type="date" value={currentDate} onChange={(e) => setCurrentDate(e.target.value)} className="border p-2 rounded flex-1 text-sm font-semibold" />
                         <div className="flex items-center space-x-1">
-                            <span className="text-xs text-gray-500">Waga ({userName}):</span>
+                            <span className="text-xs text-gray-500">Waga:</span>
                             <input type="number" step="0.1" placeholder="kg" value={currentDayData.weight} onChange={(e) => updateCurrentDay({ weight: e.target.value })} className="border p-2 rounded w-20 text-center font-semibold" />
                         </div>
                     </div>
@@ -239,7 +196,6 @@
                                 {isEditingGoals ? 'Zamknij' : '⚙️ Zmień'}
                             </button>
                         </div>
-
                         {!isEditingGoals ? (
                             <div className="flex justify-between text-xs text-blue-800 mt-1">
                                 <span><b>{currentDayData.goals.kcal}</b> kcal</span>
@@ -250,12 +206,12 @@
                         ) : (
                             <form onSubmit={saveGoals} className="mt-2 space-y-2 pt-2 border-t border-blue-200">
                                 <div className="grid grid-cols-2 gap-2">
-                                    <div><label className="text-[10px] text-gray-600">Kalorie</label><input type="number" value={goalKcal} onChange={e => setGoalKcal(e.target.value)} className="border p-1 rounded w-full text-xs bg-white" /></div>
-                                    <div><label className="text-[10px] text-gray-600">Białko (g)</label><input type="number" value={goalP} onChange={e => setGoalP(e.target.value)} className="border p-1 rounded w-full text-xs bg-white" /></div>
-                                    <div><label className="text-[10px] text-gray-600">Tłuszcz (g)</label><input type="number" value={goalF} onChange={e => setGoalF(e.target.value)} className="border p-1 rounded w-full text-xs bg-white" /></div>
-                                    <div><label className="text-[10px] text-gray-600">Węglowodany (g)</label><input type="number" value={goalC} onChange={e => setGoalC(e.target.value)} className="border p-1 rounded w-full text-xs bg-white" /></div>
+                                    <div><label className="text-[10px] text-gray-600">Kalorie</label><input type="number" value={goalKcal} onChange={e => setGoalKcal(e.target.value)} className="border p-1 rounded w-full text-xs" /></div>
+                                    <div><label className="text-[10px] text-gray-600">Białko (g)</label><input type="number" value={goalP} onChange={e => setGoalP(e.target.value)} className="border p-1 rounded w-full text-xs" /></div>
+                                    <div><label className="text-[10px] text-gray-600">Tłuszcz (g)</label><input type="number" value={goalF} onChange={e => setGoalF(e.target.value)} className="border p-1 rounded w-full text-xs" /></div>
+                                    <div><label className="text-[10px] text-gray-600">Węglowodany (g)</label><input type="number" value={goalC} onChange={e => setGoalC(e.target.value)} className="border p-1 rounded w-full text-xs" /></div>
                                 </div>
-                                <button type="submit" className="bg-blue-600 text-white w-full py-1 rounded font-bold text-xs">Zapisz cel</button>
+                                <button type="submit" className="bg-blue-600 text-white w-full py-1.5 rounded font-bold text-xs mt-1">Zapisz cel</button>
                             </form>
                         )}
                     </div>
@@ -272,47 +228,33 @@
                             </div>
                         </div>
                         <div className="grid grid-cols-3 gap-2 mt-3 text-center text-xs">
-                            <div className="p-1 rounded bg-blue-100 font-semibold">B: {Math.round(totalEaten.p)}/{currentDayData.goals.p}g</div>
-                            <div className="p-1 rounded bg-yellow-100 font-semibold">T: {Math.round(totalEaten.f)}/{currentDayData.goals.f}g</div>
-                            <div className="p-1 rounded bg-green-100 font-semibold">W: {Math.round(totalEaten.c)}/{currentDayData.goals.c}g</div>
+                            <div className="p-1 rounded bg-blue-100 font-semibold">B: {Math.round(totalEaten.p)}/{currentDayData.goals.p}</div>
+                            <div className="p-1 rounded bg-yellow-100 font-semibold">T: {Math.round(totalEaten.f)}/{currentDayData.goals.f}</div>
+                            <div className="p-1 rounded bg-green-100 font-semibold">W: {Math.round(totalEaten.c)}/{currentDayData.goals.c}</div>
                         </div>
                     </div>
 
                     <div className="border rounded-lg p-3 bg-white">
                         <h3 className="font-bold mb-2 text-sm">Dodaj posiłek</h3>
                         {products.length === 0 ? (
-                            <p className="text-xs text-red-500">Dodaj najpierw produkt w zakładce „Baza Produktów”!</p>
+                            <p className="text-xs text-red-500">Dodaj produkt w zakładce Baza!</p>
                         ) : (
                             <div className="flex space-x-2">
-                                <select value={selectedProductId} onChange={handleProductSelect} className="border p-2 rounded flex-1 text-sm">
+                                <select value={selectedProductId} onChange={handleProductSelect} className="border p-2 rounded flex-1 text-xs">
                                     <option value="">Wybierz produkt...</option>
-                                    {products.map(p => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.name} ({p.baseKcal} kcal / {p.baseWeight}g)
-                                        </option>
-                                    ))}
+                                    {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.baseKcal} kcal/{p.baseWeight}g)</option>)}
                                 </select>
-                                <input 
-                                    type="number" 
-                                    placeholder="Waga (g)" 
-                                    value={inputWeight} 
-                                    onChange={(e) => setInputWeight(e.target.value)} 
-                                    className="border p-2 rounded w-24 text-sm" 
-                                />
-                                <button onClick={addMeal} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-sm">+</button>
+                                <input type="number" placeholder="Waga(g)" value={inputWeight} onChange={(e) => setInputWeight(e.target.value)} className="border p-2 rounded w-20 text-xs" />
+                                <button onClick={addMeal} className="bg-blue-600 text-white px-3 py-1 rounded font-bold">+</button>
                             </div>
                         )}
-
                         <div className="mt-3 space-y-2">
                             {currentDayData.meals.map(m => (
                                 <div key={m.id} className="flex justify-between items-center text-sm border-b pb-1">
-                                    <div>
-                                        <p className="font-bold">{m.name}</p>
-                                        <p className="text-gray-500 text-xs">{m.weight}g | B:{m.p} T:{m.f} W:{m.c}</p>
-                                    </div>
-                                    <div className="flex items-center space-x-3">
+                                    <div><p className="font-bold">{m.name}</p><p className="text-gray-500 text-xs">{m.weight}g | B:{m.p} T:{m.f} W:{m.c}</p></div>
+                                    <div className="flex items-center space-x-2">
                                         <span className="font-bold">{m.kcal} kcal</span>
-                                        <button onClick={() => removeMeal(m.id)} className="text-red-400 font-bold hover:text-red-600">✕</button>
+                                        <button onClick={() => updateCurrentDay({ meals: currentDayData.meals.filter(meal => meal.id !== m.id) })} className="text-red-400 font-bold hover:text-red-600">✕</button>
                                     </div>
                                 </div>
                             ))}
@@ -321,12 +263,40 @@
 
                     <div className="border rounded-lg p-3 bg-white">
                         <h3 className="font-bold mb-2 text-sm text-orange-600">🏋️ Treningi (-{totalBurned} kcal)</h3>
-                        <form onSubmit={addWorkout} className="flex space-x-1 mb-2">
-                            <input name="wName" placeholder="Nazwa treningu" className="border p-1 rounded w-full text-xs" />
-                            <input name="wTime" type="number" placeholder="Min" className="border p-1 rounded w-16 text-xs" />
-                            <input name="wKcal" type="number" placeholder="Kcal" className="border p-1 rounded w-16 text-xs" />
+                        <form onSubmit={(e) => {
+                            e.preventDefault();
+                            if(e.target.wName.value && e.target.wTime.value && e.target.wKcal.value) {
+                                updateCurrentDay({ workouts: [...currentDayData.workouts, { id: Date.now(), name: e.target.wName.value, time: parseInt(e.target.wTime.value), kcal: parseInt(e.target.wKcal.value) }] });
+                                e.target.reset();
+                            }
+                        }} className="flex space-x-1 mb-2">
+                            <input name="wName" placeholder="Nazwa" className="border p-1.5 rounded w-full text-xs" />
+                            <input name="wTime" type="number" placeholder="Min" className="border p-1.5 rounded w-16 text-xs" />
+                            <input name="wKcal" type="number" placeholder="Kcal" className="border p-1.5 rounded w-16 text-xs" />
                             <button type="submit" className="bg-orange-500 text-white px-2.5 rounded font-bold">+</button>
                         </form>
                         <div className="space-y-1">
                             {currentDayData.workouts.map(w => (
-       
+                                <div key={w.id} className="flex justify-between items-center text-xs text-gray-700">
+                                    <span><b>{w.name}</b> ({w.time} min)</span>
+                                    <div className="flex items-center space-x-2">
+                                        <span className="text-orange-600 font-semibold">🔥 {w.kcal} kcal</span>
+                                        <button onClick={() => updateCurrentDay({ workouts: currentDayData.workouts.filter(work => work.id !== w.id) })} className="text-red-400 hover:text-red-600">✕</button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- BAZA PRODUKTÓW ---
+        function ProductDatabase({ products, setProducts }) {
+            const addProduct = (e) => {
+                e.preventDefault();
+                const t = e.target;
+                const p = parseFloat(t.pPro.value) || 0, f = parseFloat(t.pFat.value) || 0, c = parseFloat(t.pCarb.value) || 0;
+                if (!t.pName.value) return alert('Wpisz nazwę produktu!');
+
+             
