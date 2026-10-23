@@ -23,6 +23,8 @@
             const [products, setProducts] = useState(() => JSON.parse(localStorage.getItem('diet_products')) || []);
             const [diary, setDiary] = useState(() => JSON.parse(localStorage.getItem('diet_diary')) || {});
             const [settings, setSettings] = useState(() => JSON.parse(localStorage.getItem('diet_settings')) || { startOfWeek: 1 });
+            // Historia ostatnich wag dla produktów: { [productId]: ostatniaWaga }
+            const [lastWeights, setLastWeights] = useState(() => JSON.parse(localStorage.getItem('diet_last_weights')) || {});
             
             const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -30,6 +32,7 @@
             useEffect(() => { localStorage.setItem('diet_products', JSON.stringify(products)); }, [products]);
             useEffect(() => { localStorage.setItem('diet_diary', JSON.stringify(diary)); }, [diary]);
             useEffect(() => { localStorage.setItem('diet_settings', JSON.stringify(settings)); }, [settings]);
+            useEffect(() => { localStorage.setItem('diet_last_weights', JSON.stringify(lastWeights)); }, [lastWeights]);
 
             // Bezpieczne pobieranie danych dla bieżącego dnia z domyślnymi celami: 2500 kcal, B:170, T:70, W:220
             const currentDayData = diary[currentDate] || { 
@@ -63,7 +66,17 @@
 
                     {/* Główna zawartość */}
                     <div class="p-4">
-                        {activeTab === 'dziennik' && <DailyLog currentDate={currentDate} setCurrentDate={setCurrentDate} currentDayData={currentDayData} updateCurrentDay={updateCurrentDay} products={products} />}
+                        {activeTab === 'dziennik' && (
+                            <DailyLog 
+                                currentDate={currentDate} 
+                                setCurrentDate={setCurrentDate} 
+                                currentDayData={currentDayData} 
+                                updateCurrentDay={updateCurrentDay} 
+                                products={products} 
+                                lastWeights={lastWeights}
+                                setLastWeights={setLastWeights}
+                            />
+                        )}
                         {activeTab === 'baza' && <ProductDatabase products={products} setProducts={setProducts} />}
                         {activeTab === 'podsumowanie' && <WeeklySummary diary={diary} currentDate={currentDate} settings={settings} setSettings={setSettings} />}
                     </div>
@@ -79,7 +92,7 @@
         }
 
         // --- KOMPONENT: Dziennik Dnia ---
-        function DailyLog({ currentDate, setCurrentDate, currentDayData, updateCurrentDay, products }) {
+        function DailyLog({ currentDate, setCurrentDate, currentDayData, updateCurrentDay, products, lastWeights, setLastWeights }) {
             const [selectedProduct, setSelectedProduct] = useState('');
             const [productWeight, setProductWeight] = useState('');
             const [isEditingGoals, setIsEditingGoals] = useState(false);
@@ -97,6 +110,18 @@
                 setGoalF(currentDayData.goals.f);
                 setGoalC(currentDayData.goals.c);
             }, [currentDate, currentDayData.goals]);
+
+            // Kiedy zmienia się wybrany produkt, podpowiadaj ostatnio użytą wagę (lub domyślną z bazy)
+            const handleProductChange = (e) => {
+                const prodId = e.target.value;
+                setSelectedProduct(prodId);
+                if (prodId) {
+                    const suggestedWeight = lastWeights[prodId] !== undefined ? lastWeights[prodId] : (products.find(p => p.id === prodId)?.weight || 100);
+                    setProductWeight(suggestedWeight);
+                } else {
+                    setProductWeight('');
+                }
+            };
 
             const saveGoals = (e) => {
                 e.preventDefault();
@@ -124,20 +149,28 @@
             const addMeal = () => {
                 if (!selectedProduct || !productWeight) return alert('Wybierz produkt i podaj wagę!');
                 const prod = products.find(p => p.id === selectedProduct);
-                const multiplier = productWeight / prod.weight;
+                if (!prod) return;
+
+                const weightNum = parseFloat(productWeight);
+                // Przeliczanie na podstawie wartości per 100g zapisanego w bazie
+                const multiplier = weightNum / 100;
                 
                 const newMeal = {
                     id: Date.now(),
                     name: prod.name,
-                    weight: parseFloat(productWeight),
-                    kcal: Math.round(prod.kcal * multiplier),
-                    p: Math.round(prod.p * multiplier),
-                    f: Math.round(prod.f * multiplier),
-                    c: Math.round(prod.c * multiplier)
+                    weight: weightNum,
+                    kcal: Math.round(prod.kcalPer100 * multiplier),
+                    p: Math.round(prod.pPer100 * multiplier * 10) / 10,
+                    f: Math.round(prod.fPer100 * multiplier * 10) / 10,
+                    c: Math.round(prod.cPer100 * multiplier * 10) / 10
                 };
                 
+                // Zapisz tę wagę jako ostatnio użytą dla tego produktu
+                setLastWeights(prev => ({ ...prev, [selectedProduct]: weightNum }));
+
                 updateCurrentDay({ meals: [...currentDayData.meals, newMeal] });
                 setProductWeight('');
+                setSelectedProduct('');
             };
 
             const removeMeal = (id) => {
@@ -226,9 +259,9 @@
                         </div>
                         {/* Paski Makro */}
                         <div class="grid grid-cols-3 gap-2 mt-4 text-center text-xs">
-                            <div class={`p-1.5 rounded font-semibold ${totalEaten.p > currentDayData.goals.p ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}`}>B: {totalEaten.p} / {currentDayData.goals.p}g</div>
-                            <div class={`p-1.5 rounded font-semibold ${totalEaten.f > currentDayData.goals.f ? 'bg-orange-100 text-orange-800' : 'bg-yellow-100 text-yellow-800'}`}>T: {totalEaten.f} / {currentDayData.goals.f}g</div>
-                            <div class={`p-1.5 rounded font-semibold ${totalEaten.c > currentDayData.goals.c ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>W: {totalEaten.c} / {currentDayData.goals.c}g</div>
+                            <div class={`p-1.5 rounded font-semibold ${totalEaten.p > currentDayData.goals.p ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}`}>B: {Math.round(totalEaten.p)} / {currentDayData.goals.p}g</div>
+                            <div class={`p-1.5 rounded font-semibold ${totalEaten.f > currentDayData.goals.f ? 'bg-orange-100 text-orange-800' : 'bg-yellow-100 text-yellow-800'}`}>T: {Math.round(totalEaten.f)} / {currentDayData.goals.f}g</div>
+                            <div class={`p-1.5 rounded font-semibold ${totalEaten.c > currentDayData.goals.c ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'}`}>W: {Math.round(totalEaten.c)} / {currentDayData.goals.c}g</div>
                         </div>
                     </div>
 
@@ -239,9 +272,9 @@
                             <p class="text-xs text-red-500">Najpierw dodaj przynajmniej jeden produkt w zakładce „Baza Produktów”!</p>
                         ) : (
                             <div class="flex space-x-2">
-                                <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)} class="border p-2 rounded flex-1 text-sm">
+                                <select value={selectedProduct} onChange={handleProductChange} class="border p-2 rounded flex-1 text-sm">
                                     <option value="">Wybierz produkt...</option>
-                                    {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.kcal} kcal / {p.weight}g)</option>)}
+                                    {products.map(p => <option key={p.id} value={p.id}>{p.name} ({Math.round(p.kcalPer100)} kcal / 100g)</option>)}
                                 </select>
                                 <input type="number" placeholder="Waga (g)" value={productWeight} onChange={(e) => setProductWeight(e.target.value)} class="border p-2 rounded w-24 text-sm" />
                                 <button onClick={addMeal} class="bg-blue-600 text-white px-3 py-2 rounded font-bold text-sm">+</button>
@@ -294,142 +327,4 @@
             const addProduct = (e) => {
                 e.preventDefault();
                 const name = e.target.pName.value;
-                const weight = parseFloat(e.target.pWeight.value) || 100;
-                const p = parseFloat(e.target.pPro.value) || 0;
-                const f = parseFloat(e.target.pFat.value) || 0;
-                const c = parseFloat(e.target.pCarb.value) || 0;
-                
-                let kcalInput = e.target.pKcal.value;
-                let kcal = kcalInput !== "" ? parseFloat(kcalInput) : Math.round((p * 4) + (c * 4) + (f * 9));
-
-                if (!name) return alert('Podaj nazwę produktu!');
-
-                const newProd = { id: Date.now().toString(), name, weight, p, f, c, kcal };
-                setProducts([...products, newProd]);
-                e.target.reset();
-            };
-
-            const deleteProduct = (id) => {
-                if(confirm('Usunąć produkt z bazy?')) {
-                    setProducts(products.filter(p => p.id !== id));
-                }
-            };
-
-            return (
-                <div>
-                    <div class="bg-blue-50 p-4 rounded-lg border mb-6">
-                        <h2 class="font-bold mb-3 text-sm text-blue-900">➕ Dodaj nowy produkt</h2>
-                        <form onSubmit={addProduct} class="space-y-3 text-sm">
-                            <input name="pName" placeholder="Nazwa produktu (np. Piers z kurczaka)" class="border p-2 rounded w-full font-bold bg-white text-xs" />
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label class="text-[10px] text-gray-500">Waga porcji (g)</label>
-                                    <input name="pWeight" type="number" defaultValue="100" class="border p-2 rounded w-full bg-white text-xs" />
-                                </div>
-                                <div>
-                                    <label class="text-[10px] text-gray-500">Kalorie (Kcal) - opcjonalnie</label>
-                                    <input name="pKcal" type="number" placeholder="Wpisz lub licz ze wzoru" class="border border-green-400 bg-green-50 p-2 rounded w-full text-xs" />
-                                </div>
-                            </div>
-                            <div class="grid grid-cols-3 gap-2">
-                                <div><label class="text-[10px] text-gray-500">Białko (g)</label><input name="pPro" type="number" step="0.1" placeholder="0" class="border p-2 rounded w-full bg-white text-xs" /></div>
-                                <div><label class="text-[10px] text-gray-500">Tłuszcz (g)</label><input name="pFat" type="number" step="0.1" placeholder="0" class="border p-2 rounded w-full bg-white text-xs" /></div>
-                                <div><label class="text-[10px] text-gray-500">Węglo (g)</label><input name="pCarb" type="number" step="0.1" placeholder="0" class="border p-2 rounded w-full bg-white text-xs" /></div>
-                            </div>
-                            <button type="submit" class="bg-blue-600 text-white w-full py-2 rounded font-bold text-xs mt-2">Zapisz w bazie</button>
-                        </form>
-                    </div>
-
-                    <h3 class="font-bold text-gray-700 mb-2 text-sm">Twoja baza ({products.length})</h3>
-                    <div class="space-y-2">
-                        {products.map(p => (
-                            <div key={p.id} class="bg-white p-3 rounded shadow-sm border flex justify-between items-center text-sm">
-                                <div>
-                                    <p class="font-bold">{p.name} <span class="text-xs text-gray-400 font-normal">({p.weight}g)</span></p>
-                                    <p class="text-xs text-gray-500">B: {p.p}g | T: {p.f}g | W: {p.c}g</p>
-                                </div>
-                                <div class="flex items-center space-x-3">
-                                    <span class="font-bold text-green-600">{p.kcal} kcal</span>
-                                    <button onClick={() => deleteProduct(p.id)} class="text-red-300 hover:text-red-500 font-bold">🗑️</button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
-        }
-
-        // --- KOMPONENT: Podsumowanie Tygodnia ---
-        function WeeklySummary({ diary, currentDate, settings, setSettings }) {
-            const generateWeek = () => {
-                const curr = new Date(currentDate);
-                const day = curr.getDay();
-                const offset = settings.startOfWeek === 1 ? (day === 0 ? -6 : 1 - day) : -day;
-                
-                const firstDay = new Date(curr.setDate(curr.getDate() + offset));
-                const week = [];
-                for(let i=0; i<7; i++) {
-                    const next = new Date(firstDay);
-                    next.setDate(firstDay.getDate() + i);
-                    week.push(next.toISOString().split('T')[0]);
-                }
-                return week;
-            };
-
-            const weekDates = generateWeek();
-            let totalKcal = 0, totalBurned = 0, daysCounted = 0;
-            let weights = [];
-
-            weekDates.forEach(date => {
-                if(diary[date]) {
-                    const eaten = diary[date].meals.reduce((sum, m) => sum + m.kcal, 0);
-                    const burned = diary[date].workouts.reduce((sum, w) => sum + w.kcal, 0);
-                    if(eaten > 0) { totalKcal += eaten; daysCounted++; }
-                    totalBurned += burned;
-                    if(diary[date].weight) weights.push(parseFloat(diary[date].weight));
-                }
-            });
-
-            const avgKcal = daysCounted ? Math.round(totalKcal / daysCounted) : 0;
-            const weightDiff = weights.length >= 2 ? (weights[weights.length-1] - weights[0]).toFixed(1) : 0;
-
-            return (
-                <div class="space-y-6 text-sm">
-                    <div class="flex justify-between items-center bg-white p-3 border rounded shadow-sm">
-                        <span class="font-bold">Początek tygodnia:</span>
-                        <select value={settings.startOfWeek} onChange={(e) => setSettings({ startOfWeek: parseInt(e.target.value)})} class="border p-1 rounded text-xs font-semibold">
-                            <option value={1}>Poniedziałek</option>
-                            <option value={0}>Niedziela</option>
-                        </select>
-                    </div>
-
-                    <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-lg">
-                        <h2 class="text-center font-bold text-indigo-900 mb-4">Podsumowanie tygodnia:<br/><span class="text-xs font-normal text-indigo-700">{weekDates[0]} do {weekDates[6]}</span></h2>
-                        
-                        <div class="grid grid-cols-2 gap-3">
-                            <div class="bg-white p-3 rounded text-center shadow-sm">
-                                <p class="text-[10px] text-gray-500 uppercase">Średnio spożyte</p>
-                                <p class="text-lg font-bold text-indigo-600">{avgKcal} kcal</p>
-                            </div>
-                            <div class="bg-white p-3 rounded text-center shadow-sm">
-                                <p class="text-[10px] text-gray-500 uppercase">Spalone w tyg.</p>
-                                <p class="text-lg font-bold text-orange-500">🔥 {totalBurned} kcal</p>
-                            </div>
-                            <div class="bg-white p-3 rounded text-center shadow-sm col-span-2">
-                                <p class="text-[10px] text-gray-500 uppercase">Zmiana wagi w tym tygodniu</p>
-                                <p class={`text-xl font-bold ${weightDiff > 0 ? 'text-red-500' : 'text-green-600'}`}>
-                                    {weightDiff > 0 ? '+' : ''}{weightDiff} kg
-                                </p>
-                                <p class="text-[10px] text-gray-400 mt-0.5">(Na podstawie pierwszego i ostatniego wpisu wagi w tym tygodniu)</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+                const totalWeight = parseFlo
