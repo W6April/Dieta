@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dziennik Diety Rodzinny</title>
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -15,56 +15,96 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
-        // Funkcja pomocnicza do bezpiecznego ładowania z Local Storage
-        function loadFromStorage(key, defaultValue) {
+        // Bezpieczne ładowanie danych z LocalStorage
+        function getStorage(key, fallback) {
             try {
-                const stored = localStorage.getItem(key);
-                return stored ? JSON.parse(stored) : defaultValue;
-            } catch (e) {
-                console.warn(`Błąd odczytu dla klucza ${key}, ładuję wartości domyślne.`, e);
-                return defaultValue;
+                const raw = localStorage.getItem(key);
+                if (!raw) return fallback;
+                return JSON.parse(raw);
+            } catch (err) {
+                return fallback;
             }
+        }
+
+        // Funkcja ujednolicająca produkt (chroni przed błędami ze starszych wersji aplikacji)
+        function normalizeProduct(p) {
+            const weight = Number(p.baseWeight !== undefined ? p.baseWeight : (p.weight || 100));
+            const kcal = Number(p.baseKcal !== undefined ? p.baseKcal : (p.kcal !== undefined ? p.kcal : (p.kcalPer100 || 0)));
+            const pro = Number(p.baseP !== undefined ? p.baseP : (p.p !== undefined ? p.p : (p.pPer100 || 0)));
+            const fat = Number(p.baseF !== undefined ? p.baseF : (p.f !== undefined ? p.f : (p.fPer100 || 0)));
+            const carb = Number(p.baseC !== undefined ? p.baseC : (p.c !== undefined ? p.c : (p.cPer100 || 0)));
+            
+            return {
+                id: String(p.id || Date.now()),
+                name: String(p.name || 'Produkt'),
+                baseWeight: weight > 0 ? weight : 100,
+                baseKcal: kcal,
+                baseP: pro,
+                baseF: fat,
+                baseC: carb
+            };
         }
 
         function App() {
             const [activeTab, setActiveTab] = useState('dziennik');
             
-            // Bezpieczne ładowanie danych
-            const [users, setUsers] = useState(() => loadFromStorage('diet_family_users', [
+            // Profile użytkowników
+            const [users, setUsers] = useState(() => getStorage('diet_v3_users', [
                 { id: 'user1', name: 'Ja' },
                 { id: 'user2', name: 'Żona' }
             ]));
-            const [currentUserId, setCurrentUserId] = useState(() => localStorage.getItem('diet_family_current_user') || 'user1');
-            const [products, setProducts] = useState(() => loadFromStorage('diet_family_products', []));
-            const [allDiaries, setAllDiaries] = useState(() => loadFromStorage('diet_family_all_diaries', {}));
-            const [settings, setSettings] = useState(() => loadFromStorage('diet_family_settings', { startOfWeek: 1 }));
-            
-            const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
+            const [currentUserId, setCurrentUserId] = useState(() => localStorage.getItem('diet_v3_curr_user') || 'user1');
 
-            // Synchronizacja z localStorage
-            useEffect(() => { localStorage.setItem('diet_family_users', JSON.stringify(users)); }, [users]);
-            useEffect(() => { localStorage.setItem('diet_family_current_user', currentUserId); }, [currentUserId]);
-            useEffect(() => { localStorage.setItem('diet_family_products', JSON.stringify(products)); }, [products]);
-            useEffect(() => { localStorage.setItem('diet_family_all_diaries', JSON.stringify(allDiaries)); }, [allDiaries]);
-            useEffect(() => { localStorage.setItem('diet_family_settings', JSON.stringify(settings)); }, [settings]);
+            // Wspólna baza produktów (pobiera też ze starego klucza jeśli istnieje)
+            const [products, setProducts] = useState(() => {
+                const saved = getStorage('diet_v3_products', null) || getStorage('diet_products', []);
+                return Array.isArray(saved) ? saved.map(normalizeProduct) : [];
+            });
+            
+            // Dzienniki użytkowników
+            const [allDiaries, setAllDiaries] = useState(() => {
+                const saved = getStorage('diet_v3_diaries', null);
+                if (saved) return saved;
+                // Migracja starego dziennika na pierwszego użytkownika
+                const oldDiary = getStorage('diet_diary', {});
+                return { user1: oldDiary, user2: {} };
+            });
+
+            const [settings, setSettings] = useState(() => getStorage('diet_v3_settings', { startOfWeek: 1 }));
+            const [currentDate, setCurrentDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+            // Zapis do pamięci
+            useEffect(() => { localStorage.setItem('diet_v3_users', JSON.stringify(users)); }, [users]);
+            useEffect(() => { localStorage.setItem('diet_v3_curr_user', currentUserId); }, [currentUserId]);
+            useEffect(() => { localStorage.setItem('diet_v3_products', JSON.stringify(products)); }, [products]);
+            useEffect(() => { localStorage.setItem('diet_v3_diaries', JSON.stringify(allDiaries)); }, [allDiaries]);
+            useEffect(() => { localStorage.setItem('diet_v3_settings', JSON.stringify(settings)); }, [settings]);
 
             const userDiary = allDiaries[currentUserId] || {};
 
-            const currentDayData = userDiary[currentDate] || { 
-                goals: currentUserId === 'user1' ? { kcal: 2500, p: 170, f: 70, c: 220 } : { kcal: 2000, p: 120, f: 60, c: 180 }, 
-                meals: [], 
-                workouts: [], 
-                weight: '' 
+            const defaultGoals = currentUserId === 'user1' 
+                ? { kcal: 2500, p: 170, f: 70, c: 220 } 
+                : { kcal: 2000, p: 120, f: 60, c: 180 };
+
+            const rawDay = userDiary[currentDate] || {};
+            const currentDayData = {
+                goals: rawDay.goals || defaultGoals,
+                meals: Array.isArray(rawDay.meals) ? rawDay.meals : [],
+                workouts: Array.isArray(rawDay.workouts) ? rawDay.workouts : [],
+                weight: rawDay.weight !== undefined ? rawDay.weight : ''
             };
 
             const updateCurrentDay = (newData) => {
-                setAllDiaries(prev => ({
-                    ...prev,
-                    [currentUserId]: {
-                        ...(prev[currentUserId] || {}),
-                        [currentDate]: { ...currentDayData, ...newData }
-                    }
-                }));
+                setAllDiaries(prev => {
+                    const prevUserDiary = prev[currentUserId] || {};
+                    return {
+                        ...prev,
+                        [currentUserId]: {
+                            ...prevUserDiary,
+                            [currentDate]: { ...currentDayData, ...newData }
+                        }
+                    };
+                });
             };
 
             const dietDaysCounter = useMemo(() => {
@@ -73,27 +113,29 @@
                 const firstDate = new Date(dates[0]);
                 const today = new Date();
                 const diffTime = Math.abs(today - firstDate);
-                return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                return isNaN(days) ? 1 : days + 1;
             }, [userDiary]);
 
-            const currentUserName = users.find(u => u.id === currentUserId)?.name || 'Profil';
+            const currentUserObj = users.find(u => u.id === currentUserId);
+            const currentUserName = currentUserObj ? currentUserObj.name : 'Użytkownik';
 
             return (
                 <div className="max-w-md mx-auto min-h-screen bg-white shadow-xl relative pb-20">
-                    {/* Nawigacja górna */}
+                    {/* Pasek górny */}
                     <div className="bg-blue-600 text-white p-4 shadow-md">
                         <div className="flex justify-between items-center mb-2">
                             <h1 className="text-xl font-bold">Dziennik Diety</h1>
                             <span className="text-xs bg-blue-700 px-2 py-1 rounded">Dzień: {dietDaysCounter}</span>
                         </div>
                         <div className="flex items-center space-x-2 text-sm bg-blue-700 p-1.5 rounded">
-                            <span className="text-xs text-blue-200">Profil:</span>
+                            <span className="text-xs text-blue-200 pl-1">Profil:</span>
                             <div className="flex space-x-1 flex-1">
                                 {users.map(u => (
                                     <button 
                                         key={u.id}
                                         onClick={() => setCurrentUserId(u.id)}
-                                        className={`flex-1 py-1 rounded text-xs font-semibold ${currentUserId === u.id ? 'bg-white text-blue-700 shadow' : 'text-white hover:bg-blue-600'}`}
+                                        className={"flex-1 py-1 rounded text-xs font-semibold " + (currentUserId === u.id ? "bg-white text-blue-700 shadow" : "text-white hover:bg-blue-600")}
                                     >
                                         👤 {u.name}
                                     </button>
@@ -102,26 +144,59 @@
                         </div>
                     </div>
 
-                    {/* Treść */}
+                    {/* Widok zakładki */}
                     <div className="p-4">
-                        {activeTab === 'dziennik' && <DailyLog currentDate={currentDate} setCurrentDate={setCurrentDate} currentDayData={currentDayData} updateCurrentDay={updateCurrentDay} products={products} userName={currentUserName} />}
-                        {activeTab === 'baza' && <ProductDatabase products={products} setProducts={setProducts} />}
-                        {activeTab === 'podsumowanie' && <WeeklySummary diary={userDiary} currentDate={currentDate} settings={settings} setSettings={setSettings} userName={currentUserName} />}
-                        {activeTab === 'kopia' && <BackupSettings products={products} setProducts={setProducts} allDiaries={allDiaries} setAllDiaries={setAllDiaries} users={users} setUsers={setUsers} settings={settings} setSettings={setSettings} />}
+                        {activeTab === 'dziennik' && (
+                            <DailyLog 
+                                currentDate={currentDate} 
+                                setCurrentDate={setCurrentDate} 
+                                currentDayData={currentDayData} 
+                                updateCurrentDay={updateCurrentDay} 
+                                products={products} 
+                                userName={currentUserName}
+                            />
+                        )}
+                        {activeTab === 'baza' && (
+                            <ProductDatabase 
+                                products={products} 
+                                setProducts={setProducts} 
+                            />
+                        )}
+                        {activeTab === 'podsumowanie' && (
+                            <WeeklySummary 
+                                diary={userDiary} 
+                                currentDate={currentDate} 
+                                settings={settings} 
+                                setSettings={setSettings} 
+                                userName={currentUserName} 
+                            />
+                        )}
+                        {activeTab === 'kopia' && (
+                            <BackupSettings 
+                                products={products} 
+                                setProducts={setProducts} 
+                                allDiaries={allDiaries} 
+                                setAllDiaries={setAllDiaries} 
+                                users={users} 
+                                setUsers={setUsers} 
+                                settings={settings} 
+                                setSettings={setSettings} 
+                            />
+                        )}
                     </div>
 
                     {/* Nawigacja dolna */}
-                    <div className="fixed bottom-0 max-w-md w-full bg-white border-t flex justify-around p-3 text-[10px] sm:text-xs font-semibold text-gray-500 z-10 shadow-lg">
-                        <button onClick={() => setActiveTab('dziennik')} className={`flex flex-col items-center ${activeTab === 'dziennik' ? 'text-blue-600 font-bold' : ''}`}><span className="text-lg mb-0.5">📅</span>Dziennik</button>
-                        <button onClick={() => setActiveTab('baza')} className={`flex flex-col items-center ${activeTab === 'baza' ? 'text-blue-600 font-bold' : ''}`}><span className="text-lg mb-0.5">🍎</span>Baza</button>
-                        <button onClick={() => setActiveTab('podsumowanie')} className={`flex flex-col items-center ${activeTab === 'podsumowanie' ? 'text-blue-600 font-bold' : ''}`}><span className="text-lg mb-0.5">📊</span>Tydzień</button>
-                        <button onClick={() => setActiveTab('kopia')} className={`flex flex-col items-center ${activeTab === 'kopia' ? 'text-blue-600 font-bold' : ''}`}><span className="text-lg mb-0.5">⚙️</span>Kopia</button>
+                    <div className="fixed bottom-0 max-w-md w-full bg-white border-t flex justify-around p-3 text-xs font-semibold text-gray-500 z-10 shadow-lg">
+                        <button onClick={() => setActiveTab('dziennik')} className={activeTab === 'dziennik' ? 'text-blue-600 font-bold' : ''}>📅 Dziennik</button>
+                        <button onClick={() => setActiveTab('baza')} className={activeTab === 'baza' ? 'text-blue-600 font-bold' : ''}>🍎 Baza</button>
+                        <button onClick={() => setActiveTab('podsumowanie')} className={activeTab === 'podsumowanie' ? 'text-blue-600 font-bold' : ''}>📊 Tydzień</button>
+                        <button onClick={() => setActiveTab('kopia')} className={activeTab === 'kopia' ? 'text-blue-600 font-bold' : ''}>⚙️ Kopia</button>
                     </div>
                 </div>
             );
         }
 
-        // --- DZIENNIK DNIA ---
+        // --- KOMPONENT: Dziennik Dnia ---
         function DailyLog({ currentDate, setCurrentDate, currentDayData, updateCurrentDay, products, userName }) {
             const [selectedProductId, setSelectedProductId] = useState('');
             const [inputWeight, setInputWeight] = useState('');
@@ -133,155 +208,255 @@
             const [goalC, setGoalC] = useState(currentDayData.goals.c);
 
             useEffect(() => {
-                setGoalKcal(currentDayData.goals.kcal); setGoalP(currentDayData.goals.p);
-                setGoalF(currentDayData.goals.f); setGoalC(currentDayData.goals.c);
+                setGoalKcal(currentDayData.goals.kcal);
+                setGoalP(currentDayData.goals.p);
+                setGoalF(currentDayData.goals.f);
+                setGoalC(currentDayData.goals.c);
             }, [currentDate, currentDayData.goals]);
 
+            // Wybór produktu ustawia jego bazową wagę jako domyślną
             const handleProductSelect = (e) => {
                 const prodId = e.target.value;
                 setSelectedProductId(prodId);
-                const prod = products.find(p => p.id === prodId);
-                setInputWeight(prod ? prod.baseWeight : '');
+                if (prodId) {
+                    const found = products.find(p => p.id === prodId);
+                    if (found) setInputWeight(found.baseWeight);
+                } else {
+                    setInputWeight('');
+                }
             };
 
             const saveGoals = (e) => {
                 e.preventDefault();
                 updateCurrentDay({
-                    goals: { kcal: parseFloat(goalKcal) || 0, p: parseFloat(goalP) || 0, f: parseFloat(goalF) || 0, c: parseFloat(goalC) || 0 }
+                    goals: {
+                        kcal: parseFloat(goalKcal) || 0,
+                        p: parseFloat(goalP) || 0,
+                        f: parseFloat(goalF) || 0,
+                        c: parseFloat(goalC) || 0
+                    }
                 });
                 setIsEditingGoals(false);
             };
 
             const totalEaten = currentDayData.meals.reduce((acc, meal) => {
-                acc.kcal += meal.kcal; acc.p += meal.p; acc.f += meal.f; acc.c += meal.c; return acc;
+                acc.kcal += Number(meal.kcal || 0);
+                acc.p += Number(meal.p || 0);
+                acc.f += Number(meal.f || 0);
+                acc.c += Number(meal.c || 0);
+                return acc;
             }, { kcal: 0, p: 0, f: 0, c: 0 });
 
-            const totalBurned = currentDayData.workouts.reduce((acc, w) => acc + w.kcal, 0);
+            const totalBurned = currentDayData.workouts.reduce((acc, w) => acc + Number(w.kcal || 0), 0);
             const kcalLeft = currentDayData.goals.kcal - totalEaten.kcal + totalBurned;
 
             const addMeal = () => {
-                if (!selectedProductId || !inputWeight) return alert('Wybierz produkt i wpisz wagę!');
+                if (!selectedProductId || !inputWeight) {
+                    alert('Wybierz produkt z listy i podaj jego wagę!');
+                    return;
+                }
                 const prod = products.find(p => p.id === selectedProductId);
                 if (!prod) return;
 
                 const actualWeight = parseFloat(inputWeight);
-                const ratio = actualWeight / prod.baseWeight;
+                const baseW = prod.baseWeight > 0 ? prod.baseWeight : 100;
+                const ratio = actualWeight / baseW;
 
-                updateCurrentDay({ 
-                    meals: [...currentDayData.meals, {
-                        id: Date.now(), name: prod.name, weight: actualWeight,
-                        kcal: Math.round(prod.baseKcal * ratio),
-                        p: Math.round(prod.baseP * ratio * 10) / 10,
-                        f: Math.round(prod.baseF * ratio * 10) / 10,
-                        c: Math.round(prod.baseC * ratio * 10) / 10
-                    }] 
-                });
-                setSelectedProductId(''); setInputWeight('');
+                const newMeal = {
+                    id: Date.now(),
+                    name: prod.name,
+                    weight: actualWeight,
+                    kcal: Math.round(prod.baseKcal * ratio),
+                    p: Math.round(prod.baseP * ratio * 10) / 10,
+                    f: Math.round(prod.baseF * ratio * 10) / 10,
+                    c: Math.round(prod.baseC * ratio * 10) / 10
+                };
+
+                updateCurrentDay({ meals: [...currentDayData.meals, newMeal] });
+                setSelectedProductId('');
+                setInputWeight('');
             };
+
+            const removeMeal = (id) => {
+                updateCurrentDay({ meals: currentDayData.meals.filter(m => m.id !== id) });
+            };
+
+            const addWorkout = (e) => {
+                e.preventDefault();
+                const name = e.target.wName.value;
+                const time = e.target.wTime.value;
+                const kcal = e.target.wKcal.value;
+                if (!name || !time || !kcal) return;
+
+                const newWorkout = {
+                    id: Date.now(),
+                    name: name,
+                    time: parseInt(time, 10) || 0,
+                    kcal: parseInt(kcal, 10) || 0
+                };
+                updateCurrentDay({ workouts: [...currentDayData.workouts, newWorkout] });
+                e.target.reset();
+            };
+
+            const removeWorkout = (id) => {
+                updateCurrentDay({ workouts: currentDayData.workouts.filter(w => w.id !== id) });
+            };
+
+            const isSurplus = kcalLeft < 0;
 
             return (
                 <div className="space-y-5">
+                    {/* Data i waga */}
                     <div className="flex space-x-2 items-center justify-between">
-                        <input type="date" value={currentDate} onChange={(e) => setCurrentDate(e.target.value)} className="border p-2 rounded flex-1 text-sm font-semibold" />
+                        <input 
+                            type="date" 
+                            value={currentDate} 
+                            onChange={(e) => setCurrentDate(e.target.value)} 
+                            className="border p-2 rounded flex-1 text-sm font-semibold" 
+                        />
                         <div className="flex items-center space-x-1">
-                            <span className="text-xs text-gray-500">Waga:</span>
-                            <input type="number" step="0.1" placeholder="kg" value={currentDayData.weight} onChange={(e) => updateCurrentDay({ weight: e.target.value })} className="border p-2 rounded w-20 text-center font-semibold" />
+                            <span className="text-xs text-gray-500">Waga ({userName}):</span>
+                            <input 
+                                type="number" 
+                                step="0.1" 
+                                placeholder="kg" 
+                                value={currentDayData.weight} 
+                                onChange={(e) => updateCurrentDay({ weight: e.target.value })} 
+                                className="border p-2 rounded w-20 text-center font-semibold text-sm" 
+                            />
                         </div>
                     </div>
 
+                    {/* Cele dnia */}
                     <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg text-sm">
                         <div className="flex justify-between items-center mb-1">
-                            <span className="font-bold text-blue-900 text-xs">🎯 Cel dla: {userName}</span>
-                            <button onClick={() => setIsEditingGoals(!isEditingGoals)} className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded font-semibold">
-                                {isEditingGoals ? 'Zamknij' : '⚙️ Zmień'}
+                            <span className="font-bold text-blue-900 text-xs">🎯 Cel na dziś ({userName}):</span>
+                            <button 
+                                onClick={() => setIsEditingGoals(!isEditingGoals)} 
+                                className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded font-semibold"
+                            >
+                                {isEditingGoals ? 'Zamknij' : '⚙️ Zmień cel'}
                             </button>
                         </div>
+
                         {!isEditingGoals ? (
                             <div className="flex justify-between text-xs text-blue-800 mt-1">
                                 <span><b>{currentDayData.goals.kcal}</b> kcal</span>
-                                <span>B: <b>{currentDayData.goals.p}g</b></span>
-                                <span>T: <b>{currentDayData.goals.f}g</b></span>
-                                <span>W: <b>{currentDayData.goals.c}g</b></span>
+                                <span>Białko: <b>{currentDayData.goals.p}g</b></span>
+                                <span>Tłuszcz: <b>{currentDayData.goals.f}g</b></span>
+                                <span>Węglo: <b>{currentDayData.goals.c}g</b></span>
                             </div>
                         ) : (
                             <form onSubmit={saveGoals} className="mt-2 space-y-2 pt-2 border-t border-blue-200">
                                 <div className="grid grid-cols-2 gap-2">
-                                    <div><label className="text-[10px] text-gray-600">Kalorie</label><input type="number" value={goalKcal} onChange={e => setGoalKcal(e.target.value)} className="border p-1 rounded w-full text-xs" /></div>
-                                    <div><label className="text-[10px] text-gray-600">Białko (g)</label><input type="number" value={goalP} onChange={e => setGoalP(e.target.value)} className="border p-1 rounded w-full text-xs" /></div>
-                                    <div><label className="text-[10px] text-gray-600">Tłuszcz (g)</label><input type="number" value={goalF} onChange={e => setGoalF(e.target.value)} className="border p-1 rounded w-full text-xs" /></div>
-                                    <div><label className="text-[10px] text-gray-600">Węglowodany (g)</label><input type="number" value={goalC} onChange={e => setGoalC(e.target.value)} className="border p-1 rounded w-full text-xs" /></div>
+                                    <div>
+                                        <label className="text-[10px] text-gray-600">Kalorie (kcal)</label>
+                                        <input type="number" value={goalKcal} onChange={e => setGoalKcal(e.target.value)} className="border p-1 rounded w-full text-xs bg-white" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-gray-600">Białko (g)</label>
+                                        <input type="number" value={goalP} onChange={e => setGoalP(e.target.value)} className="border p-1 rounded w-full text-xs bg-white" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-gray-600">Tłuszcz (g)</label>
+                                        <input type="number" value={goalF} onChange={e => setGoalF(e.target.value)} className="border p-1 rounded w-full text-xs bg-white" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-gray-600">Węglowodany (g)</label>
+                                        <input type="number" value={goalC} onChange={e => setGoalC(e.target.value)} className="border p-1 rounded w-full text-xs bg-white" />
+                                    </div>
                                 </div>
-                                <button type="submit" className="bg-blue-600 text-white w-full py-1.5 rounded font-bold text-xs mt-1">Zapisz cel</button>
+                                <button type="submit" className="bg-blue-600 text-white w-full py-1.5 rounded font-bold text-xs">Zapisz cel</button>
                             </form>
                         )}
                     </div>
 
+                    {/* Podsumowanie kalorii na żywo */}
                     <div className="bg-gray-50 p-4 rounded-lg border">
                         <div className="flex justify-between items-end mb-2">
                             <div>
                                 <p className="text-xs text-gray-500 uppercase">Zjedzono</p>
-                                <p className="text-2xl font-bold">{totalEaten.kcal} <span className="text-sm font-normal text-gray-500">kcal</span></p>
+                                <p className="text-2xl font-bold">{Math.round(totalEaten.kcal)} <span className="text-sm font-normal text-gray-500">kcal</span></p>
                             </div>
                             <div className="text-right">
-                                <p className="text-xs text-gray-500 uppercase">{kcalLeft >= 0 ? 'Pozostało' : 'Nadwyżka'}</p>
-                                <p className={`text-2xl font-bold ${kcalLeft < 0 ? 'text-red-500' : 'text-green-600'}`}>{Math.abs(kcalLeft)} <span className="text-sm font-normal text-gray-500">kcal</span></p>
+                                <p className="text-xs text-gray-500 uppercase">{isSurplus ? 'Nadwyżka' : 'Pozostało'}</p>
+                                <p className={"text-2xl font-bold " + (isSurplus ? "text-red-500" : "text-green-600")}>
+                                    {Math.abs(Math.round(kcalLeft))} <span className="text-sm font-normal text-gray-500">kcal</span>
+                                </p>
                             </div>
                         </div>
                         <div className="grid grid-cols-3 gap-2 mt-3 text-center text-xs">
-                            <div className="p-1 rounded bg-blue-100 font-semibold">B: {Math.round(totalEaten.p)}/{currentDayData.goals.p}</div>
-                            <div className="p-1 rounded bg-yellow-100 font-semibold">T: {Math.round(totalEaten.f)}/{currentDayData.goals.f}</div>
-                            <div className="p-1 rounded bg-green-100 font-semibold">W: {Math.round(totalEaten.c)}/{currentDayData.goals.c}</div>
+                            <div className="p-1.5 rounded bg-blue-100 text-blue-900 font-semibold">B: {Math.round(totalEaten.p)} / {currentDayData.goals.p}g</div>
+                            <div className="p-1.5 rounded bg-yellow-100 text-yellow-900 font-semibold">T: {Math.round(totalEaten.f)} / {currentDayData.goals.f}g</div>
+                            <div className="p-1.5 rounded bg-green-100 text-green-900 font-semibold">W: {Math.round(totalEaten.c)} / {currentDayData.goals.c}g</div>
                         </div>
                     </div>
 
+                    {/* Dodawanie produktu z bazy */}
                     <div className="border rounded-lg p-3 bg-white">
                         <h3 className="font-bold mb-2 text-sm">Dodaj posiłek</h3>
                         {products.length === 0 ? (
-                            <p className="text-xs text-red-500">Dodaj produkt w zakładce Baza!</p>
+                            <p className="text-xs text-red-500">Twoja baza jest pusta. Dodaj najpierw produkt w zakładce „🍎 Baza”!</p>
                         ) : (
-                            <div className="flex space-x-2">
-                                <select value={selectedProductId} onChange={handleProductSelect} className="border p-2 rounded flex-1 text-xs">
-                                    <option value="">Wybierz produkt...</option>
-                                    {products.map(p => <option key={p.id} value={p.id}>{p.name} ({p.baseKcal} kcal/{p.baseWeight}g)</option>)}
-                                </select>
-                                <input type="number" placeholder="Waga(g)" value={inputWeight} onChange={(e) => setInputWeight(e.target.value)} className="border p-2 rounded w-20 text-xs" />
-                                <button onClick={addMeal} className="bg-blue-600 text-white px-3 py-1 rounded font-bold">+</button>
+                            <div className="space-y-2">
+                                <div className="flex space-x-2">
+                                    <select value={selectedProductId} onChange={handleProductSelect} className="border p-2 rounded flex-1 text-xs">
+                                        <option value="">Wybierz produkt z bazy...</option>
+                                        {products.map(p => (
+                                            <option key={p.id} value={p.id}>
+                                                {p.name} ({p.baseWeight}g = {p.baseKcal} kcal)
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <input 
+                                        type="number" 
+                                        placeholder="Waga (g)" 
+                                        value={inputWeight} 
+                                        onChange={(e) => setInputWeight(e.target.value)} 
+                                        className="border p-2 rounded w-24 text-xs font-semibold text-center" 
+                                    />
+                                    <button onClick={addMeal} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-sm">+</button>
+                                </div>
+                                {selectedProductId && (
+                                    <p className="text-[11px] text-gray-500">
+                                        Podpowiedziano wagę bazową produktu. Jeśli zjesz inną ilość, wpisz nową wagę – kalorie przeliczą się automatycznie.
+                                    </p>
+                                )}
                             </div>
                         )}
+
                         <div className="mt-3 space-y-2">
                             {currentDayData.meals.map(m => (
-                                <div key={m.id} className="flex justify-between items-center text-sm border-b pb-1">
-                                    <div><p className="font-bold">{m.name}</p><p className="text-gray-500 text-xs">{m.weight}g | B:{m.p} T:{m.f} W:{m.c}</p></div>
-                                    <div className="flex items-center space-x-2">
+                                <div key={m.id} className="flex justify-between items-center text-sm border-b pb-1.5">
+                                    <div>
+                                        <p className="font-bold">{m.name}</p>
+                                        <p className="text-gray-500 text-xs">{m.weight}g | B: {m.p}g | T: {m.f}g | W: {m.c}g</p>
+                                    </div>
+                                    <div className="flex items-center space-x-3">
                                         <span className="font-bold">{m.kcal} kcal</span>
-                                        <button onClick={() => updateCurrentDay({ meals: currentDayData.meals.filter(meal => meal.id !== m.id) })} className="text-red-400 font-bold hover:text-red-600">✕</button>
+                                        <button onClick={() => removeMeal(m.id)} className="text-red-400 font-bold hover:text-red-600">✕</button>
                                     </div>
                                 </div>
                             ))}
                         </div>
                     </div>
 
+                    {/* Treningi */}
                     <div className="border rounded-lg p-3 bg-white">
                         <h3 className="font-bold mb-2 text-sm text-orange-600">🏋️ Treningi (-{totalBurned} kcal)</h3>
-                        <form onSubmit={(e) => {
-                            e.preventDefault();
-                            if(e.target.wName.value && e.target.wTime.value && e.target.wKcal.value) {
-                                updateCurrentDay({ workouts: [...currentDayData.workouts, { id: Date.now(), name: e.target.wName.value, time: parseInt(e.target.wTime.value), kcal: parseInt(e.target.wKcal.value) }] });
-                                e.target.reset();
-                            }
-                        }} className="flex space-x-1 mb-2">
-                            <input name="wName" placeholder="Nazwa" className="border p-1.5 rounded w-full text-xs" />
+                        <form onSubmit={addWorkout} className="flex space-x-1 mb-2">
+                            <input name="wName" placeholder="Nazwa treningu" className="border p-1.5 rounded w-full text-xs" />
                             <input name="wTime" type="number" placeholder="Min" className="border p-1.5 rounded w-16 text-xs" />
                             <input name="wKcal" type="number" placeholder="Kcal" className="border p-1.5 rounded w-16 text-xs" />
-                            <button type="submit" className="bg-orange-500 text-white px-2.5 rounded font-bold">+</button>
+                            <button type="submit" className="bg-orange-500 text-white px-3 rounded font-bold">+</button>
                         </form>
                         <div className="space-y-1">
                             {currentDayData.workouts.map(w => (
-                                <div key={w.id} className="flex justify-between items-center text-xs text-gray-700">
+                                <div key={w.id} className="flex justify-between items-center text-xs text-gray-700 border-b pb-1">
                                     <span><b>{w.name}</b> ({w.time} min)</span>
                                     <div className="flex items-center space-x-2">
                                         <span className="text-orange-600 font-semibold">🔥 {w.kcal} kcal</span>
-                                        <button onClick={() => updateCurrentDay({ workouts: currentDayData.workouts.filter(work => work.id !== w.id) })} className="text-red-400 hover:text-red-600">✕</button>
+                                        <button onClick={() => removeWorkout(w.id)} className="text-red-400 hover:text-red-600 font-bold">✕</button>
                                     </div>
                                 </div>
                             ))}
@@ -291,12 +466,314 @@
             );
         }
 
-        // --- BAZA PRODUKTÓW ---
+        // --- KOMPONENT: Wspólna Baza Produktów ---
         function ProductDatabase({ products, setProducts }) {
             const addProduct = (e) => {
                 e.preventDefault();
-                const t = e.target;
-                const p = parseFloat(t.pPro.value) || 0, f = parseFloat(t.pFat.value) || 0, c = parseFloat(t.pCarb.value) || 0;
-                if (!t.pName.value) return alert('Wpisz nazwę produktu!');
+                const form = e.target;
+                const name = form.pName.value.trim();
+                const weight = parseFloat(form.pWeight.value) || 100;
+                const p = parseFloat(form.pPro.value) || 0;
+                const f = parseFloat(form.pFat.value) || 0;
+                const c = parseFloat(form.pCarb.value) || 0;
+                
+                const kcalRaw = form.pKcal.value;
+                const kcal = kcalRaw !== "" ? parseFloat(kcalRaw) : Math.round((p * 4) + (c * 4) + (f * 9));
 
-             
+                if (!name) {
+                    alert('Podaj nazwę produktu!');
+                    return;
+                }
+
+                const newProd = {
+                    id: Date.now().toString(),
+                    name: name,
+                    baseWeight: weight,
+                    baseKcal: kcal,
+                    baseP: p,
+                    baseF: f,
+                    baseC: c
+                };
+
+                setProducts([...products, newProd]);
+                form.reset();
+            };
+
+            const deleteProduct = (id) => {
+                if (window.confirm('Usunąć ten produkt ze wspólnej bazy?')) {
+                    setProducts(products.filter(p => p.id !== id));
+                }
+            };
+
+            return (
+                <div>
+                    <div className="bg-blue-50 p-4 rounded-lg border mb-5">
+                        <h2 className="font-bold mb-2 text-sm text-blue-900">➕ Dodaj produkt do bazy</h2>
+                        <p className="text-[11px] text-blue-700 mb-3">
+                            Wpisz wartości dla swojej standardowej porcji (np. Kanapki 250g, 400 kcal). Ta waga będzie podstawą w dzienniku.
+                        </p>
+                        <form onSubmit={addProduct} className="space-y-2 text-sm">
+                            <input name="pName" placeholder="Nazwa (np. Kanapki, Obiad, Jogurt)" className="border p-2 rounded w-full font-bold bg-white text-xs" />
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="text-[10px] text-gray-600">Waga bazowa (g)</label>
+                                    <input name="pWeight" type="number" defaultValue="100" className="border p-2 rounded w-full bg-white text-xs font-semibold" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-gray-600">Kalorie dla tej wagi (Kcal)</label>
+                                    <input name="pKcal" type="number" placeholder="Wpisz lub puste=auto" className="border border-green-400 bg-green-50 p-2 rounded w-full text-xs font-semibold" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                                <div>
+                                    <label className="text-[10px] text-gray-600">Białko (g)</label>
+                                    <input name="pPro" type="number" step="0.1" placeholder="0" className="border p-1.5 rounded w-full bg-white text-xs" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-gray-600">Tłuszcz (g)</label>
+                                    <input name="pFat" type="number" step="0.1" placeholder="0" className="border p-1.5 rounded w-full bg-white text-xs" />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-gray-600">Węglo (g)</label>
+                                    <input name="pCarb" type="number" step="0.1" placeholder="0" className="border p-1.5 rounded w-full bg-white text-xs" />
+                                </div>
+                            </div>
+                            <button type="submit" className="bg-blue-600 text-white w-full py-2 rounded font-bold text-xs mt-1">Zapisz w bazie</button>
+                        </form>
+                    </div>
+
+                    <h3 className="font-bold text-gray-700 mb-2 text-sm">Zapisane produkty ({products.length})</h3>
+                    <div className="space-y-2">
+                        {products.map(p => (
+                            <div key={p.id} className="bg-white p-3 rounded shadow-sm border flex justify-between items-center text-sm">
+                                <div>
+                                    <p className="font-bold">{p.name} <span className="text-xs text-blue-600 font-semibold">({p.baseWeight}g)</span></p>
+                                    <p className="text-xs text-gray-500">B: {p.baseP}g | T: {p.baseF}g | W: {p.baseC}g</p>
+                                </div>
+                                <div className="flex items-center space-x-3">
+                                    <span className="font-bold text-green-600">{p.baseKcal} kcal</span>
+                                    <button onClick={() => deleteProduct(p.id)} className="text-red-400 hover:text-red-600 font-bold">🗑️</button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        // --- KOMPONENT: Podsumowanie Tygodnia ---
+        function WeeklySummary({ diary, currentDate, settings, setSettings, userName }) {
+            const weekDates = useMemo(() => {
+                const curr = new Date(currentDate);
+                const day = curr.getDay();
+                const offset = settings.startOfWeek === 1 ? (day === 0 ? -6 : 1 - day) : -day;
+                const firstDay = new Date(curr.setDate(curr.getDate() + offset));
+                const list = [];
+                for (let i = 0; i < 7; i++) {
+                    const next = new Date(firstDay);
+                    next.setDate(firstDay.getDate() + i);
+                    list.push(next.toISOString().split('T')[0]);
+                }
+                return list;
+            }, [currentDate, settings.startOfWeek]);
+
+            let totalKcal = 0;
+            let totalBurned = 0;
+            let daysCounted = 0;
+            const weights = [];
+
+            weekDates.forEach(date => {
+                const dayObj = diary[date];
+                if (dayObj) {
+                    const mealsList = Array.isArray(dayObj.meals) ? dayObj.meals : [];
+                    const workoutsList = Array.isArray(dayObj.workouts) ? dayObj.workouts : [];
+                    const eaten = mealsList.reduce((sum, m) => sum + Number(m.kcal || 0), 0);
+                    const burned = workoutsList.reduce((sum, w) => sum + Number(w.kcal || 0), 0);
+                    if (eaten > 0) {
+                        totalKcal += eaten;
+                        daysCounted++;
+                    }
+                    totalBurned += burned;
+                    if (dayObj.weight) {
+                        const parsedW = parseFloat(dayObj.weight);
+                        if (!isNaN(parsedW)) weights.push(parsedW);
+                    }
+                }
+            });
+
+            const avgKcal = daysCounted > 0 ? Math.round(totalKcal / daysCounted) : 0;
+            const hasWeightDiff = weights.length >= 2;
+            const rawDiff = hasWeightDiff ? (weights[weights.length - 1] - weights[0]) : 0;
+            const formattedDiff = (rawDiff > 0 ? '+' : '') + rawDiff.toFixed(1);
+            const diffColorClass = rawDiff > 0 ? 'text-red-500' : 'text-green-600';
+
+            return (
+                <div className="space-y-5 text-sm">
+                    <div className="flex justify-between items-center bg-white p-3 border rounded shadow-sm">
+                        <span className="font-bold text-xs">Pierwszy dzień tygodnia:</span>
+                        <select 
+                            value={settings.startOfWeek} 
+                            onChange={(e) => setSettings({ startOfWeek: parseInt(e.target.value, 10) })} 
+                            className="border p-1.5 rounded text-xs font-semibold"
+                        >
+                            <option value={1}>Poniedziałek</option>
+                            <option value={0}>Niedziela</option>
+                        </select>
+                    </div>
+
+                    <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-lg">
+                        <h2 className="text-center font-bold text-indigo-900 mb-1">Podsumowanie tygodnia ({userName})</h2>
+                        <p className="text-center text-xs text-indigo-600 mb-4">{weekDates[0]} — {weekDates[6]}</p>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="bg-white p-3 rounded text-center shadow-sm">
+                                <p className="text-[10px] text-gray-500 uppercase">Średnio dziennie</p>
+                                <p className="text-lg font-bold text-indigo-600">{avgKcal} kcal</p>
+                            </div>
+                            <div className="bg-white p-3 rounded text-center shadow-sm">
+                                <p className="text-[10px] text-gray-500 uppercase">Spalone na treningach</p>
+                                <p className="text-lg font-bold text-orange-500">🔥 {totalBurned} kcal</p>
+                            </div>
+                            <div className="bg-white p-3 rounded text-center shadow-sm col-span-2">
+                                <p className="text-[10px] text-gray-500 uppercase">Zmiana wagi w tygodniu</p>
+                                <p className={"text-xl font-bold " + diffColorClass}>{formattedDiff} kg</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // --- KOMPONENT: Kopia Zapasowa (Eksport / Import) ---
+        function BackupSettings({ products, setProducts, allDiaries, setAllDiaries, users, setUsers, settings, setSettings }) {
+            const [statusMsg, setStatusMsg] = useState('');
+            const [importMode, setImportMode] = useState('productsOnly');
+            const fileInputRef = useRef(null);
+
+            const exportData = () => {
+                const payload = {
+                    version: 3,
+                    exportDate: new Date().toISOString(),
+                    products: products,
+                    allDiaries: allDiaries,
+                    users: users,
+                    settings: settings
+                };
+                const jsonString = JSON.stringify(payload, null, 2);
+                const blob = new Blob([jsonString], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = "kopia_dieta_" + new Date().toISOString().split('T')[0] + ".json";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                setStatusMsg('✅ Pobrano plik z kopią zapasową!');
+                setTimeout(() => setStatusMsg(''), 4000);
+            };
+
+            const handleFileImport = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    try {
+                        const parsed = JSON.parse(event.target.result);
+                        if (importMode === 'productsOnly') {
+                            const incoming = Array.isArray(parsed.products) ? parsed.products.map(normalizeProduct) : [];
+                            const existingNames = new Set(products.map(p => p.name.trim().toLowerCase()));
+                            const toAdd = incoming.filter(p => !existingNames.has(p.name.trim().toLowerCase()));
+                            setProducts(prev => [...prev, ...toAdd]);
+                            setStatusMsg('✅ Dodano nowych produktów do bazy: ' + toAdd.length);
+                        } else {
+                            if (window.confirm('Czy na pewno chcesz zastąpić wszystkie obecne dane danymi z pliku?')) {
+                                if (Array.isArray(parsed.products)) setProducts(parsed.products.map(normalizeProduct));
+                                if (parsed.allDiaries) setAllDiaries(parsed.allDiaries);
+                                if (Array.isArray(parsed.users)) setUsers(parsed.users);
+                                if (parsed.settings) setSettings(parsed.settings);
+                                setStatusMsg('✅ Przywrócono pełną kopię danych!');
+                            }
+                        }
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                        setTimeout(() => setStatusMsg(''), 5000);
+                    } catch (err) {
+                        alert('Nie udało się odczytać pliku: ' + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            return (
+                <div className="space-y-5 text-sm">
+                    <div className="bg-white p-4 border rounded-lg shadow-sm">
+                        <h2 className="text-base font-bold text-gray-800 mb-2">💾 Kopia zapasowa i przesyłanie</h2>
+                        <p className="text-xs text-gray-500 mb-4">
+                            Pobierz plik z kopią, aby zapisać swoje postępy lub przesłać wspólną bazę produktów na telefon żony.
+                        </p>
+                        
+                        {statusMsg !== '' && (
+                            <div className="mb-4 p-2.5 bg-green-100 border border-green-300 text-green-800 text-xs rounded font-semibold text-center">
+                                {statusMsg}
+                            </div>
+                        )}
+
+                        <div className="border-t pt-4">
+                            <h3 className="font-bold text-xs uppercase text-gray-500 mb-2">1. Zapisz dane do pliku</h3>
+                            <button 
+                                onClick={exportData} 
+                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded text-xs shadow"
+                            >
+                                📥 Pobierz kopię zapasową (.json)
+                            </button>
+                        </div>
+
+                        <div className="border-t pt-4 mt-4">
+                            <h3 className="font-bold text-xs uppercase text-gray-500 mb-2">2. Wgraj dane z pliku</h3>
+                            <div className="space-y-2 mb-3">
+                                <label className="flex items-center space-x-2 text-xs">
+                                    <input 
+                                        type="radio" 
+                                        name="mode" 
+                                        checked={importMode === 'productsOnly'} 
+                                        onChange={() => setImportMode('productsOnly')} 
+                                    />
+                                    <span><b>Tylko baza produktów</b> (dopisuje nowe produkty bez kasowania dziennika)</span>
+                                </label>
+                                <label className="flex items-center space-x-2 text-xs">
+                                    <input 
+                                        type="radio" 
+                                        name="mode" 
+                                        checked={importMode === 'full'} 
+                                        onChange={() => setImportMode('full')} 
+                                    />
+                                    <span><b>Pełna kopia</b> (przywraca wszystkie profile, wagi i historię)</span>
+                                </label>
+                            </div>
+                            <input 
+                                type="file" 
+                                accept=".json" 
+                                ref={fileInputRef} 
+                                onChange={handleFileImport} 
+                                className="hidden" 
+                                id="backupFileInput" 
+                            />
+                            <label 
+                                htmlFor="backupFileInput" 
+                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded text-xs shadow flex justify-center cursor-pointer"
+                            >
+                                📤 Wybierz plik (.json) i wgraj
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
