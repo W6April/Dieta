@@ -327,4 +327,153 @@
             const addProduct = (e) => {
                 e.preventDefault();
                 const name = e.target.pName.value;
-                const totalWeight = parseFlo
+                const totalWeight = parseFloat(e.target.pWeight.value) || 100;
+                const p = parseFloat(e.target.pPro.value) || 0;
+                const f = parseFloat(e.target.pFat.value) || 0;
+                const c = parseFloat(e.target.pCarb.value) || 0;
+                
+                let kcalInput = e.target.pKcal.value;
+                let totalKcal = kcalInput !== "" ? parseFloat(kcalInput) : Math.round((p * 4) + (c * 4) + (f * 9));
+
+                if (!name) return alert('Podaj nazwę produktu!');
+
+                // Automatyczne przeliczanie na 100g
+                const ratio = 100 / totalWeight;
+                const newProd = {
+                    id: Date.now().toString(),
+                    name,
+                    weight: totalWeight, // oryginalna waga wpisana przy tworzeniu
+                    kcalPer100: totalKcal * ratio,
+                    pPer100: p * ratio,
+                    fPer100: f * ratio,
+                    cPer100: c * ratio
+                };
+
+                setProducts([...products, newProd]);
+                e.target.reset();
+            };
+
+            const deleteProduct = (id) => {
+                if(confirm('Usunąć produkt z bazy?')) {
+                    setProducts(products.filter(p => p.id !== id));
+                }
+            };
+
+            return (
+                <div>
+                    <div class="bg-blue-50 p-4 rounded-lg border mb-6">
+                        <h2 class="font-bold mb-3 text-sm text-blue-900">➕ Dodaj nowy produkt</h2>
+                        <form onSubmit={addProduct} class="space-y-3 text-sm">
+                            <input name="pName" placeholder="Nazwa produktu (np. Kanapki)" class="border p-2 rounded w-full font-bold bg-white text-xs" />
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="text-[10px] text-gray-500">Waga porcji/paczki (g)</label>
+                                    <input name="pWeight" type="number" defaultValue="250" class="border p-2 rounded w-full bg-white text-xs" />
+                                </div>
+                                <div>
+                                    <label class="text-[10px] text-gray-500">Kalorie dla tej wagi (Kcal)</label>
+                                    <input name="pKcal" type="number" placeholder="np. 400 (lub auto)" class="border border-green-400 bg-green-50 p-2 rounded w-full text-xs" />
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-3 gap-2">
+                                <div><label class="text-[10px] text-gray-500">Białko (g)</label><input name="pPro" type="number" step="0.1" placeholder="0" class="border p-2 rounded w-full bg-white text-xs" /></div>
+                                <div><label class="text-[10px] text-gray-500">Tłuszcz (g)</label><input name="pFat" type="number" step="0.1" placeholder="0" class="border p-2 rounded w-full bg-white text-xs" /></div>
+                                <div><label class="text-[10px] text-gray-500">Węglo (g)</label><input name="pCarb" type="number" step="0.1" placeholder="0" class="border p-2 rounded w-full bg-white text-xs" /></div>
+                            </div>
+                            <button type="submit" class="bg-blue-600 text-white w-full py-2 rounded font-bold text-xs mt-2">Zapisz w bazie (przeliczy na 100g)</button>
+                        </form>
+                    </div>
+
+                    <h3 class="font-bold text-gray-700 mb-2 text-sm">Twoja baza ({products.length})</h3>
+                    <div class="space-y-2">
+                        {products.map(p => (
+                            <div key={p.id} class="bg-white p-3 rounded shadow-sm border flex justify-between items-center text-sm">
+                                <div>
+                                    <p class="font-bold">{p.name} <span class="text-xs text-gray-400 font-normal">(wartości na 100g)</span></p>
+                                    <p class="text-xs text-gray-500">B: {p.pPer100.toFixed(1)}g | T: {p.fPer100.toFixed(1)}g | W: {p.cPer100.toFixed(1)}g</p>
+                                </div>
+                                <div class="flex items-center space-x-4">
+                                    <span class="font-bold text-green-600">{Math.round(p.kcalPer100)} kcal / 100g</span>
+                                    <button onClick={() => deleteProduct(p.id)} class="text-red-300 hover:text-red-500 font-bold">🗑️</button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        // --- KOMPONENT: Podsumowanie Tygodnia ---
+        function WeeklySummary({ diary, currentDate, settings, setSettings }) {
+            const generateWeek = () => {
+                const curr = new Date(currentDate);
+                const day = curr.getDay();
+                const offset = settings.startOfWeek === 1 ? (day === 0 ? -6 : 1 - day) : -day;
+                
+                const firstDay = new Date(curr.setDate(curr.getDate() + offset));
+                const week = [];
+                for(let i=0; i<7; i++) {
+                    const next = new Date(firstDay);
+                    next.setDate(firstDay.getDate() + i);
+                    week.push(next.toISOString().split('T')[0]);
+                }
+                return week;
+            };
+
+            const weekDates = generateWeek();
+            let totalKcal = 0, totalBurned = 0, daysCounted = 0;
+            let weights = [];
+
+            weekDates.forEach(date => {
+                if(diary[date]) {
+                    const eaten = diary[date].meals.reduce((sum, m) => sum + m.kcal, 0);
+                    const burned = diary[date].workouts.reduce((sum, w) => sum + w.kcal, 0);
+                    if(eaten > 0) { totalKcal += eaten; daysCounted++; }
+                    totalBurned += burned;
+                    if(diary[date].weight) weights.push(parseFloat(diary[date].weight));
+                }
+            });
+
+            const avgKcal = daysCounted ? Math.round(totalKcal / daysCounted) : 0;
+            const weightDiff = weights.length >= 2 ? (weights[weights.length-1] - weights[0]).toFixed(1) : 0;
+
+            return (
+                <div class="space-y-6 text-sm">
+                    <div class="flex justify-between items-center bg-white p-3 border rounded shadow-sm">
+                        <span class="font-bold">Początek tygodnia:</span>
+                        <select value={settings.startOfWeek} onChange={(e) => setSettings({ startOfWeek: parseInt(e.target.value)})} class="border p-1 rounded text-xs font-semibold">
+                            <option value={1}>Poniedziałek</option>
+                            <option value={0}>Niedziela</option>
+                        </select>
+                    </div>
+
+                    <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-lg">
+                        <h2 class="text-center font-bold text-indigo-900 mb-4">Podsumowanie tygodnia:<br/><span class="text-xs font-normal text-indigo-700">{weekDates[0]} do {weekDates[6]}</span></h2>
+                        
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-white p-3 rounded text-center shadow-sm">
+                                <p class="text-[10px] text-gray-500 uppercase">Średnio spożyte</p>
+                                <p class="text-lg font-bold text-indigo-600">{avgKcal} kcal</p>
+                            </div>
+                            <div class="bg-white p-3 rounded text-center shadow-sm">
+                                <p class="text-[10px] text-gray-500 uppercase">Spalone w tyg.</p>
+                                <p class="text-lg font-bold text-orange-500">🔥 {totalBurned} kcal</p>
+                            </div>
+                            <div class="bg-white p-3 rounded text-center shadow-sm col-span-2">
+                                <p class="text-[10px] text-gray-500 uppercase">Zmiana wagi w tym tygodniu</p>
+                                <p class={`text-xl font-bold ${weightDiff > 0 ? 'text-red-500' : 'text-green-600'}`}>
+                                    {weightDiff > 0 ? '+' : ''}{weightDiff} kg
+                                </p>
+                                <p class="text-[10px] text-gray-400 mt-0.5">(Na podstawie pierwszego i ostatniego wpisu wagi w tym tygodniu)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
