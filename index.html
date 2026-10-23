@@ -487,15 +487,18 @@ function DailyLog({ user, date, setDate, dayData, products, settings, changeDate
 // ==========================================
 function ProductDatabase({ user, products }) {
   const [isAdding, setIsAdding] = useState(false);
-  // Zgodnie z wytycznymi, wartości podajemy na 100g
-  const [form, setForm] = useState({ name: '', protein: '', fat: '', carbs: '' });
+  // Zgodnie z wytycznymi, wartości podajemy na 100g, dodano pole calories
+  const [form, setForm] = useState({ name: '', protein: '', fat: '', carbs: '', calories: '' });
 
   const handleSave = async () => {
     if (!user || !form.name) return;
     const protein = parseFloat(form.protein || 0);
     const fat = parseFloat(form.fat || 0);
     const carbs = parseFloat(form.carbs || 0);
-    const calories = calculateCalories(protein, fat, carbs);
+    
+    // Jeśli użytkownik wpisał kalorie ręcznie, użyj ich. W przeciwnym razie policz z makro.
+    const manualCalories = parseFloat(form.calories);
+    const calories = !isNaN(manualCalories) ? manualCalories : calculateCalories(protein, fat, carbs);
 
     await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'products'), {
       name: form.name,
@@ -503,7 +506,7 @@ function ProductDatabase({ user, products }) {
       createdAt: new Date().toISOString()
     });
 
-    setForm({ name: '', protein: '', fat: '', carbs: '' });
+    setForm({ name: '', protein: '', fat: '', carbs: '', calories: '' });
     setIsAdding(false);
   };
 
@@ -545,9 +548,16 @@ function ProductDatabase({ user, products }) {
                <input type="number" placeholder="0" className="w-full p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" value={form.carbs} onChange={e => setForm({...form, carbs: e.target.value})} />
              </div>
              
-             <div className="flex flex-col justify-center items-center p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-               <span className="text-xs text-emerald-600 font-medium">Kalorie / 100g</span>
-               <span className="font-bold text-xl text-emerald-700">{calculateCalories(form.protein, form.fat, form.carbs)}</span>
+             <div>
+               <label className="block text-xs font-medium text-slate-500 mb-1">Kalorie / 100g (Opcjonalnie)</label>
+               <input 
+                 type="number" 
+                 placeholder={`np. ${calculateCalories(form.protein || 0, form.fat || 0, form.carbs || 0)}`} 
+                 className="w-full p-2.5 border border-emerald-300 bg-emerald-50 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-emerald-800 font-bold" 
+                 value={form.calories} 
+                 onChange={e => setForm({...form, calories: e.target.value})} 
+               />
+               <p className="text-[10px] text-emerald-600 mt-1">Możesz wpisać ręcznie lub zostawić puste (policzymy z makro).</p>
              </div>
           </div>
           <div className="flex justify-end space-x-3 pt-2">
