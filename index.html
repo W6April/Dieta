@@ -251,17 +251,7 @@
                         <!-- Lista posiłków -->
                         <div class="space-y-2">
                             ${day.meals.map(m => `
-                            
-                        <div class="flex space-x-2 mb-3">
-                            <input id="mealInput" list="prod-list" placeholder="Wpisz nazwę (np. skyr)..." onchange="handleMealSelect(this.value)" class="flex-1 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium px-3 py-2 outline-none min-w-0" />
-                            <input id="inpW" type="number" placeholder="Waga(g)" class="w-16 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-center outline-none shrink-0" />
-                            <button onclick="addMeal()" class="bg-blue-600 text-white px-3 rounded-lg font-bold shadow-md active:scale-95 shrink-0">+</button>
-                        </div>
-
-                        <!-- Lista posiłków -->
-                        <div class="space-y-2">
-                            ${day.meals.map(m => `
-                                <div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-100">
+                            <div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-100">
                                     <div class="flex-1 pr-1 min-w-0">
                                         <p class="font-bold text-xs text-gray-800 truncate">${m.name}</p>
                                         <p class="text-[9px] text-gray-500 mt-0.5">${m.weight}g | B:${m.p} T:${m.f} W:${m.c}</p>
@@ -508,11 +498,14 @@
                     <button onclick="switchTab('baza')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'baza' ? 'text-blue-600' : 'text-gray-400'}">
                         <span class="text-xl mb-0.5">🍎</span><span class="text-[9px] font-bold truncate w-full text-center">Baza</span>
                     </button>
-                    <button onclick="switchTab('trening')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'podsumowanie' ? 'text-blue-600' : 'text-gray-400'}">
+                    <button onclick="switchTab('trening')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'trening' ? 'text-blue-600' : 'text-gray-400'}">
+                        <span class="text-xl mb-0.5">💪</span><span class="text-[9px] font-bold truncate w-full text-center">Trening</span>
+                    </button>
+                    <button onclick="switchTab('podsumowanie')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'podsumowanie' ? 'text-blue-600' : 'text-gray-400'}">
                         <span class="text-xl mb-0.5">📊</span><span class="text-[9px] font-bold truncate w-full text-center">Tydzień</span>
                     </button>
                     <button onclick="switchTab('kopia')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'kopia' ? 'text-blue-600' : 'text-gray-400'}">
-                        <span class="text-xl mb-0.5">⚙️</span><span class="text-[9px] font-bold truncate w-full text-center">Kopia</span>
+                    <span class="text-xl mb-0.5">⚙️</span><span class="text-[9px] font-bold truncate w-full text-center">Kopia</span>
                     </button>
                 </div>
             `;
