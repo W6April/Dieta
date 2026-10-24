@@ -53,9 +53,7 @@
     <div id="app" class="container"></div>
 
     <script>
-        // --- PEŁNA BAZA 145 PRODUKTÓW WBUDOWANA NA STAŁE ---
         const BUILTIN_PRODUCTS = [
-            // 1. Twoje 20 produktów startowych
             { id: "p1", name: "Fruvita Skyr naturalny (kubek)", baseWeight: 150, baseKcal: 98, baseP: 18.0, baseF: 0.0, baseC: 6.2 },
             { id: "p2", name: "Fruvita Skyr pitny (butelka)", baseWeight: 360, baseKcal: 225, baseP: 36.0, baseF: 1.0, baseC: 16.0 },
             { id: "p3", name: "Go Active Protein Pudding (kubek)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 11.0 },
@@ -76,7 +74,6 @@
             { id: "p18", name: "KFC Strips (1 polędwiczka)", baseWeight: 45, baseKcal: 115, baseP: 8.0, baseF: 5.5, baseC: 6.0 },
             { id: "p19", name: "KFC Kawałek kurczaka z kością (1 szt.)", baseWeight: 115, baseKcal: 280, baseP: 17.5, baseF: 14.0, baseC: 15.0 },
             { id: "p20", name: "KFC Zestaw kolacyjny (4 wings + 2 strips + 2 kawałki)", baseWeight: 460, baseKcal: 1082, baseP: 69.0, baseF: 57.0, baseC: 56.0 },
-            // 2. Jogurty wysokobiałkowe Skyr, Go Active, Müllermilch, Piątnica, Pilos, Ehrmann, YoPRO, Bakoma
             { id: "hp1", name: "Piątnica Skyr naturalny (kubek 150g)", baseWeight: 150, baseKcal: 96, baseP: 18.0, baseF: 0.0, baseC: 6.0 },
             { id: "hp2", name: "Piątnica Skyr naturalny (duży kubek 450g)", baseWeight: 450, baseKcal: 288, baseP: 54.0, baseF: 0.0, baseC: 18.0 },
             { id: "hp3", name: "Piątnica Skyr waniliowy (kubek 150g)", baseWeight: 150, baseKcal: 123, baseP: 14.4, baseF: 0.0, baseC: 16.5 },
@@ -102,7 +99,6 @@
             { id: "hp23", name: "Bakoma Men Protein jogurt ze zbożami (kubek 130g)", baseWeight: 130, baseKcal: 138, baseP: 10.4, baseF: 1.3, baseC: 20.8 },
             { id: "hp24", name: "Zott Primo Protein jogurt naturalny wysokobiałkowy (200g)", baseWeight: 200, baseKcal: 134, baseP: 17.0, baseF: 2.2, baseC: 11.2 },
             { id: "hp25", name: "Maluta Skyr+ jogurt typu islandzkiego naturalny (150g)", baseWeight: 150, baseKcal: 78, baseP: 13.5, baseF: 0.0, baseC: 6.0 },
-            // 3. 100 Produktów redukcyjnych
             { id: "r1", name: "Pierś z kurczaka (surowa)", baseWeight: 100, baseKcal: 98, baseP: 21.5, baseF: 1.3, baseC: 0 },
             { id: "r2", name: "Pierś z indyka (surowa)", baseWeight: 100, baseKcal: 84, baseP: 19.2, baseF: 0.7, baseC: 0 },
             { id: "r3", name: "Polędwica wołowa (chuda)", baseWeight: 100, baseKcal: 120, baseP: 21.0, baseF: 4.0, baseC: 0 },
@@ -135,35 +131,5 @@
             { id: "r30", name: "Kefir naturalny 1.5% (butelka)", baseWeight: 400, baseKcal: 184, baseP: 13.6, baseF: 6.0, baseC: 18.8 },
             { id: "r31", name: "Maślanka naturalna (szklanka)", baseWeight: 250, baseKcal: 105, baseP: 8.5, baseF: 3.8, baseC: 11.8 },
             { id: "r32", name: "Mleko spożywcze 1.5% (szklanka)", baseWeight: 250, baseKcal: 118, baseP: 8.5, baseF: 3.8, baseC: 12.5 },
-            { id: "r33", name: "Mleko bez laktozy 0.5% (szklanka)", baseWeight: 250, baseKcal: 95, baseP: 8.5, baseF: 1.3, baseC: 12.5 },
-            { id: "r34", name: "Napój sojowy niesłodzony (szklanka)", baseWeight: 250, baseKcal: 83, baseP: 8.3, baseF: 4.5, baseC: 0.5 },
-            { id: "r35", name: "Napój migdałowy niesłodzony (szklanka)", baseWeight: 250, baseKcal: 35, baseP: 1.0, baseF: 2.8, baseC: 0.3 },
-            { id: "r36", name: "Odżywka białkowa WPC (1 miarka)", baseWeight: 30, baseKcal: 117, baseP: 23.4, baseF: 1.8, baseC: 1.8 },
-            { id: "r37", name: "Tofu naturalne (kostka)", baseWeight: 180, baseKcal: 225, baseP: 23.4, baseF: 13.5, baseC: 2.7 },
-            { id: "r38", name: "Płatki owsiane górskie (5 łyżek)", baseWeight: 50, baseKcal: 188, baseP: 6.0, baseF: 3.6, baseC: 31.2 },
-            { id: "r39", name: "Otręby owsiane (2 łyżki)", baseWeight: 20, baseKcal: 72, baseP: 3.6, baseF: 1.4, baseC: 9.0 },
-            { id: "r40", name: "Ryż basmati / jaśminowy (przed ugotowaniem)", baseWeight: 50, baseKcal: 175, baseP: 3.8, baseF: 0.4, baseC: 38.5 },
-            { id: "r41", name: "Ryż brązowy (przed ugotowaniem)", baseWeight: 50, baseKcal: 177, baseP: 3.6, baseF: 1.0, baseC: 37.5 },
-            { id: "r42", name: "Kasza gryczana (przed ugotowaniem)", baseWeight: 50, baseKcal: 173, baseP: 6.3, baseF: 1.6, baseC: 34.5 },
-            { id: "r43", name: "Kasza bulgur (przed ugotowaniem)", baseWeight: 50, baseKcal: 175, baseP: 6.0, baseF: 0.7, baseC: 35.0 },
-            { id: "r44", name: "Kasza jaglana (przed ugotowaniem)", baseWeight: 50, baseKcal: 178, baseP: 5.3, baseF: 1.5, baseC: 35.8 },
-            { id: "r45", name: "Komosa ryżowa / Quinoa (przed ugotowaniem)", baseWeight: 50, baseKcal: 184, baseP: 7.0, baseF: 3.0, baseC: 32.0 },
-            { id: "r46", name: "Makaron pełnoziarnisty (przed ugotowaniem)", baseWeight: 70, baseKcal: 245, baseP: 10.5, baseF: 1.8, baseC: 45.5 },
-            { id: "r47", name: "Makaron z ciecierzycy / soczewicy (przed ugotowaniem)", baseWeight: 70, baseKcal: 240, baseP: 17.5, baseF: 2.1, baseC: 35.0 },
-            { id: "r48", name: "Ziemniaki gotowane (porcja obiadowa)", baseWeight: 200, baseKcal: 154, baseP: 3.8, baseF: 0.2, baseC: 34.0 },
-            { id: "r49", name: "Bataty / słodkie ziemniaki", baseWeight: 200, baseKcal: 172, baseP: 3.2, baseF: 0.2, baseC: 40.0 },
-            { id: "r50", name: "Chleb żytni razowy (1 kromka)", baseWeight: 35, baseKcal: 78, baseP: 2.0, baseF: 0.5, baseC: 16.0 },
-            { id: "r51", name: "Chleb graham (1 kromka)", baseWeight: 35, baseKcal: 80, baseP: 2.8, baseF: 0.6, baseC: 16.5 },
-            { id: "r52", name: "Bułka grahamka (1 sztuka)", baseWeight: 70, baseKcal: 182, baseP: 6.3, baseF: 1.2, baseC: 37.0 },
-            { id: "r53", name: "Pieczywo chrupkie typu Wasa (2 kromki)", baseWeight: 20, baseKcal: 68, baseP: 2.0, baseF: 0.4, baseC: 13.0 },
-            { id: "r54", name: "Wafle ryżowe naturalne (2 sztuki)", baseWeight: 20, baseKcal: 77, baseP: 1.6, baseF: 0.6, baseC: 16.0 },
-            { id: "r55", name: "Tortilla pełnoziarnista (1 placek)", baseWeight: 62, baseKcal: 180, baseP: 5.6, baseF: 3.7, baseC: 30.0 },
-            { id: "r56", name: "Soczewica czerwona (sucha)", baseWeight: 50, baseKcal: 170, baseP: 12.5, baseF: 0.6, baseC: 29.0 },
-            { id: "r57", name: "Ciecierzyca konserwowa (odsączona)", baseWeight: 100, baseKcal: 120, baseP: 6.5, baseF: 2.2, baseC: 16.0 },
-            { id: "r58", name: "Fasola czerwona konserwowa (odsączona)", baseWeight: 100, baseKcal: 105, baseP: 7.5, baseF: 0.6, baseC: 15.0 },
-            { id: "r59", name: "Awokado Hass (pół sztuki)", baseWeight: 70, baseKcal: 112, baseP: 1.4, baseF: 10.5, baseC: 1.3 },
-            { id: "r60", name: "Oliwa z oliwek (1 łyżka)", baseWeight: 10, baseKcal: 88, baseP: 0, baseF: 10.0, baseC: 0 },
-            { id: "r61", name: "Olej rzepakowy / lniany (1 łyżka)", baseWeight: 10, baseKcal: 88, baseP: 0, baseF: 10.0, baseC: 0 },
-            { id: "r62", name: "Masło ekstra 82% (1 płaska łyżeczka)", baseWeight: 5, baseKcal: 37, baseP: 0, baseF: 4.1, baseC: 0 },
-            { id: "r63", name: "Masło orzechowe 100% (1 łyżeczka)", baseWeight: 15, baseKcal: 88, baseP: 3.9, baseF: 7.5, baseC: 2.1 },
-            { id: "r64", name: "Orzechy włoskie (garść)", ba
+            { id: "r33", name: "Mleko bez laktozy 0.5% (szklanka)", baseWeight: 250, baseKcal: 95, baseP: 8.5, baseF: 1.3, baseC:
+        
