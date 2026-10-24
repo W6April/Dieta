@@ -12,22 +12,25 @@
     <style>
         html, body { overflow-x: hidden; width: 100%; position: relative; }
         body { -webkit-tap-highlight-color: transparent; }
-        @supports (padding-bottom: env(safe-area-inset-bottom)) { .pb-safe { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); } }
+        @supports (padding-bottom: env(safe-area-inset-bottom)) {
+            .pb-safe { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
+        }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .fab-gemini { position: fixed; bottom: 80px; right: 20px; z-index: 40; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans pb-24 select-none">
     <div id="app" class="max-w-md w-full mx-auto min-h-screen bg-white shadow-xl relative overflow-x-hidden flex flex-col">
-        <div class="p-6 text-center text-gray-400 mt-20">Ładowanie aplikacji... Jeśli ten ekran nie znika, wyczyść dane przeglądarki na telefonie.</div>
+        <div class="p-6 text-center text-gray-400 mt-20">Trwa ładowanie... Jeśli ten ekran nie znika po 3 sekundach, wyczyść historię przeglądarki na telefonie.</div>
     </div>
 
     <script>
-        // System anty-crash (Wyłapuje błędy i pokazuje na ekranie)
-        window.onerror = function(message, source, lineno, colno, error) {
-            document.getElementById('app').innerHTML = `<div class="p-6 bg-red-50 text-red-700 font-bold h-screen"><b>Błąd Krytyczny Aplikacji:</b><br><br>${message}<br><br>Linia kodu: ${lineno}<br><br><button onclick="localStorage.clear(); location.reload();" class="mt-4 bg-red-600 text-white p-3 rounded-lg w-full">Wykonaj Twardy Reset (Usuwa dane)</button></div>`;
+        // System anty-crash (Wyłapuje błędy runtime i wyświetla komunikat na ekranie)
+        window.onerror = function(message, source, lineno) {
+            document.getElementById('app').innerHTML = `<div class="p-6 bg-red-50 text-red-700 font-bold h-screen"><b>Błąd Krytyczny:</b><br><br>${message}<br><br>Linia: ${lineno}<br><br><button onclick="localStorage.clear(); location.reload();" class="mt-4 bg-red-600 text-white p-3 rounded-lg w-full">Twardy Reset (Usuwa dane)</button></div>`;
             return true;
         };
 
@@ -102,21 +105,17 @@
 
         const dzis = new Date().toISOString().split('T')[0];
 
-        // System kaskadowego ładowania danych ze starszych wersji
-        const savedUsers = loadStorage('diet_v11_users', loadStorage('diet_v10_users', loadStorage('diet_v9_users', [])));
-        const savedProducts = loadStorage('diet_v11_products', loadStorage('diet_v10_products', loadStorage('diet_v9_products', [])));
-        const savedWorkouts = loadStorage('diet_v11_workouts_db', loadStorage('diet_v10_workouts_db', loadStorage('diet_v9_workouts_db', [])));
-        const savedDiaries = loadStorage('diet_v11_diaries', loadStorage('diet_v10_diaries', loadStorage('diet_v9_diaries', {})));
-        const savedSettings = loadStorage('diet_v11_settings', loadStorage('diet_v10_settings', loadStorage('diet_v9_settings', {})));
-
         const state = {
             tab: 'dziennik',
-            users: (Array.isArray(savedUsers) && savedUsers.length > 0) ? savedUsers : [{ id: 'u1', name: 'Ja', startDate: dzis }, { id: 'u2', name: 'Żona', startDate: dzis }],
-            userId: localStorage.getItem('diet_v11_curr_user') || localStorage.getItem('diet_v10_curr_user') || 'u1',
-            products: Array.isArray(savedProducts) ? savedProducts : [],
-            workoutsDb: Array.isArray(savedWorkouts) ? savedWorkouts : [],
-            diaries: (typeof savedDiaries === 'object' && savedDiaries !== null) ? savedDiaries : {},
-            settings: (typeof savedSettings === 'object' && savedSettings !== null) ? savedSettings : {},
+            users: loadStorage('diet_v12_users', loadStorage('diet_v10_users', [
+                { id: 'u1', name: 'Ja', startDate: dzis }, 
+                { id: 'u2', name: 'Żona', startDate: dzis }
+            ])),
+            userId: localStorage.getItem('diet_v12_curr_user') || localStorage.getItem('diet_v10_curr_user') || 'u1',
+            products: loadStorage('diet_v12_products', loadStorage('diet_v10_products', [])),
+            workoutsDb: loadStorage('diet_v12_workouts_db', loadStorage('diet_v10_workouts_db', [])),
+            diaries: loadStorage('diet_v12_diaries', loadStorage('diet_v10_diaries', {})),
+            settings: loadStorage('diet_v12_settings', loadStorage('diet_v10_settings', {})),
             date: dzis,
             isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
@@ -125,6 +124,7 @@
         };
 
         function initData() {
+            if(!Array.isArray(state.products)) state.products = [];
             const names = new Set(state.products.map(p => (p.name || '').trim().toLowerCase()));
             FULL_PRODUCTS.forEach(bp => {
                 if (!names.has(bp.name.trim().toLowerCase())) { state.products.push(bp); names.add(bp.name.trim().toLowerCase()); }
@@ -141,12 +141,12 @@
         initData();
 
         function saveState() {
-            localStorage.setItem('diet_v11_users', JSON.stringify(state.users));
-            localStorage.setItem('diet_v11_curr_user', state.userId);
-            localStorage.setItem('diet_v11_products', JSON.stringify(state.products));
-            localStorage.setItem('diet_v11_workouts_db', JSON.stringify(state.workoutsDb));
-            localStorage.setItem('diet_v11_diaries', JSON.stringify(state.diaries));
-            localStorage.setItem('diet_v11_settings', JSON.stringify(state.settings));
+            localStorage.setItem('diet_v12_users', JSON.stringify(state.users));
+            localStorage.setItem('diet_v12_curr_user', state.userId);
+            localStorage.setItem('diet_v12_products', JSON.stringify(state.products));
+            localStorage.setItem('diet_v12_workouts_db', JSON.stringify(state.workoutsDb));
+            localStorage.setItem('diet_v12_diaries', JSON.stringify(state.diaries));
+            localStorage.setItem('diet_v12_settings', JSON.stringify(state.settings));
         }
 
         function getDayData() {
@@ -225,7 +225,7 @@
                 let bgClass = left < 0 ? 'bg-red-50 border-red-100' : (eatenKcal > day.goals.kcal ? 'bg-blue-50 border-blue-100' : 'bg-gray-50');
 
                 let html = `
-                    ${checkBackupReminder() ? `<div class="bg-yellow-400 text-yellow-900 text-[10px] font-bold text-center py-1.5 px-4 shadow-sm z-50">⚠️ Jest niedziela! Zrób kopię zapasową w Ustawieniach.</div>` : ''}
+                    ${checkBackupReminder() ? `<div class="bg-yellow-400 text-yellow-900 text-[10px] font-bold text-center py-1.5 px-4 shadow-sm z-50">⚠️ Jest niedziela po południu! Zrób tygodniową kopię zapasową w Ustawieniach.</div>` : ''}
                     <div class="bg-blue-600 text-white p-4 shadow-md w-full">
                         <div class="flex justify-between items-center mb-3">
                             <h1 class="text-xl font-bold tracking-tight">Dziennik Diety</h1>
@@ -507,9 +507,7 @@
                 app.innerHTML = html;
 
                 if(state.chatOpen) { const cb = document.getElementById('chatBox'); if(cb) cb.scrollTop = cb.scrollHeight; }
-
             } catch (e) {
-                // Jeśli aplikacja wywali błąd podczas renderowania, pokaż go na ekranie!
                 document.getElementById('app').innerHTML = `<div class="p-6 bg-red-50 text-red-700 font-bold h-screen"><b>Błąd Wyświetlania:</b><br><br>${e.message}<br><br><button onclick="localStorage.clear(); location.reload();" class="mt-4 bg-red-600 text-white p-3 rounded-lg w-full">Wykonaj Twardy Reset (Usuwa dane)</button></div>`;
             }
         }
