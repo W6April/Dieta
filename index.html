@@ -1,224 +1,293 @@
-];
-function fresh(){return {version:2,profiles:[{id:'u1',name:'Ja',goals:{kcal:2500,p:170,f:70,c:220}},{id:'u2',name:'Żona',goals:{kcal:2000,p:120,f:60,c:180}}],active:'u1',products:structuredClone(defaults),diaries:{}}}
-function load(){
-try{
-const x=JSON.parse(localStorage.getItem(KEY));
-if(x&&x.version===2&&Array.isArray(x.profiles)&&x.diaries&&Array.isArray(x.products))return x;
-}catch(e){}
-const s=fresh();
-try{
-const oldUsers=JSON.parse(localStorage.getItem('diet_users')||'null');
-const oldProducts=JSON.parse(localStorage.getItem('diet_products')||'null');
-const oldDiaries=JSON.parse(localStorage.getItem('diet_diaries')||'null');
-if(Array.isArray(oldUsers)&&oldUsers.length)s.profiles=oldUsers.map(u=>({id:String(u.id),name:String(u.name||'Profil'),goals:{kcal:2500,p:170,f:70,c:220}}));
-if(Array.isArray(oldProducts)&&oldProducts.length)s.products=oldProducts.map(p=>({id:String(p.id||uid()),name:String(p.name||'Produkt'),baseWeight:num(p.baseWeight,100),kcal:num(p.baseKcal??p.kcal),p:num(p.baseP??p.p),f:num(p.baseF??p.f),c:num(p.baseC??p.c)}));
-if(oldDiaries&&typeof oldDiaries==='object'){
-for(const [pid,days] of Object.entries(oldDiaries)){
-s.diaries[pid]={};
-for(const [date,d] of Object.entries(days||{})){
-s.diaries[pid][date]={goals:{kcal:num(d.goals?.kcal,2500),p:num(d.goals?.p,170),f:num(d.goals?.f,70),c:num(d.goals?.c,220)},weight:d.weight??'',meals:(d.meals||[]).map(m=>({id:m.id||uid(),name:m.name||'Posiłek',weight:num(m.weight),kcal:num(m.kcal),p:num(m.p),f:num(m.f),c:num(m.c)})),workouts:(d.workouts||[]).map(w=>({id:w.id||uid(),name:w.name||'Trening',time:num(w.time),kcal:num(w.kcal)}))};
-}
-}
-}
-s.active=localStorage.getItem('diet_user')||s.profiles[0].id;
-}catch(e){}
-if(!s.profiles.some(p=>p.id===s.active))s.active=s.profiles[0]?.id||'u1';
-return s;
-}
-let db=load(),tab='dziennik',date=today(),selectedProduct='';
-function persist(){try{localStorage.setItem(KEY,JSON.stringify(db));return true}catch(e){alert('Nie udało się zapisać danych. Wyeksportuj kopię zapasową i zwolnij miejsce w pamięci przeglądarki.');return false}}
-function profile(){return db.profiles.find(p=>p.id===db.active)||db.profiles[0]}
-function dayFor(d=date,pid=db.active){if(!db.diaries[pid])db.diaries[pid]={};if(!db.diaries[pid][d]){const p=db.profiles.find(x=>x.id===pid)||profile();db.diaries[pid][d]={goals:{...p.goals},weight:'',meals:[],workouts:[]}}return db.diaries[pid][d]}
-function totals(day){return day.meals.reduce((a,m)=>({kcal:a.kcal+num(m.kcal),p:a.p+num(m.p),f:a.f+num(m.f),c:a.c+num(m.c)}),{kcal:0,p:0,f:0,c:0})}
-function fmt(n,d=0){return round(n,d).toLocaleString('pl-PL',{maximumFractionDigits:d})}
-function dateLabel(s){if(!s)return '';return new Date(s+'T12:00:00').toLocaleDateString('pl-PL',{day:'2-digit',month:'2-digit',year:'numeric'})}
-function safeDay(d){return d&&typeof d==='object'&&Array.isArray(d.meals)&&Array.isArray(d.workouts)}
-function setTab(t){tab=t;render()}
-function render(){
-const p=profile();if(!p)return;
-document.getElementById('profileSelect').innerHTML=db.profiles.map(x=>`<option value="${esc(x.id)}" ${x.id===db.active?'selected':''}>${esc(x.name)}</option>`).join('');
-document.getElementById('headerDate').textContent=`${p.name} · ${dateLabel(date)}`;
-document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
-const view=document.getElementById('view');
-if(tab==='dziennik')view.innerHTML=renderDiary(p);
-else if(tab==='waga')view.innerHTML=renderWeight();
-else if(tab==='tydzien')view.innerHTML=renderWeek();
-else if(tab==='produkty')view.innerHTML=renderProducts();
-else view.innerHTML=renderSettings(p);
-}
-function kpi(label,value,sub=''){return `<div class="kpi"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`}
-function macro(label,val,goal,cls=''){const pct=goal>0?Math.min(100,val/goal*100):0;return `<div class="macroline"><div class="row"><b>${label}</b><span>${fmt(val,1)} / ${fmt(goal,1)} g</span></div><div class="progress ${cls}"><div style="width:${pct}%"></div></div></div>`}
-function renderDiary(p){
-const d=dayFor(),t=totals(d),burn=d.workouts.reduce((s,w)=>s+num(w.kcal),0),left=d.goals.kcal-t.kcal;
-return `
-<div class="panel"><div class="grid">
-<div class="field"><label>Data</label><input type="date" value="${date}" onchange="changeDate(this.value)"></div>
-<div class="field"><label>Waga (kg)</label><input type="number" inputmode="decimal" step=".1" placeholder="np. 83,2" value="${esc(d.weight)}" onchange="changeWeight(this.value)"></div>
-</div></div>
-<div class="panel"><h2>Dzisiejszy bilans</h2>
-<div class="kpi-grid">
-${kpi('SPOŻYTE',fmt(t.kcal)+' kcal',`Cel ${fmt(d.goals.kcal)} kcal`)}
-${kpi('DO CELU',fmt(left)+' kcal',left<0?'Powyżej celu':'Pozostały limit')}
-${kpi('BIAŁKO',fmt(t.p,1)+' g',`Cel ${fmt(d.goals.p)} g`)}
-${kpi('TRENINGI',fmt(burn)+' kcal',`${d.workouts.length} zapisane`)}
-</div>
-<div style="margin-top:14px">
-${macro('Białko',t.p,d.goals.p,'green')}
-${macro('Tłuszcze',t.f,d.goals.f,'orange')}
-${macro('Węglowodany',t.c,d.goals.c)}
-</div>
-<div class="muted">Kalorie z treningu pokazujemy osobno — nie zwiększają automatycznie dziennego celu.</div>
-</div>
-<div class="panel"><h2>➕ Dodaj posiłek</h2>
-<div class="field" style="margin-bottom:9px;position:relative">
-<label for="mealSearch">Produkt — wpisz początek nazwy</label>
-<input id="mealSearch" type="text" autocomplete="off" placeholder="Zacznij pisać, np. sky..." oninput="searchMealProducts()" onfocus="searchMealProducts()" value="${esc(db.products.find(x=>x.id===selectedProduct)?.name||'')}" aria-autocomplete="list" aria-controls="mealSuggestions">
-<div id="mealSuggestions" class="suggestions hidden" role="listbox"></div>
-<div id="selectedProductInfo" class="muted" style="margin-top:5px">${selectedProduct&&db.products.find(x=>x.id===selectedProduct)?`Wybrano: ${esc(db.products.find(x=>x.id===selectedProduct).name)}`:'Wybierz produkt z podpowiedzi.'}</div>
-</div>
-<div class="grid">
-<div class="field"><label>Ilość (g lub porcji)</label><input id="mealWeight" type="number" min=".1" step=".1" inputmode="decimal" placeholder="np. 150"></div>
-<div class="field"><label>Nazwa posiłku (opcjonalnie)</label><input id="mealLabel" placeholder="np. śniadanie"></div>
-</div>
-<button class="btn full" style="margin-top:10px" onclick="addMeal()">Dodaj do dziennika</button>
-${d.meals.length?d.meals.map(m=>`<div class="item"><div><div class="item-title">${esc(m.name)}</div><div class="muted">${fmt(m.weight,1)} g/porc. · B ${fmt(m.p,1)} · T ${fmt(m.f,1)} · W ${fmt(m.c,1)}</div></div><div style="text-align:right;white-space:nowrap"><b>${fmt(m.kcal)} kcal</b><br><button class="btn red small" onclick="deleteMeal('${esc(m.id)}')">Usuń</button></div></div>`).join(''):'<div class="empty">Brak posiłków — dodaj pierwszy powyżej.</div>'}
-</div>
-<div class="panel"><h2>🏃 Trening</h2>
-<div class="grid">
-<div class="field"><label>Rodzaj treningu</label><input id="workName" placeholder="np. siłowy"></div>
-<div class="field"><label>Czas (min)</label><input id="workTime" type="number" min="0" inputmode="numeric" placeholder="45"></div>
-<div class="field"><label>Aktywne kcal (opcjonalnie)</label><input id="workKcal" type="number" min="0" inputmode="numeric" placeholder="200"></div>
-</div>
-<button class="btn orange full" style="margin-top:10px" onclick="addWorkout()">Zapisz trening</button>
-${d.workouts.length?d.workouts.map(w=>`<div class="item"><div><div class="item-title">${esc(w.name)}</div><div class="muted">${fmt(w.time)} min · ${fmt(w.kcal)} aktywnych kcal</div></div><button class="btn red small" onclick="deleteWorkout('${esc(w.id)}')">Usuń</button></div>`).join(''):'<div class="empty">Nie dodano jeszcze treningu.</div>'}
-</div>`;
-}
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dziennik Diety</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background: #f3f4f6; color: #1f2937; padding-bottom: 70px; }
+        .container { max-width: 480px; margin: 0 auto; min-height: 100vh; background: #fff; position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .header { background: #2563eb; color: #fff; padding: 16px; }
+        .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+        .content { padding: 16px; }
+        .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+        .card-blue { background: #eff6ff; border-color: #bfdbfe; }
+        .card-gray { background: #f9fafb; }
+        input, select, textarea { width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+        label { display: block; font-size: 11px; color: #4b5563; margin-bottom: 2px; font-weight: bold; }
+        .btn { padding: 8px 12px; border: none; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; color: #fff; background: #2563eb; text-align: center; }
+        .btn-orange { background: #f97316; }
+        .btn-green { background: #059669; }
+        .btn-full { width: 100%; display: block; }
+        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+        .del-btn { background: none; border: none; color: #ef4444; font-weight: bold; cursor: pointer; font-size: 14px; padding: 2px 6px; }
+        .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: #fff; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-around; padding: 10px 0; z-index: 50; }
+        .nav-btn { background: none; border: none; font-size: 12px; font-weight: bold; color: #6b7280; cursor: pointer; }
+        .nav-btn.active { color: #2563eb; }
+        .text-green { color: #16a34a; }
+        .text-red { color: #dc2626; }
+        .text-orange { color: #ea580c; }
+    </style>
+</head>
+<body>
+    <div id="app" class="container"></div>
 
-function changeDate(v){if(v){date=v;render()}}
-function changeWeight(v){const d=dayFor();d.weight=v===''?'':Math.max(0,num(v));persist();render()}
+    <script>
+        const INITIAL_PRODUCTS = [
+            { id: "p1", name: "Skyr naturalny (kubek 150g)", baseWeight: 150, baseKcal: 98, baseP: 18, baseF: 0, baseC: 6.2 },
+            { id: "p2", name: "Skyr pitny (butelka 360g)", baseWeight: 360, baseKcal: 225, baseP: 36, baseF: 1, baseC: 16 },
+            { id: "p3", name: "Protein Pudding (kubek 200g)", baseWeight: 200, baseKcal: 152, baseP: 20, baseF: 3, baseC: 11 },
+            { id: "p4", name: "Pierś z kurczaka (surowa)", baseWeight: 100, baseKcal: 98, baseP: 21.5, baseF: 1.3, baseC: 0 },
+            { id: "p5", name: "Ryż basmati (przed ugotowaniem)", baseWeight: 50, baseKcal: 175, baseP: 3.8, baseF: 0.4, baseC: 38.5 },
+            { id: "p6", name: "Jajko kurze (1 sztuka)", baseWeight: 55, baseKcal: 77, baseP: 6.9, baseF: 5.3, baseC: 0.3 },
+            { id: "p7", name: "Płatki owsiane", baseWeight: 50, baseKcal: 188, baseP: 6, baseF: 3.6, baseC: 31.2 },
+            { id: "p8", name: "Masło orzechowe", baseWeight: 15, baseKcal: 88, baseP: 3.9, baseF: 7.5, baseC: 2.1 },
+            { id: "p9", name: "Twaróg chudy", baseWeight: 100, baseKcal: 86, baseP: 19.8, baseF: 0.5, baseC: 3.5 },
+            { id: "p10", name: "Banany", baseWeight: 120, baseKcal: 116, baseP: 1.2, baseF: 0.4, baseC: 26.2 }
+        ];
 
-function searchMealProducts(){
-const input=document.getElementById('mealSearch'),box=document.getElementById('mealSuggestions');
-if(!input||!box)return;
-const q=input.value.trim().toLocaleLowerCase('pl-PL');
-const found=db.products.filter(p=>!q||p.name.toLocaleLowerCase('pl-PL').includes(q)).slice(0,12);
-box.innerHTML=found.length?found.map(p=>`<button type="button" class="suggestion" role="option" onclick="chooseMealProduct('${esc(p.id)}')"><strong>${esc(p.name)}</strong><small>${fmt(p.kcal)} kcal · B ${fmt(p.p,1)} g · ${fmt(p.baseWeight)} g / porcja bazowa</small></button>`).join(''):'<div class="empty">Brak pasujących produktów w bazie.</div>';
-box.classList.remove('hidden');
-}
+        function loadStorage(key, fallback) {
+            try {
+                const item = localStorage.getItem(key);
+                return item ? JSON.parse(item) : fallback;
+            } catch (e) {
+                return fallback;
+            }
+        }
 
-function chooseMealProduct(id){
-const p=db.products.find(x=>x.id===id);
-if(!p)return;
-selectedProduct=id;
-const input=document.getElementById('mealSearch'),box=document.getElementById('mealSuggestions'),info=document.getElementById('selectedProductInfo');
-if(input)input.value=p.name;
-if(box)box.classList.add('hidden');
-if(info)info.textContent=`Wybrano: ${p.name} · ${fmt(p.kcal)} kcal / ${fmt(p.baseWeight)} g`;
-const weight=document.getElementById('mealWeight');
-if(weight&&!weight.value)weight.value=p.baseWeight;
-}
+        const state = {
+            tab: 'dziennik',
+            users: loadStorage('diet_users', [{ id: 'u1', name: 'Ja' }, { id: 'u2', name: 'Zona' }]),
+            userId: localStorage.getItem('diet_user') || 'u1',
+            products: loadStorage('diet_products', INITIAL_PRODUCTS),
+            diaries: loadStorage('diet_diaries', {}),
+            date: new Date().toISOString().split('T')[0],
+            selectedProd: '',
+            weightInput: ''
+        };
 
-document.addEventListener('click',e=>{
-const box=document.getElementById('mealSuggestions'),input=document.getElementById('mealSearch');
-if(box&&input&&!box.contains(e.target)&&e.target!==input)box.classList.add('hidden');
-});
+        function save() {
+            try {
+                localStorage.setItem('diet_users', JSON.stringify(state.users));
+                localStorage.setItem('diet_user', state.userId);
+                localStorage.setItem('diet_products', JSON.stringify(state.products));
+                localStorage.setItem('diet_diaries', JSON.stringify(state.diaries));
+            } catch (e) {}
+        }
 
-function addMeal(){
-const id=selectedProduct,prod=db.products.find(x=>x.id===id);
-const weight=num(document.getElementById('mealWeight').value);
-const label=document.getElementById('mealLabel').value.trim();
-if(!prod){alert('Wpisz początek nazwy i wybierz produkt z podpowiedzi.');return}
-if(weight<=0){alert('Podaj ilość większą od zera.');return}
-const ratio=weight/Math.max(.001,num(prod.baseWeight,100));
-const d=dayFor();
-d.meals.push({id:uid(),productId:prod.id,name:label?`${label}: ${prod.name}`:prod.name,weight,kcal:round(prod.kcal*ratio,1),p:round(prod.p*ratio,1),f:round(prod.f*ratio,1),c:round(prod.c*ratio,1)});
-selectedProduct=id;
-persist();
-render();
-}
+        function getDay() {
+            if (!state.diaries[state.userId]) state.diaries[state.userId] = {};
+            if (!state.diaries[state.userId][state.date]) {
+                state.diaries[state.userId][state.date] = {
+                    goals: state.userId === 'u1' ? { kcal: 2500, p: 170, f: 70, c: 220 } : { kcal: 2000, p: 120, f: 60, c: 180 },
+                    meals: [], workouts: [], weight: ''
+                };
+            }
+            return state.diaries[state.userId][state.date];
+        }
 
-function deleteMeal(id){const d=dayFor();d.meals=d.meals.filter(x=>String(x.id)!==String(id));persist();render()}
+        function render() {
+            const app = document.getElementById('app');
+            const day = getDay();
+            const user = state.users.find(u => u.id === state.userId) || state.users[0];
 
-function addWorkout(){
-const name=document.getElementById('workName').value.trim(),time=num(document.getElementById('workTime').value),kcal=num(document.getElementById('workKcal').value);
-if(!name){alert('Wpisz rodzaj treningu.');return}
-if(time<0||kcal<0){alert('Wartości nie mogą być ujemne.');return}
-dayFor().workouts.push({id:uid(),name,time,kcal});
-persist();
-render();
-}
+            let eatenKcal = 0, eatenP = 0, eatenF = 0, eatenC = 0;
+            day.meals.forEach(m => { eatenKcal += m.kcal; eatenP += m.p; eatenF += m.f; eatenC += m.c; });
+            const burned = day.workouts.reduce((s, w) => s + w.kcal, 0);
+            const left = day.goals.kcal - eatenKcal + burned;
 
-function deleteWorkout(id){const d=dayFor();d.workouts=d.workouts.filter(x=>String(x.id)!==String(id));persist();render()}
-function changeProfile(id){if(db.profiles.some(p=>p.id===id)){db.active=id;persist();render()}}
+            let html = `
+                <div class="header">
+                    <div class="row" style="margin-bottom:8px;">
+                        <b>Dziennik Diety</b>
+                        <span style="font-size:11px; background:#1d4ed8; padding:3px 8px; border-radius:4px;">Profil: ${user.name}</span>
+                    </div>
+                    <div style="display:flex; gap:4px;">
+                        ${state.users.map(u => `<button onclick="switchUser('${u.id}')" style="flex:1; padding:4px; border:none; border-radius:4px; font-weight:bold; background:${state.userId === u.id ? '#fff' : '#1d4ed8'}; color:${state.userId === u.id ? '#2563eb' : '#fff'}">${u.name}</button>`).join('')}
+                    </div>
+                </div>
+                <div class="content">
+            `;
 
-function renderWeight(){
-const entries=Object.entries(db.diaries[db.active]||{}).filter(([d,x])=>x.weight!==''&&Number.isFinite(Number(x.weight))).sort(([a],[b])=>a.localeCompare(b));
-const recent=entries.slice(-7),avg=recent.length?recent.reduce((s,[,x])=>s+num(x.weight),0)/recent.length:0;
-let chart='';
-if(entries.length){
-const vals=entries.map(([,x])=>num(x.weight)),min=Math.min(...vals)-.5,max=Math.max(...vals)+.5,range=max-min||1,W=600,H=210,pad=28;
-const pts=vals.map((v,i)=>`${pad+(entries.length===1?0:i*(W-2*pad)/(entries.length-1))},${H-pad-(v-min)/range*(H-2*pad)}`).join(' ');
-chart=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Wykres wagi">
-<line x1="${pad}" y1="${pad}" x2="${W-pad}" y2="${pad}" stroke="#e5e7eb"/>
-<line x1="${pad}" y1="${H/2}" x2="${W-pad}" y2="${H/2}" stroke="#e5e7eb"/>
-<line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="#e5e7eb"/>
-<polyline points="${pts}" fill="none" stroke="#2563eb" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
-${vals.map((v,i)=>`<circle cx="${pad+(entries.length===1?0:i*(W-2*pad)/(entries.length-1))}" cy="${H-pad-(v-min)/range*(H-2*pad)}" r="4" fill="#2563eb"/>`).join('')}
-<text x="${pad}" y="17" fill="#6b7280" font-size="12">${fmt(max,1)} kg</text>
-<text x="${pad}" y="${H-5}" fill="#6b7280" font-size="12">${fmt(min,1)} kg</text>
-</svg>`;
-}
-return `<div class="panel"><h
+            if (state.tab === 'dziennik') {
+                html += `
+                    <div class="card">
+                        <div class="row">
+                            <div style="flex:1;"><label>Data</label><input type="date" value="${state.date}" onchange="changeDate(this.value)" /></div>
+                            <div style="width:100px;"><label>Waga (kg)</label><input type="number" step="0.1" value="${day.weight}" onchange="changeWeight(this.value)" /></div>
+                        </div>
+                    </div>
+                    <div class="card card-blue">
+                        <div class="row" style="font-size:12px; margin-bottom:4px;"><b>Cel: ${day.goals.kcal} kcal</b><span>B: ${day.goals.p}g | T: ${day.goals.f}g | W: ${day.goals.c}g</span></div>
+                    </div>
+                    <div class="card card-gray">
+                        <div class="row">
+                            <div><div style="font-size:10px; color:#6b7280;">ZJEDZONO</div><div style="font-size:22px; font-weight:bold;">${Math.round(eatenKcal)} kcal</div></div>
+                            <div style="text-align:right;"><div style="font-size:10px; color:#6b7280;">POZOSTAŁO</div><div style="font-size:22px; font-weight:bold;" class="${left < 0 ? 'text-red' : 'text-green'}">${Math.abs(Math.round(left))} kcal</div></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div style="font-weight:bold; margin-bottom:6px; font-size:13px;">Dodaj posiłek</div>
+                        <div class="row">
+                            <select id="selProd" onchange="selectProd(this.value)" style="flex:1;">
+                                <option value="">Wybierz produkt...</option>
+                                ${state.products.map(p => `<option value="${p.id}" ${state.selectedProd === p.id ? 'selected' : ''}>${p.name} (${p.baseWeight}g / ${p.baseKcal}kcal)</option>`).join('')}
+                            </select>
+                            <input id="inpW" type="number" placeholder="Gramy" value="${state.weightInput}" oninput="state.weightInput = this.value" style="width:80px;" />
+                            <button onclick="addMeal()" class="btn">+</button>
+                        </div>
+                        <div style="margin-top:10px;">
+                            ${day.meals.map(m => `<div class="item-row"><div><b>${m.name}</b><div style="font-size:11px; color:#6b7280;">${m.weight}g | B:${m.p} T:${m.f} W:${m.c}</div></div><div class="row"><b>${m.kcal} kcal</b><button onclick="delMeal(${m.id})" class="del-btn">X</button></div></div>`).join('')}
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div style="font-weight:bold; margin-bottom:6px; font-size:13px;" class="text-orange">Treningy (-${burned} kcal)</div>
+                        <div class="row" style="margin-bottom:6px;">
+                            <input id="wName" placeholder="Nazwa" style="flex:1;" />
+                            <input id="wTime" type="number" placeholder="Min" style="width:60px;" />
+                            <input id="wKcal" type="number" placeholder="Kcal" style="width:65px;" />
+                            <button onclick="addWorkout()" class="btn btn-orange">+</button>
+                        </div>
+                        <div>
+                            ${day.workouts.map(w => `<div class="item-row"><span><b>${w.name}</b> (${w.time}min)</span><div class="row"><span class="text-orange"><b>${w.kcal} kcal</b></span><button onclick="delWorkout(${w.id})" class="del-btn">X</button></div></div>`).join('')}
+                        </div>
+                    </div>
+                `;
+            } else if (state.tab === 'baza') {
+                html += `
+                    <div class="card card-blue">
+                        <div style="font-weight:bold; margin-bottom:6px; font-size:13px;">Dodaj produkt do bazy</div>
+                        <input id="pName" placeholder="Nazwa" style="margin-bottom:6px;" />
+                        <div class="row" style="margin-bottom:6px;">
+                            <div><label>Waga bazowa (g)</label><input id="pW" type="number" value="100" /></div>
+                            <div><label>Kalorie</label><input id="pK" type="number" placeholder="Kcal" /></div>
+                        </div>
+                        <div class="row" style="margin-bottom:8px;">
+                            <div><label>Białko</label><input id="pP" type="number" step="0.1" value="0" /></div>
+                            <div><label>Tłuszcz</label><input id="pF" type="number" step="0.1" value="0" /></div>
+                            <div><label>Węglo</label><input id="pC" type="number" step="0.1" value="0" /></div>
+                        </div>
+                        <button onclick="addProd()" class="btn btn-full">Zapisz produkt</button>
+                    </div>
+                    <div class="card">
+                        <div style="font-weight:bold; margin-bottom:6px; font-size:13px;">Baza produktów (${state.products.length})</div>
+                        ${state.products.map(p => `<div class="item-row"><div><b>${p.name}</b> <span style="color:#2563eb;">(${p.baseWeight}g)</span><div style="font-size:11px; color:#6b7280;">B:${p.baseP} T:${p.baseF} W:${p.baseC}</div></div><div class="row"><b class="text-green">${p.baseKcal} kcal</b><button onclick="delProd('${p.id}')" class="del-btn">X</button></div></div>`).join('')}
+                    </div>
+                `;
+            } else if (state.tab === 'kopia') {
+                html += `
+                    <div class="card">
+                        <div style="font-weight:bold; margin-bottom:6px; font-size:13px;">Kopia zapasowa</div>
+                        <button onclick="exportJson()" class="btn btn-full" style="margin-bottom:8px;">Pobierz plik kopii (.json)</button>
+                        <textarea id="jsonArea" rows="4" placeholder="Wklej kod JSON..." style="margin-bottom:6px;"></textarea>
+                        <button onclick="importJson()" class="btn btn-green btn-full">Wgraj wklejony JSON</button>
+                    </div>
+                `;
+            }
 
-function exportJSON(){
-download(`dziennik-diety-${today()}.json`,JSON.stringify(db,null,2),'application/json;charset=utf-8');
-}
+            html += `
+                </div>
+                <div class="bottom-nav">
+                    <button onclick="switchTab('dziennik')" class="nav-btn ${state.tab === 'dziennik' ? 'active' : ''}">Dziennik</button>
+                    <button onclick="switchTab('baza')" class="nav-btn ${state.tab === 'baza' ? 'active' : ''}">Baza</button>
+                    <button onclick="switchTab('kopia')" class="nav-btn ${state.tab === 'kopia' ? 'active' : ''}">Kopia</button>
+                </div>
+            `;
+            app.innerHTML = html;
+        }
 
-function csvCell(v){return '"'+String(v??'').replace(/"/g,'""')+'"'}
+        window.switchTab = (t) => { state.tab = t; render(); };
+        window.switchUser = (u) => { state.userId = u; save(); render(); };
+        window.changeDate = (d) => { state.date = d; render(); };
+        window.changeWeight = (w) => { getDay().weight = w; save(); };
 
-function exportCSV(){
-const rows=[['Profil','Data','Waga kg','Cel kcal','Kalorie','Białko g','Tłuszcze g','Węglowodany g','Liczba posiłków','Treningi','Spalone kcal']];
-for(const p of db.profiles){
-for(const [d,x] of Object.entries(db.diaries[p.id]||{})){
-const t=totals(x);
-rows.push([p.name,d,x.weight,x.goals?.kcal??p.goals.kcal,t.kcal,t.p,t.f,t.c,x.meals.length,x.workouts.length,x.workouts.reduce((s,w)=>s+num(w.kcal),0)]);
-}}
-download(`dziennik-diety-${today()}.csv`,'\ufeff'+rows.map(r=>r.map(csvCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
-}
+        window.selectProd = (id) => {
+            state.selectedProd = id;
+            const p = state.products.find(x => x.id === id);
+            state.weightInput = p ? p.baseWeight : '';
+            const el = document.getElementById('inpW');
+            if (el) el.value = state.weightInput;
+        };
 
-function importJSON(){
-const input=document.getElementById('importFile'),file=input.files?.[0];
-if(!file){alert('Wybierz plik JSON.');return}
-if(!confirm('Import zastąpi aktualne dane aplikacji. Kontynuować?'))return;
-const reader=new FileReader();
-reader.onload=()=>{
-try{
-const x=JSON.parse(reader.result);
-if(!x||x.version!==2||!Array.isArray(x.profiles)||!Array.isArray(x.products)||!x.diaries||typeof x.diaries!=='object'||!x.profiles.length)throw new Error('Nieprawidłowy format');
-for(const p of x.profiles){if(!p.id||!p.name||!p.goals)throw new Error('Nieprawidłowy profil')}
-for(const [pid,days] of Object.entries(x.diaries)){
-if(!days||typeof days!=='object')throw new Error('Nieprawidłowy dziennik');
-for(const d of Object.values(days)){if(!safeDay(d))throw new Error('Nieprawidłowy wpis dzienny')}
-}
-db=x;
-if(!db.profiles.some(p=>p.id===db.active))db.active=db.profiles[0].id;
-persist();alert('Import zakończony.');render();
-}catch(e){
-alert('Nie udało się zaimportować pliku. Upewnij się, że to kopia JSON tej aplikacji.');
-}};
-reader.readAsText(file);
-}
+        window.addMeal = () => {
+            const p = state.products.find(x => x.id === state.selectedProd);
+            const w = parseFloat(state.weightInput);
+            if (!p || !w) return alert('Wybierz produkt i wagę!');
+            const r = w / p.baseWeight;
+            getDay().meals.push({
+                id: Date.now(), name: p.name, weight: w,
+                kcal: Math.round(p.baseKcal * r),
+                p: Math.round(p.baseP * r * 10) / 10,
+                f: Math.round(p.baseF * r * 10) / 10,
+                c: Math.round(p.baseC * r * 10) / 10
+            });
+            state.selectedProd = ''; state.weightInput = '';
+            save(); render();
+        };
 
-function clearAll(){
-if(!confirm('Na pewno usunąć wszystkie profile, posiłki, treningi i pomiary? Tej operacji nie można cofnąć.'))return;
-if(!confirm('Ostatnie potwierdzenie: wyeksportowałeś kopię zapasową?'))return;
-db=fresh();date=today();tab='dziennik';persist();render();
-}
+        window.delMeal = (id) => {
+            const day = getDay();
+            day.meals = day.meals.filter(x => x.id !== id);
+            save(); render();
+        };
 
-document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
-document.getElementById('profileSelect').addEventListener('change',e=>changeProfile(e.target.value));
-persist();
-render();
-</script>
+        window.addWorkout = () => {
+            const name = document.getElementById('wName').value;
+            const time = parseInt(document.getElementById('wTime').value) || 0;
+            const kcal = parseInt(document.getElementById('wKcal').value) || 0;
+            if (!name || !kcal) return;
+            getDay().workouts.push({ id: Date.now(), name, time, kcal });
+            save(); render();
+        };
+
+        window.delWorkout = (id) => {
+            const day = getDay();
+            day.workouts = day.workouts.filter(x => x.id !== id);
+            save(); render();
+        };
+
+        window.addProd = () => {
+            const name = document.getElementById('pName').value;
+            const w = parseFloat(document.getElementById('pW').value) || 100;
+            const p = parseFloat(document.getElementById('pP').value) || 0;
+            const f = parseFloat(document.getElementById('pF').value) || 0;
+            const c = parseFloat(document.getElementById('pC').value) || 0;
+            const k = document.getElementById('pK').value;
+            const kcal = k !== '' ? parseFloat(k) : Math.round(p*4 + c*4 + f*9);
+            if (!name) return alert('Podaj nazwę!');
+            state.products.unshift({ id: String(Date.now()), name, baseWeight: w, baseKcal: kcal, baseP: p, baseF: f, baseC: c });
+            save(); render();
+        };
+
+        window.delProd = (id) => {
+            if (confirm('Usunąć?')) {
+                state.products = state.products.filter(x => x.id !== id);
+                save(); render();
+            }
+        };
+
+        window.exportJson = () => {
+            const blob = new Blob([JSON.stringify({ products: state.products, diaries: state.diaries }, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'dieta_kopia.json';
+            a.click();
+        };
+
+        window.importJson = () => {
+            try {
+                const data = JSON.parse(document.getElementById('jsonArea').value);
+                if (data.products) state.products = data.products;
+                if (data.diaries) state.diaries = data.diaries;
+                save(); render();
+                alert('Wgrano pomyślnie!');
+            } catch(e) {
+                alert('Błąd JSON!');
+            }
+        };
+
+        render();
+    </script>
 </body>
 </html>
