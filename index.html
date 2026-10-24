@@ -3,777 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dziennik Diety Rodzinny</title>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <title>Dziennik Diety — Marek & Marta</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    </style>
 </head>
-<body class="bg-gray-100 text-gray-800 font-sans">
-    <div id="root"></div>
+<body class="bg-slate-100 text-slate-800 antialiased selection:bg-indigo-500 selection:text-white">
+    <div id="app" class="max-w-md mx-auto min-h-screen bg-slate-50 shadow-2xl relative pb-24 border-x border-slate-200"></div>
 
-    <script type="text/babel">
-        const { useState, useEffect, useMemo, useRef } = React;
-
-        // Bezpieczne ładowanie danych z LocalStorage
-        function getStorage(key, fallback) {
-            try {
-                const raw = localStorage.getItem(key);
-                if (!raw) return fallback;
-                return JSON.parse(raw);
-            } catch (err) {
-                return fallback;
-            }
-        }
-
-        // Funkcja ujednolicająca produkt (chroni przed błędami ze starszych wersji aplikacji)
-        function normalizeProduct(p) {
-            const weight = Number(p.baseWeight !== undefined ? p.baseWeight : (p.weight || 100));
-            const kcal = Number(p.baseKcal !== undefined ? p.baseKcal : (p.kcal !== undefined ? p.kcal : (p.kcalPer100 || 0)));
-            const pro = Number(p.baseP !== undefined ? p.baseP : (p.p !== undefined ? p.p : (p.pPer100 || 0)));
-            const fat = Number(p.baseF !== undefined ? p.baseF : (p.f !== undefined ? p.f : (p.fPer100 || 0)));
-            const carb = Number(p.baseC !== undefined ? p.baseC : (p.c !== undefined ? p.c : (p.cPer100 || 0)));
-            
-            return {
-                id: String(p.id || Date.now()),
-                name: String(p.name || 'Produkt'),
-                baseWeight: weight > 0 ? weight : 100,
-                baseKcal: kcal,
-                baseP: pro,
-                baseF: fat,
-                baseC: carb
-            };
-        }
-
-        function App() {
-            const [activeTab, setActiveTab] = useState('dziennik');
-            
-            // Profile użytkowników
-            const [users, setUsers] = useState(() => getStorage('diet_v3_users', [
-                { id: 'user1', name: 'Ja' },
-                { id: 'user2', name: 'Żona' }
-            ]));
-            const [currentUserId, setCurrentUserId] = useState(() => localStorage.getItem('diet_v3_curr_user') || 'user1');
-
-            // Wspólna baza produktów (pobiera też ze starego klucza jeśli istnieje)
-            const [products, setProducts] = useState(() => {
-                const saved = getStorage('diet_v3_products', null) || getStorage('diet_products', []);
-                return Array.isArray(saved) ? saved.map(normalizeProduct) : [];
-            });
-            
-            // Dzienniki użytkowników
-            const [allDiaries, setAllDiaries] = useState(() => {
-                const saved = getStorage('diet_v3_diaries', null);
-                if (saved) return saved;
-                // Migracja starego dziennika na pierwszego użytkownika
-                const oldDiary = getStorage('diet_diary', {});
-                return { user1: oldDiary, user2: {} };
-            });
-
-            const [settings, setSettings] = useState(() => getStorage('diet_v3_settings', { startOfWeek: 1 }));
-            const [currentDate, setCurrentDate] = useState(() => new Date().toISOString().split('T')[0]);
-
-            // Zapis do pamięci
-            useEffect(() => { localStorage.setItem('diet_v3_users', JSON.stringify(users)); }, [users]);
-            useEffect(() => { localStorage.setItem('diet_v3_curr_user', currentUserId); }, [currentUserId]);
-            useEffect(() => { localStorage.setItem('diet_v3_products', JSON.stringify(products)); }, [products]);
-            useEffect(() => { localStorage.setItem('diet_v3_diaries', JSON.stringify(allDiaries)); }, [allDiaries]);
-            useEffect(() => { localStorage.setItem('diet_v3_settings', JSON.stringify(settings)); }, [settings]);
-
-            const userDiary = allDiaries[currentUserId] || {};
-
-            const defaultGoals = currentUserId === 'user1' 
-                ? { kcal: 2500, p: 170, f: 70, c: 220 } 
-                : { kcal: 2000, p: 120, f: 60, c: 180 };
-
-            const rawDay = userDiary[currentDate] || {};
-            const currentDayData = {
-                goals: rawDay.goals || defaultGoals,
-                meals: Array.isArray(rawDay.meals) ? rawDay.meals : [],
-                workouts: Array.isArray(rawDay.workouts) ? rawDay.workouts : [],
-                weight: rawDay.weight !== undefined ? rawDay.weight : ''
-            };
-
-            const updateCurrentDay = (newData) => {
-                setAllDiaries(prev => {
-                    const prevUserDiary = prev[currentUserId] || {};
-                    return {
-                        ...prev,
-                        [currentUserId]: {
-                            ...prevUserDiary,
-                            [currentDate]: { ...currentDayData, ...newData }
-                        }
-                    };
-                });
-            };
-
-            const dietDaysCounter = useMemo(() => {
-                const dates = Object.keys(userDiary).sort();
-                if (dates.length === 0) return 1;
-                const firstDate = new Date(dates[0]);
-                const today = new Date();
-                const diffTime = Math.abs(today - firstDate);
-                const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                return isNaN(days) ? 1 : days + 1;
-            }, [userDiary]);
-
-            const currentUserObj = users.find(u => u.id === currentUserId);
-            const currentUserName = currentUserObj ? currentUserObj.name : 'Użytkownik';
-
-            return (
-                <div className="max-w-md mx-auto min-h-screen bg-white shadow-xl relative pb-20">
-                    {/* Pasek górny */}
-                    <div className="bg-blue-600 text-white p-4 shadow-md">
-                        <div className="flex justify-between items-center mb-2">
-                            <h1 className="text-xl font-bold">Dziennik Diety</h1>
-                            <span className="text-xs bg-blue-700 px-2 py-1 rounded">Dzień: {dietDaysCounter}</span>
-                        </div>
-                        <div className="flex items-center space-x-2 text-sm bg-blue-700 p-1.5 rounded">
-                            <span className="text-xs text-blue-200 pl-1">Profil:</span>
-                            <div className="flex space-x-1 flex-1">
-                                {users.map(u => (
-                                    <button 
-                                        key={u.id}
-                                        onClick={() => setCurrentUserId(u.id)}
-                                        className={"flex-1 py-1 rounded text-xs font-semibold " + (currentUserId === u.id ? "bg-white text-blue-700 shadow" : "text-white hover:bg-blue-600")}
-                                    >
-                                        👤 {u.name}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Widok zakładki */}
-                    <div className="p-4">
-                        {activeTab === 'dziennik' && (
-                            <DailyLog 
-                                currentDate={currentDate} 
-                                setCurrentDate={setCurrentDate} 
-                                currentDayData={currentDayData} 
-                                updateCurrentDay={updateCurrentDay} 
-                                products={products} 
-                                userName={currentUserName}
-                            />
-                        )}
-                        {activeTab === 'baza' && (
-                            <ProductDatabase 
-                                products={products} 
-                                setProducts={setProducts} 
-                            />
-                        )}
-                        {activeTab === 'podsumowanie' && (
-                            <WeeklySummary 
-                                diary={userDiary} 
-                                currentDate={currentDate} 
-                                settings={settings} 
-                                setSettings={setSettings} 
-                                userName={currentUserName} 
-                            />
-                        )}
-                        {activeTab === 'kopia' && (
-                            <BackupSettings 
-                                products={products} 
-                                setProducts={setProducts} 
-                                allDiaries={allDiaries} 
-                                setAllDiaries={setAllDiaries} 
-                                users={users} 
-                                setUsers={setUsers} 
-                                settings={settings} 
-                                setSettings={setSettings} 
-                            />
-                        )}
-                    </div>
-
-                    {/* Nawigacja dolna */}
-                    <div className="fixed bottom-0 max-w-md w-full bg-white border-t flex justify-around p-3 text-xs font-semibold text-gray-500 z-10 shadow-lg">
-                        <button onClick={() => setActiveTab('dziennik')} className={activeTab === 'dziennik' ? 'text-blue-600 font-bold' : ''}>📅 Dziennik</button>
-                        <button onClick={() => setActiveTab('baza')} className={activeTab === 'baza' ? 'text-blue-600 font-bold' : ''}>🍎 Baza</button>
-                        <button onClick={() => setActiveTab('podsumowanie')} className={activeTab === 'podsumowanie' ? 'text-blue-600 font-bold' : ''}>📊 Tydzień</button>
-                        <button onClick={() => setActiveTab('kopia')} className={activeTab === 'kopia' ? 'text-blue-600 font-bold' : ''}>⚙️ Kopia</button>
-                    </div>
-                </div>
-            );
-        }
-
-        // --- KOMPONENT: Dziennik Dnia ---
-        function DailyLog({ currentDate, setCurrentDate, currentDayData, updateCurrentDay, products, userName }) {
-            const [selectedProductId, setSelectedProductId] = useState('');
-            const [inputWeight, setInputWeight] = useState('');
-            const [isEditingGoals, setIsEditingGoals] = useState(false);
-
-            const [goalKcal, setGoalKcal] = useState(currentDayData.goals.kcal);
-            const [goalP, setGoalP] = useState(currentDayData.goals.p);
-            const [goalF, setGoalF] = useState(currentDayData.goals.f);
-            const [goalC, setGoalC] = useState(currentDayData.goals.c);
-
-            useEffect(() => {
-                setGoalKcal(currentDayData.goals.kcal);
-                setGoalP(currentDayData.goals.p);
-                setGoalF(currentDayData.goals.f);
-                setGoalC(currentDayData.goals.c);
-            }, [currentDate, currentDayData.goals]);
-
-            // Wybór produktu ustawia jego bazową wagę jako domyślną
-            const handleProductSelect = (e) => {
-                const prodId = e.target.value;
-                setSelectedProductId(prodId);
-                if (prodId) {
-                    const found = products.find(p => p.id === prodId);
-                    if (found) setInputWeight(found.baseWeight);
-                } else {
-                    setInputWeight('');
-                }
-            };
-
-            const saveGoals = (e) => {
-                e.preventDefault();
-                updateCurrentDay({
-                    goals: {
-                        kcal: parseFloat(goalKcal) || 0,
-                        p: parseFloat(goalP) || 0,
-                        f: parseFloat(goalF) || 0,
-                        c: parseFloat(goalC) || 0
-                    }
-                });
-                setIsEditingGoals(false);
-            };
-
-            const totalEaten = currentDayData.meals.reduce((acc, meal) => {
-                acc.kcal += Number(meal.kcal || 0);
-                acc.p += Number(meal.p || 0);
-                acc.f += Number(meal.f || 0);
-                acc.c += Number(meal.c || 0);
-                return acc;
-            }, { kcal: 0, p: 0, f: 0, c: 0 });
-
-            const totalBurned = currentDayData.workouts.reduce((acc, w) => acc + Number(w.kcal || 0), 0);
-            const kcalLeft = currentDayData.goals.kcal - totalEaten.kcal + totalBurned;
-
-            const addMeal = () => {
-                if (!selectedProductId || !inputWeight) {
-                    alert('Wybierz produkt z listy i podaj jego wagę!');
-                    return;
-                }
-                const prod = products.find(p => p.id === selectedProductId);
-                if (!prod) return;
-
-                const actualWeight = parseFloat(inputWeight);
-                const baseW = prod.baseWeight > 0 ? prod.baseWeight : 100;
-                const ratio = actualWeight / baseW;
-
-                const newMeal = {
-                    id: Date.now(),
-                    name: prod.name,
-                    weight: actualWeight,
-                    kcal: Math.round(prod.baseKcal * ratio),
-                    p: Math.round(prod.baseP * ratio * 10) / 10,
-                    f: Math.round(prod.baseF * ratio * 10) / 10,
-                    c: Math.round(prod.baseC * ratio * 10) / 10
-                };
-
-                updateCurrentDay({ meals: [...currentDayData.meals, newMeal] });
-                setSelectedProductId('');
-                setInputWeight('');
-            };
-
-            const removeMeal = (id) => {
-                updateCurrentDay({ meals: currentDayData.meals.filter(m => m.id !== id) });
-            };
-
-            const addWorkout = (e) => {
-                e.preventDefault();
-                const name = e.target.wName.value;
-                const time = e.target.wTime.value;
-                const kcal = e.target.wKcal.value;
-                if (!name || !time || !kcal) return;
-
-                const newWorkout = {
-                    id: Date.now(),
-                    name: name,
-                    time: parseInt(time, 10) || 0,
-                    kcal: parseInt(kcal, 10) || 0
-                };
-                updateCurrentDay({ workouts: [...currentDayData.workouts, newWorkout] });
-                e.target.reset();
-            };
-
-            const removeWorkout = (id) => {
-                updateCurrentDay({ workouts: currentDayData.workouts.filter(w => w.id !== id) });
-            };
-
-            const isSurplus = kcalLeft < 0;
-
-            return (
-                <div className="space-y-5">
-                    {/* Data i waga */}
-                    <div className="flex space-x-2 items-center justify-between">
-                        <input 
-                            type="date" 
-                            value={currentDate} 
-                            onChange={(e) => setCurrentDate(e.target.value)} 
-                            className="border p-2 rounded flex-1 text-sm font-semibold" 
-                        />
-                        <div className="flex items-center space-x-1">
-                            <span className="text-xs text-gray-500">Waga ({userName}):</span>
-                            <input 
-                                type="number" 
-                                step="0.1" 
-                                placeholder="kg" 
-                                value={currentDayData.weight} 
-                                onChange={(e) => updateCurrentDay({ weight: e.target.value })} 
-                                className="border p-2 rounded w-20 text-center font-semibold text-sm" 
-                            />
-                        </div>
-                    </div>
-
-                    {/* Cele dnia */}
-                    <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg text-sm">
-                        <div className="flex justify-between items-center mb-1">
-                            <span className="font-bold text-blue-900 text-xs">🎯 Cel na dziś ({userName}):</span>
-                            <button 
-                                onClick={() => setIsEditingGoals(!isEditingGoals)} 
-                                className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded font-semibold"
-                            >
-                                {isEditingGoals ? 'Zamknij' : '⚙️ Zmień cel'}
-                            </button>
-                        </div>
-
-                        {!isEditingGoals ? (
-                            <div className="flex justify-between text-xs text-blue-800 mt-1">
-                                <span><b>{currentDayData.goals.kcal}</b> kcal</span>
-                                <span>Białko: <b>{currentDayData.goals.p}g</b></span>
-                                <span>Tłuszcz: <b>{currentDayData.goals.f}g</b></span>
-                                <span>Węglo: <b>{currentDayData.goals.c}g</b></span>
-                            </div>
-                        ) : (
-                            <form onSubmit={saveGoals} className="mt-2 space-y-2 pt-2 border-t border-blue-200">
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                        <label className="text-[10px] text-gray-600">Kalorie (kcal)</label>
-                                        <input type="number" value={goalKcal} onChange={e => setGoalKcal(e.target.value)} className="border p-1 rounded w-full text-xs bg-white" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] text-gray-600">Białko (g)</label>
-                                        <input type="number" value={goalP} onChange={e => setGoalP(e.target.value)} className="border p-1 rounded w-full text-xs bg-white" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] text-gray-600">Tłuszcz (g)</label>
-                                        <input type="number" value={goalF} onChange={e => setGoalF(e.target.value)} className="border p-1 rounded w-full text-xs bg-white" />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] text-gray-600">Węglowodany (g)</label>
-                                        <input type="number" value={goalC} onChange={e => setGoalC(e.target.value)} className="border p-1 rounded w-full text-xs bg-white" />
-                                    </div>
-                                </div>
-                                <button type="submit" className="bg-blue-600 text-white w-full py-1.5 rounded font-bold text-xs">Zapisz cel</button>
-                            </form>
-                        )}
-                    </div>
-
-                    {/* Podsumowanie kalorii na żywo */}
-                    <div className="bg-gray-50 p-4 rounded-lg border">
-                        <div className="flex justify-between items-end mb-2">
-                            <div>
-                                <p className="text-xs text-gray-500 uppercase">Zjedzono</p>
-                                <p className="text-2xl font-bold">{Math.round(totalEaten.kcal)} <span className="text-sm font-normal text-gray-500">kcal</span></p>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-xs text-gray-500 uppercase">{isSurplus ? 'Nadwyżka' : 'Pozostało'}</p>
-                                <p className={"text-2xl font-bold " + (isSurplus ? "text-red-500" : "text-green-600")}>
-                                    {Math.abs(Math.round(kcalLeft))} <span className="text-sm font-normal text-gray-500">kcal</span>
-                                </p>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-3 gap-2 mt-3 text-center text-xs">
-                            <div className="p-1.5 rounded bg-blue-100 text-blue-900 font-semibold">B: {Math.round(totalEaten.p)} / {currentDayData.goals.p}g</div>
-                            <div className="p-1.5 rounded bg-yellow-100 text-yellow-900 font-semibold">T: {Math.round(totalEaten.f)} / {currentDayData.goals.f}g</div>
-                            <div className="p-1.5 rounded bg-green-100 text-green-900 font-semibold">W: {Math.round(totalEaten.c)} / {currentDayData.goals.c}g</div>
-                        </div>
-                    </div>
-
-                    {/* Dodawanie produktu z bazy */}
-                    <div className="border rounded-lg p-3 bg-white">
-                        <h3 className="font-bold mb-2 text-sm">Dodaj posiłek</h3>
-                        {products.length === 0 ? (
-                            <p className="text-xs text-red-500">Twoja baza jest pusta. Dodaj najpierw produkt w zakładce „🍎 Baza”!</p>
-                        ) : (
-                            <div className="space-y-2">
-                                <div className="flex space-x-2">
-                                    <select value={selectedProductId} onChange={handleProductSelect} className="border p-2 rounded flex-1 text-xs">
-                                        <option value="">Wybierz produkt z bazy...</option>
-                                        {products.map(p => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.name} ({p.baseWeight}g = {p.baseKcal} kcal)
-                                            </option>
-                                        ))}
-                                    </select>
-                                    <input 
-                                        type="number" 
-                                        placeholder="Waga (g)" 
-                                        value={inputWeight} 
-                                        onChange={(e) => setInputWeight(e.target.value)} 
-                                        className="border p-2 rounded w-24 text-xs font-semibold text-center" 
-                                    />
-                                    <button onClick={addMeal} className="bg-blue-600 text-white px-3 py-2 rounded font-bold text-sm">+</button>
-                                </div>
-                                {selectedProductId && (
-                                    <p className="text-[11px] text-gray-500">
-                                        Podpowiedziano wagę bazową produktu. Jeśli zjesz inną ilość, wpisz nową wagę – kalorie przeliczą się automatycznie.
-                                    </p>
-                                )}
-                            </div>
-                        )}
-
-                        <div className="mt-3 space-y-2">
-                            {currentDayData.meals.map(m => (
-                                <div key={m.id} className="flex justify-between items-center text-sm border-b pb-1.5">
-                                    <div>
-                                        <p className="font-bold">{m.name}</p>
-                                        <p className="text-gray-500 text-xs">{m.weight}g | B: {m.p}g | T: {m.f}g | W: {m.c}g</p>
-                                    </div>
-                                    <div className="flex items-center space-x-3">
-                                        <span className="font-bold">{m.kcal} kcal</span>
-                                        <button onClick={() => removeMeal(m.id)} className="text-red-400 font-bold hover:text-red-600">✕</button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Treningi */}
-                    <div className="border rounded-lg p-3 bg-white">
-                        <h3 className="font-bold mb-2 text-sm text-orange-600">🏋️ Treningi (-{totalBurned} kcal)</h3>
-                        <form onSubmit={addWorkout} className="flex space-x-1 mb-2">
-                            <input name="wName" placeholder="Nazwa treningu" className="border p-1.5 rounded w-full text-xs" />
-                            <input name="wTime" type="number" placeholder="Min" className="border p-1.5 rounded w-16 text-xs" />
-                            <input name="wKcal" type="number" placeholder="Kcal" className="border p-1.5 rounded w-16 text-xs" />
-                            <button type="submit" className="bg-orange-500 text-white px-3 rounded font-bold">+</button>
-                        </form>
-                        <div className="space-y-1">
-                            {currentDayData.workouts.map(w => (
-                                <div key={w.id} className="flex justify-between items-center text-xs text-gray-700 border-b pb-1">
-                                    <span><b>{w.name}</b> ({w.time} min)</span>
-                                    <div className="flex items-center space-x-2">
-                                        <span className="text-orange-600 font-semibold">🔥 {w.kcal} kcal</span>
-                                        <button onClick={() => removeWorkout(w.id)} className="text-red-400 hover:text-red-600 font-bold">✕</button>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // --- KOMPONENT: Wspólna Baza Produktów ---
-        function ProductDatabase({ products, setProducts }) {
-            const addProduct = (e) => {
-                e.preventDefault();
-                const form = e.target;
-                const name = form.pName.value.trim();
-                const weight = parseFloat(form.pWeight.value) || 100;
-                const p = parseFloat(form.pPro.value) || 0;
-                const f = parseFloat(form.pFat.value) || 0;
-                const c = parseFloat(form.pCarb.value) || 0;
-                
-                const kcalRaw = form.pKcal.value;
-                const kcal = kcalRaw !== "" ? parseFloat(kcalRaw) : Math.round((p * 4) + (c * 4) + (f * 9));
-
-                if (!name) {
-                    alert('Podaj nazwę produktu!');
-                    return;
-                }
-
-                const newProd = {
-                    id: Date.now().toString(),
-                    name: name,
-                    baseWeight: weight,
-                    baseKcal: kcal,
-                    baseP: p,
-                    baseF: f,
-                    baseC: c
-                };
-
-                setProducts([...products, newProd]);
-                form.reset();
-            };
-
-            const deleteProduct = (id) => {
-                if (window.confirm('Usunąć ten produkt ze wspólnej bazy?')) {
-                    setProducts(products.filter(p => p.id !== id));
-                }
-            };
-
-            return (
-                <div>
-                    <div className="bg-blue-50 p-4 rounded-lg border mb-5">
-                        <h2 className="font-bold mb-2 text-sm text-blue-900">➕ Dodaj produkt do bazy</h2>
-                        <p className="text-[11px] text-blue-700 mb-3">
-                            Wpisz wartości dla swojej standardowej porcji (np. Kanapki 250g, 400 kcal). Ta waga będzie podstawą w dzienniku.
-                        </p>
-                        <form onSubmit={addProduct} className="space-y-2 text-sm">
-                            <input name="pName" placeholder="Nazwa (np. Kanapki, Obiad, Jogurt)" className="border p-2 rounded w-full font-bold bg-white text-xs" />
-                            <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label className="text-[10px] text-gray-600">Waga bazowa (g)</label>
-                                    <input name="pWeight" type="number" defaultValue="100" className="border p-2 rounded w-full bg-white text-xs font-semibold" />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] text-gray-600">Kalorie dla tej wagi (Kcal)</label>
-                                    <input name="pKcal" type="number" placeholder="Wpisz lub puste=auto" className="border border-green-400 bg-green-50 p-2 rounded w-full text-xs font-semibold" />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-3 gap-2">
-                                <div>
-                                    <label className="text-[10px] text-gray-600">Białko (g)</label>
-                                    <input name="pPro" type="number" step="0.1" placeholder="0" className="border p-1.5 rounded w-full bg-white text-xs" />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] text-gray-600">Tłuszcz (g)</label>
-                                    <input name="pFat" type="number" step="0.1" placeholder="0" className="border p-1.5 rounded w-full bg-white text-xs" />
-                                </div>
-                                <div>
-                                    <label className="text-[10px] text-gray-600">Węglo (g)</label>
-                                    <input name="pCarb" type="number" step="0.1" placeholder="0" className="border p-1.5 rounded w-full bg-white text-xs" />
-                                </div>
-                            </div>
-                            <button type="submit" className="bg-blue-600 text-white w-full py-2 rounded font-bold text-xs mt-1">Zapisz w bazie</button>
-                        </form>
-                    </div>
-
-                    <h3 className="font-bold text-gray-700 mb-2 text-sm">Zapisane produkty ({products.length})</h3>
-                    <div className="space-y-2">
-                        {products.map(p => (
-                            <div key={p.id} className="bg-white p-3 rounded shadow-sm border flex justify-between items-center text-sm">
-                                <div>
-                                    <p className="font-bold">{p.name} <span className="text-xs text-blue-600 font-semibold">({p.baseWeight}g)</span></p>
-                                    <p className="text-xs text-gray-500">B: {p.baseP}g | T: {p.baseF}g | W: {p.baseC}g</p>
-                                </div>
-                                <div className="flex items-center space-x-3">
-                                    <span className="font-bold text-green-600">{p.baseKcal} kcal</span>
-                                    <button onClick={() => deleteProduct(p.id)} className="text-red-400 hover:text-red-600 font-bold">🗑️</button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            );
-        }
-
-        // --- KOMPONENT: Podsumowanie Tygodnia ---
-        function WeeklySummary({ diary, currentDate, settings, setSettings, userName }) {
-            const weekDates = useMemo(() => {
-                const curr = new Date(currentDate);
-                const day = curr.getDay();
-                const offset = settings.startOfWeek === 1 ? (day === 0 ? -6 : 1 - day) : -day;
-                const firstDay = new Date(curr.setDate(curr.getDate() + offset));
-                const list = [];
-                for (let i = 0; i < 7; i++) {
-                    const next = new Date(firstDay);
-                    next.setDate(firstDay.getDate() + i);
-                    list.push(next.toISOString().split('T')[0]);
-                }
-                return list;
-            }, [currentDate, settings.startOfWeek]);
-
-            let totalKcal = 0;
-            let totalBurned = 0;
-            let daysCounted = 0;
-            const weights = [];
-
-            weekDates.forEach(date => {
-                const dayObj = diary[date];
-                if (dayObj) {
-                    const mealsList = Array.isArray(dayObj.meals) ? dayObj.meals : [];
-                    const workoutsList = Array.isArray(dayObj.workouts) ? dayObj.workouts : [];
-                    const eaten = mealsList.reduce((sum, m) => sum + Number(m.kcal || 0), 0);
-                    const burned = workoutsList.reduce((sum, w) => sum + Number(w.kcal || 0), 0);
-                    if (eaten > 0) {
-                        totalKcal += eaten;
-                        daysCounted++;
-                    }
-                    totalBurned += burned;
-                    if (dayObj.weight) {
-                        const parsedW = parseFloat(dayObj.weight);
-                        if (!isNaN(parsedW)) weights.push(parsedW);
-                    }
-                }
-            });
-
-            const avgKcal = daysCounted > 0 ? Math.round(totalKcal / daysCounted) : 0;
-            const hasWeightDiff = weights.length >= 2;
-            const rawDiff = hasWeightDiff ? (weights[weights.length - 1] - weights[0]) : 0;
-            const formattedDiff = (rawDiff > 0 ? '+' : '') + rawDiff.toFixed(1);
-            const diffColorClass = rawDiff > 0 ? 'text-red-500' : 'text-green-600';
-
-            return (
-                <div className="space-y-5 text-sm">
-                    <div className="flex justify-between items-center bg-white p-3 border rounded shadow-sm">
-                        <span className="font-bold text-xs">Pierwszy dzień tygodnia:</span>
-                        <select 
-                            value={settings.startOfWeek} 
-                            onChange={(e) => setSettings({ startOfWeek: parseInt(e.target.value, 10) })} 
-                            className="border p-1.5 rounded text-xs font-semibold"
-                        >
-                            <option value={1}>Poniedziałek</option>
-                            <option value={0}>Niedziela</option>
-                        </select>
-                    </div>
-
-                    <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-lg">
-                        <h2 className="text-center font-bold text-indigo-900 mb-1">Podsumowanie tygodnia ({userName})</h2>
-                        <p className="text-center text-xs text-indigo-600 mb-4">{weekDates[0]} — {weekDates[6]}</p>
-                        
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-white p-3 rounded text-center shadow-sm">
-                                <p className="text-[10px] text-gray-500 uppercase">Średnio dziennie</p>
-                                <p className="text-lg font-bold text-indigo-600">{avgKcal} kcal</p>
-                            </div>
-                            <div className="bg-white p-3 rounded text-center shadow-sm">
-                                <p className="text-[10px] text-gray-500 uppercase">Spalone na treningach</p>
-                                <p className="text-lg font-bold text-orange-500">🔥 {totalBurned} kcal</p>
-                            </div>
-                            <div className="bg-white p-3 rounded text-center shadow-sm col-span-2">
-                                <p className="text-[10px] text-gray-500 uppercase">Zmiana wagi w tygodniu</p>
-                                <p className={"text-xl font-bold " + diffColorClass}>{formattedDiff} kg</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        // --- KOMPONENT: Kopia Zapasowa (Eksport / Import) ---
-        function BackupSettings({ products, setProducts, allDiaries, setAllDiaries, users, setUsers, settings, setSettings }) {
-            const [statusMsg, setStatusMsg] = useState('');
-            const [importMode, setImportMode] = useState('productsOnly');
-            const fileInputRef = useRef(null);
-
-            const exportData = () => {
-                const payload = {
-                    version: 3,
-                    exportDate: new Date().toISOString(),
-                    products: products,
-                    allDiaries: allDiaries,
-                    users: users,
-                    settings: settings
-                };
-                const jsonString = JSON.stringify(payload, null, 2);
-                const blob = new Blob([jsonString], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = "kopia_dieta_" + new Date().toISOString().split('T')[0] + ".json";
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-
-                setStatusMsg('✅ Pobrano plik z kopią zapasową!');
-                setTimeout(() => setStatusMsg(''), 4000);
-            };
-
-            const handleFileImport = (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    try {
-                        const parsed = JSON.parse(event.target.result);
-                        if (importMode === 'productsOnly') {
-                            const incoming = Array.isArray(parsed.products) ? parsed.products.map(normalizeProduct) : [];
-                            const existingNames = new Set(products.map(p => p.name.trim().toLowerCase()));
-                            const toAdd = incoming.filter(p => !existingNames.has(p.name.trim().toLowerCase()));
-                            setProducts(prev => [...prev, ...toAdd]);
-                            setStatusMsg('✅ Dodano nowych produktów do bazy: ' + toAdd.length);
-                        } else {
-                            if (window.confirm('Czy na pewno chcesz zastąpić wszystkie obecne dane danymi z pliku?')) {
-                                if (Array.isArray(parsed.products)) setProducts(parsed.products.map(normalizeProduct));
-                                if (parsed.allDiaries) setAllDiaries(parsed.allDiaries);
-                                if (Array.isArray(parsed.users)) setUsers(parsed.users);
-                                if (parsed.settings) setSettings(parsed.settings);
-                                setStatusMsg('✅ Przywrócono pełną kopię danych!');
-                            }
-                        }
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                        setTimeout(() => setStatusMsg(''), 5000);
-                    } catch (err) {
-                        alert('Nie udało się odczytać pliku: ' + err.message);
-                    }
-                };
-                reader.readAsText(file);
-            };
-
-            return (
-                <div className="space-y-5 text-sm">
-                    <div className="bg-white p-4 border rounded-lg shadow-sm">
-                        <h2 className="text-base font-bold text-gray-800 mb-2">💾 Kopia zapasowa i przesyłanie</h2>
-                        <p className="text-xs text-gray-500 mb-4">
-                            Pobierz plik z kopią, aby zapisać swoje postępy lub przesłać wspólną bazę produktów na telefon żony.
-                        </p>
-                        
-                        {statusMsg !== '' && (
-                            <div className="mb-4 p-2.5 bg-green-100 border border-green-300 text-green-800 text-xs rounded font-semibold text-center">
-                                {statusMsg}
-                            </div>
-                        )}
-
-                        <div className="border-t pt-4">
-                            <h3 className="font-bold text-xs uppercase text-gray-500 mb-2">1. Zapisz dane do pliku</h3>
-                            <button 
-                                onClick={exportData} 
-                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded text-xs shadow"
-                            >
-                                📥 Pobierz kopię zapasową (.json)
-                            </button>
-                        </div>
-
-                        <div className="border-t pt-4 mt-4">
-                            <h3 className="font-bold text-xs uppercase text-gray-500 mb-2">2. Wgraj dane z pliku</h3>
-                            <div className="space-y-2 mb-3">
-                                <label className="flex items-center space-x-2 text-xs">
-                                    <input 
-                                        type="radio" 
-                                        name="mode" 
-                                        checked={importMode === 'productsOnly'} 
-                                        onChange={() => setImportMode('productsOnly')} 
-                                    />
-                                    <span><b>Tylko baza produktów</b> (dopisuje nowe produkty bez kasowania dziennika)</span>
-                                </label>
-                                <label className="flex items-center space-x-2 text-xs">
-                                    <input 
-                                        type="radio" 
-                                        name="mode" 
-                                        checked={importMode === 'full'} 
-                                        onChange={() => setImportMode('full')} 
-                                    />
-                                    <span><b>Pełna kopia</b> (przywraca wszystkie profile, wagi i historię)</span>
-                                </label>
-                            </div>
-                            <input 
-                                type="file" 
-                                accept=".json" 
-                                ref={fileInputRef} 
-                                onChange={handleFileImport} 
-                                className="hidden" 
-                                id="backupFileInput" 
-                            />
-                            <label 
-                                htmlFor="backupFileInput" 
-                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded text-xs shadow flex justify-center cursor-pointer"
-                            >
-                                📤 Wybierz plik (.json) i wgraj
-                            </label>
-                        </div>
-                    </div>
-                </div>
-            );
-        }
-
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+    <script>
+        // --- PEŁNA WBUDOWANA BAZA 145 PRODUKTÓW (20 Twoich + 100 Redukcja + 25 High Protein) ---
+        const MASTER_PRODUCTS = [
+            // 1. Twoje 20 produktów
+            { id: "p_skyr_nat_150", name: "Fruvita Skyr naturalny (kubek)", baseWeight: 150, baseKcal: 98, baseP: 18.0, baseF: 0.0, baseC: 6.2 },
+            { id: "p_skyr_pitny_360", name: "Fruvita Skyr pitny (butelka)", baseWeight: 360, baseKcal: 225, baseP: 36.0, baseF: 1.0, baseC: 16.0 },
+            { id: "p_go_active_pudding_200", name: "Go Active Protein Pudding (kubek)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 11.0 },
+            { id: "p_go_active_napoj_350", name: "Go Active Protein Napój mleczny (butelka)", baseWeight: 350, baseKcal: 215, baseP: 35.0, baseF: 0.7, baseC: 17.2 },
+            { id: "p_go_active_kaszka_200", name: "Go Active Protein Kaszka (kubek)", baseWeight: 200, baseKcal: 160, baseP: 15.0, baseF: 3.5, baseC: 17.0 },
+            { id: "p_wrap_domowy_260", name: "Wrap domowy (porcja)", baseWeight: 260, baseKcal: 339, baseP: 27.1, baseF: 9.0, baseC: 35.3 },
+            { id: "p_kanapki_losos_280", name: "Kanapki z łososiem wędzonym (3 szt.)", baseWeight: 280, baseKcal: 557, baseP: 32.7, baseF: 14.5, baseC: 72.8 },
+            { id: "p_kanapki_losos_340", name: "Kanapki z łososiem wędzonym (4 szt.)", baseWeight: 340, baseKcal: 676, baseP: 39.7, baseF: 17.6, baseC: 88.4 },
+            { id: "p_jajka_awokado_250", name: "Jajka sadzone (4 szt.) z awokado", baseWeight: 250, baseKcal: 385, baseP: 26.8, baseF: 30.0, baseC: 5.5 },
+            { id: "p_losos_wedzony_100", name: "Łosoś wędzony", baseWeight: 100, baseKcal: 170, baseP: 20.0, baseF: 10.0, baseC: 0.0 },
+            { id: "p_tunczyk_wlasny_100", name: "Tuńczyk w sosie własnym (odsączony)", baseWeight: 100, baseKcal: 100, baseP: 23.0, baseF: 0.8, baseC: 0.0 },
+            { id: "p_krupnik_460", name: "Krupnik domowy, gęsty (talerz)", baseWeight: 460, baseKcal: 345, baseP: 14.0, baseF: 11.0, baseC: 48.0 },
+            { id: "p_zestaw_obiadowy_450", name: "Zestaw obiadowy (filet, ziemniaki, surówka)", baseWeight: 450, baseKcal: 575, baseP: 35.3, baseF: 18.5, baseC: 65.0 },
+            { id: "p_orzeszki_bez_lupin_100", name: "Orzeszki ziemne (obrane, bez łupin)", baseWeight: 100, baseKcal: 600, baseP: 26.0, baseF: 50.0, baseC: 16.0 },
+            { id: "p_orzeszki_w_lupinach_100", name: "Orzeszki ziemne w łupinach (ze skorupką)", baseWeight: 100, baseKcal: 430, baseP: 18.7, baseF: 36.0, baseC: 11.5 },
+            { id: "p_sernik_domowy_100", name: "Sernik królewski / domowy z twarogu", baseWeight: 100, baseKcal: 340, baseP: 8.0, baseF: 18.0, baseC: 35.0 },
+            { id: "p_kfc_hot_wings_1", name: "KFC Hot Wings (1 skrzydełko)", baseWeight: 35, baseKcal: 73, baseP: 4.5, baseF: 4.5, baseC: 3.5 },
+            { id: "p_kfc_strips_1", name: "KFC Strips (1 polędwiczka)", baseWeight: 45, baseKcal: 115, baseP: 8.0, baseF: 5.5, baseC: 6.0 },
+            { id: "p_kfc_kawalek_1", name: "KFC Kawałek kurczaka z kością (1 szt.)", baseWeight: 115, baseKcal: 280, baseP: 17.5, baseF: 14.0, baseC: 15.0 },
+            { id: "p_kfc_zestaw_kolacyjny", name: "KFC Zestaw kolacyjny (4 wings + 2 strips + 2 kawałki)", baseWeight: 460, baseKcal: 1082, baseP: 69.0, baseF: 57.0, baseC: 56.0 },
+            // 2. Jogurty i produkty High Protein (25 pozycji)
+            { id: "hp1", name: "Piątnica Skyr naturalny (kubek 150g)", baseWeight: 150, baseKcal: 96, baseP: 18.0, baseF: 0.0, baseC: 6.0 },
+            { id: "hp2", name: "Piątnica Skyr naturalny (duży kubek 450g)", baseWeight: 450, baseKcal: 288, baseP: 54.0, baseF: 0.0, baseC: 18.0 },
+            { id: "hp3", name: "Piątnica Skyr waniliowy (kubek 150g)", baseWeight: 150, baseKcal: 123, baseP: 14.4, baseF: 0.0, baseC: 16.5 },
+            { id: "hp4", name: "Piątnica Skyr owocowy - jagoda/truskawka/brzoskwinia (150g)", baseWeight: 150, baseKcal: 120, baseP: 14.4, baseF: 0.0, baseC: 15.0 },
+            { id: "hp5", name: "Piątnica Skyr pitny - wanilia/owoce (butelka 330g)", baseWeight: 330, baseKcal: 257, baseP: 21.5, baseF: 5.0, baseC: 31.4 },
+            { id: "hp6", name: "Piątnica Serek wiejski wysokobiałkowy (200g)", baseWeight: 200, baseKcal: 186, baseP: 28.0, baseF: 6.0, baseC: 4.8 },
+            { id: "hp7", name: "Pilos Skyr naturalny Lidl (kubek 150g)", baseWeight: 150, baseKcal: 96, baseP: 18.5, baseF: 0.0, baseC: 6.5 },
+            { id: "hp8", name: "Pilos Skyr owocowy Lidl - malina/borówka (kubek 150g)", baseWeight: 150, baseKcal: 84, baseP: 13.0, baseF: 0.0, baseC: 7.0 },
+            { id: "hp9", name: "Pilos Skyr pitny Lidl (butelka 330g)", baseWeight: 330, baseKcal: 178, baseP: 21.5, baseF: 0.3, baseC: 22.0 },
+            { id: "hp10", name: "Pilos High Protein Pudding Lidl - wanilia/czekolada (200g)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 10.4 },
+            { id: "hp11", name: "Go Active Protein Mousse - mus czekoladowy/pistacjowy (200g)", baseWeight: 200, baseKcal: 158, baseP: 20.0, baseF: 3.0, baseC: 12.4 },
+            { id: "hp12", name: "Go Active Serek wiejski wysokobiałkowy (200g)", baseWeight: 200, baseKcal: 184, baseP: 28.0, baseF: 6.0, baseC: 4.6 },
+            { id: "hp13", name: "Fruvita Skyr owocowy Biedronka - truskawka/porzeczka (150g)", baseWeight: 150, baseKcal: 129, baseP: 14.4, baseF: 0.0, baseC: 18.0 },
+            { id: "hp14", name: "Müllermilch Protein Zero - czekolada/kokos bez cukru (400g)", baseWeight: 400, baseKcal: 248, baseP: 26.0, baseF: 6.8, baseC: 20.4 },
+            { id: "hp15", name: "Müllermilch Protein klasyczny - czekolada-banan/wanilia (400g)", baseWeight: 400, baseKcal: 336, baseP: 26.0, baseF: 6.4, baseC: 42.4 },
+            { id: "hp16", name: "Ehrmann High Protein Pudding - wanilia/czekolada/karmel (200g)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 11.0 },
+            { id: "hp17", name: "Ehrmann High Protein Mousse - mus biała czekolada/czekolada (200g)", baseWeight: 200, baseKcal: 146, baseP: 20.0, baseF: 2.8, baseC: 10.0 },
+            { id: "hp18", name: "Ehrmann High Protein z kreatyną - biała czekolada (230g)", baseWeight: 230, baseKcal: 175, baseP: 20.0, baseF: 4.8, baseC: 12.7 },
+            { id: "hp19", name: "Danone YoPRO jogurt gęsty - wanilia/truskawka/banan (160g)", baseWeight: 160, baseKcal: 90, baseP: 15.0, baseF: 0.2, baseC: 7.0 },
+            { id: "hp20", name: "Danone YoPRO napój pitny - mango/wanilia-ciasteczko (270g)", baseWeight: 270, baseKcal: 162, baseP: 23.0, baseF: 1.4, baseC: 15.0 },
+            { id: "hp21", name: "Bakoma Men Protein Shake pitny (380g)", baseWeight: 380, baseKcal: 175, baseP: 20.0, baseF: 0.5, baseC: 22.0 },
+            { id: "hp22", name: "Bakoma Men Protein jogurt gęsty owocowy (kubek 150g)", baseWeight: 150, baseKcal: 126, baseP: 12.0, baseF: 3.0, baseC: 13.5 },
+            { id: "hp23", name: "Bakoma Men Protein jogurt ze zbożami (kubek 130g)", baseWeight: 130, baseKcal: 138, baseP: 10.4, baseF: 1.3, baseC: 20.8 },
+            { id: "hp24", name: "Zott Primo Protein jogurt naturalny wysokobiałkowy (200g)", baseWeight: 200, baseKcal: 134, baseP: 17.0, baseF: 2.2, baseC: 11.2 },
+            { id: "hp25", name: "Maluta Skyr+ jogurt typu islandzkiego naturalny (150g)", baseWeight: 150, baseKcal: 78, baseP: 13.5, baseF: 0.0, baseC: 6.0 },
+            // 3. 100 produktów polecanych na redukcji
+            { id: "r1", name: "Pierś z kurczaka (surowa)", baseWeight: 100, baseKcal: 98, baseP: 21.5, baseF: 1.3, baseC: 0 },
+            { id: "r2", name: "Pierś z indyka (surowa)", baseWeight: 100, baseKcal: 84, baseP: 19.2, baseF: 0.7, baseC: 0 },
+            { id: "r3", name: "Polędwica wołowa (chuda)", baseWeight: 100, baseKcal: 120, baseP: 21.0, baseF: 4.0, baseC: 0 },
+            { id: "r4", name: "Schab wieprzowy (bez kości, chudy)", baseWeight: 100, baseKcal: 128, baseP: 21.0, baseF: 4.5, baseC: 0 },
+            { id: "r5", name: "Polędwiczka wieprzowa", baseWeight: 100, baseKcal: 110, baseP: 21.0, baseF: 2.5, baseC: 0 },
+            { id: "r6", name: "Mięso mielone z indyka (chude)", baseWeight: 100, baseKcal: 115, baseP: 19.5, baseF: 4.0, baseC: 0 },
+            { id: "r7", name: "Mięso mielone wołowe (tatar / 5% tłuszczu)", baseWeight: 100, baseKcal: 125, baseP: 21.0, baseF: 4.5, baseC: 0 },
+            { id: "r8", name: "Szynka z piersi kurczaka (wędlina, 4 plastry)", baseWeight: 60, baseKcal: 58, baseP: 12.0, baseF: 0.9, baseC: 0.5 },
+            { id: "r9", name: "Polędwica sopocka (4 plastry)", baseWeight: 60, baseKcal: 70, baseP: 12.5, baseF: 2.0, baseC: 0.5 },
+            { id: "r10", name: "Kabanosy drobiowe (porcja)", baseWeight: 50, baseKcal: 165, baseP: 14.0, baseF: 11.5, baseC: 1.0 },
+            { id: "r11", name: "Dorsz świeży (filet)", baseWeight: 100, baseKcal: 78, baseP: 17.7, baseF: 0.7, baseC: 0 },
+            { id: "r12", name: "Mintaj świeży (filet)", baseWeight: 100, baseKcal: 73, baseP: 16.6, baseF: 0.6, baseC: 0 },
+            { id: "r13", name: "Łosoś świeży (filet)", baseWeight: 100, baseKcal: 201, baseP: 19.9, baseF: 13.6, baseC: 0 },
+            { id: "r14", name: "Makrela wędzona", baseWeight: 100, baseKcal: 221, baseP: 20.7, baseF: 15.5, baseC: 0 },
+            { id: "r15", name: "Pstrąg tęczowy (filet)", baseWeight: 100, baseKcal: 119, baseP: 20.5, baseF: 4.0, baseC: 0 },
+            { id: "r16", name: "Krewetki tygrysie (oczyszczone)", baseWeight: 100, baseKcal: 85, baseP: 18.0, baseF: 1.0, baseC: 0.9 },
+            { id: "r17", name: "Śledź w sosie pomidorowym (puszka)", baseWeight: 170, baseKcal: 255, baseP: 18.7, baseF: 15.3, baseC: 10.2 },
+            { id: "r18", name: "Sardynki w sosie własnym (puszka)", baseWeight: 100, baseKcal: 135, baseP: 21.0, baseF: 5.5, baseC: 0 },
+            { id: "r19", name: "Twaróg chudy (0%)", baseWeight: 100, baseKcal: 86, baseP: 19.8, baseF: 0.5, baseC: 3.5 },
+            { id: "r20", name: "Twaróg półtłusty", baseWeight: 100, baseKcal: 117, baseP: 18.7, baseF: 3.5, baseC: 3.7 },
+            { id: "r21", name: "Serek wiejski lekki 3% (opakowanie)", baseWeight: 200, baseKcal: 162, baseP: 22.0, baseF: 6.0, baseC: 4.8 },
+            { id: "r22", name: "Serek wiejski klasyczny (opakowanie)", baseWeight: 200, baseKcal: 194, baseP: 22.0, baseF: 10.0, baseC: 4.0 },
+            { id: "r23", name: "Jajko kurze (1 sztuka M/L)", baseWeight: 55, baseKcal: 77, baseP: 6.9, baseF: 5.3, baseC: 0.3 },
+            { id: "r24", name: "Białko jajka kurzego (1 sztuka)", baseWeight: 35, baseKcal: 17, baseP: 3.8, baseF: 0.1, baseC: 0.2 },
+            { id: "r25", name: "Mozzarella Light (1 kulka)", baseWeight: 125, baseKcal: 196, baseP: 23.8, baseF: 10.6, baseC: 1.3 },
+            { id: "r26", name: "Ser Feta lekki (12% tłuszczu)", baseWeight: 100, baseKcal: 185, baseP: 19.0, baseF: 12.0, baseC: 1.0 },
+            { id: "r27", name: "Ser żółty Piórko / Hit z Ryk (3 plastry)", baseWeight: 45, baseKcal: 76, baseP: 15.8, baseF: 1.4, baseC: 0 },
+            { id: "r28", name: "Ser Halloumi Light", baseWeight: 100, baseKcal: 265, baseP: 24.0, baseF: 18.0, baseC: 2.0 },
+            { id: "r29", name: "Jogurt grecki lekki", baseWeight: 150, baseKcal: 90, baseP: 9.0, baseF: 3.0, baseC: 6.8 },
+            { id: "r30", name: "Kefir naturalny 1.5% (butelka)", baseWeight: 400, baseKcal: 184, baseP: 13.6, baseF: 6.0, baseC: 18.8 },
+            { id: "r31", name: "Maślanka naturalna (szklanka)", baseWeight: 250, baseKcal: 105, baseP: 8.5, baseF: 3.8, baseC: 11.8 },
+            { id: "r32", name: "Mleko spożywcze 1.5% (szklanka)", baseWeight: 250, baseKcal: 118, baseP: 8.5, baseF: 3.8, baseC: 12.5 },
+            { id: "r33", name: "Mleko bez laktozy 0.5% (szklanka)", baseWeight: 250, baseKcal: 95, baseP: 8.5, baseF: 1.3, baseC: 12.5 },
+            { id: "r34",
