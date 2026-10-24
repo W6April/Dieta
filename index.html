@@ -10,17 +10,16 @@
     <title>Dziennik Diety</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Blokada rozjeżdżania ekranu na boki */
         html, body { overflow-x: hidden; width: 100%; position: relative; }
         body { -webkit-tap-highlight-color: transparent; }
         @supports (padding-bottom: env(safe-area-inset-bottom)) {
             .pb-safe { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
         }
-        /* Custom scrollbar dla wyszukiwarek */
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         input[type="number"]::-webkit-outer-spin-button,
         input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        .fab-gemini { position: fixed; bottom: 80px; right: 20px; z-index: 40; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans pb-24 select-none">
@@ -76,7 +75,7 @@
             { id: "r50", name: "Chleb żytni razowy (1 kromka)", baseWeight: 35, baseKcal: 78, baseP: 2.0, baseF: 0.5, baseC: 16.0 },
             { id: "r52", name: "Bułka grahamka (1 sztuka)", baseWeight: 70, baseKcal: 182, baseP: 6.3, baseF: 1.2, baseC: 37.0 },
             { id: "r55", name: "Tortilla pełnoziarnista (1 placek)", baseWeight: 62, baseKcal: 180, baseP: 5.6, baseF: 3.7, baseC: 30.0 },
-            { id: "r59", name: "Awokado Hass (pół sztuki)", baseWeight: 70, baseKcal: 112, baseP: 1.4, baseF: 10.5, baseC: 1.3 },
+            { id: "r59", name: "Awokado Hass (pół szt.)", baseWeight: 70, baseKcal: 112, baseP: 1.4, baseF: 10.5, baseC: 1.3 },
             { id: "r60", name: "Oliwa z oliwek (1 łyżka)", baseWeight: 10, baseKcal: 88, baseP: 0, baseF: 10.0, baseC: 0 },
             { id: "r63", name: "Masło orzechowe (1 łyżeczka)", baseWeight: 15, baseKcal: 88, baseP: 3.9, baseF: 7.5, baseC: 2.1 },
             { id: "r86", name: "Jabłko (1 sztuka)", baseWeight: 150, baseKcal: 75, baseP: 0.6, baseF: 0.6, baseC: 15.2 },
@@ -88,62 +87,58 @@
             { id: "w5", name: "Zestaw obiadowy (kurczak/ziemniaki)", baseWeight: 450, baseKcal: 575, baseP: 35.3, baseF: 18.5, baseC: 65.0 },
             { id: "w6", name: "KFC Zestaw (4 wings, 2 strips, 2 kaw.)", baseWeight: 460, baseKcal: 1082, baseP: 69.0, baseF: 57.0, baseC: 56.0 }
         ];
-      function loadStorage(key, fallback) {
+
+        function loadStorage(key, fallback) {
             try { return localStorage.getItem(key) ? JSON.parse(localStorage.getItem(key)) : fallback; } 
             catch (e) { return fallback; }
         }
 
         const state = {
             tab: 'dziennik',
-            users: loadStorage('diet_v8_users', [
+            users: loadStorage('diet_v9_users', loadStorage('diet_v8_users', [
                 { id: 'u1', name: 'Ja', startDate: new Date().toISOString().split('T')[0] }, 
                 { id: 'u2', name: 'Żona', startDate: new Date().toISOString().split('T')[0] }
-            ]),
-            userId: localStorage.getItem('diet_v8_curr_user') || 'u1',
+            ])),
+            userId: localStorage.getItem('diet_v9_curr_user') || localStorage.getItem('diet_v8_curr_user') || 'u1',
             products: [], 
-            workoutsDb: loadStorage('diet_v8_workouts_db', []), // Baza treningów
-            diaries: loadStorage('diet_v8_diaries', {}),
-            settings: loadStorage('diet_v8_settings', { startOfWeek: 1 }),
+            workoutsDb: loadStorage('diet_v9_workouts_db', loadStorage('diet_v8_workouts_db', [])),
+            diaries: loadStorage('diet_v9_diaries', loadStorage('diet_v8_diaries', {})),
+            settings: loadStorage('diet_v9_settings', loadStorage('diet_v8_settings', { startOfWeek: 1, geminiApiKey: '', lastBackup: '' })),
             date: new Date().toISOString().split('T')[0],
             isEditingGoals: false,
             importMode: 'full',
             statusMsg: '',
             
-            // Autocomplete states
-            prodSearch: '',
-            prodResults: [],
-            selectedProdId: '',
-            inputWeight: '',
+            prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
+            wSearch: '', wResults: [], wInputTime: '', wInputKcal: '',
             
-            wSearch: '',
-            wResults: [],
-            wInputTime: '',
-            wInputKcal: ''
+            chatOpen: false, chatHistory: [], chatLoading: false
         };
-
         function initData() {
-            // Inicjalizacja bazy produktów
-            let saved = loadStorage('diet_v8_products', null) || loadStorage('diet_v7_products', null) || [];
+            let saved = loadStorage('diet_v9_products', loadStorage('diet_v8_products', []));
             const names = new Set(saved.map(p => p.name.trim().toLowerCase()));
             FULL_PRODUCTS.forEach(bp => {
                 if (!names.has(bp.name.trim().toLowerCase())) { saved.push(bp); names.add(bp.name.trim().toLowerCase()); }
             });
             state.products = saved;
 
-            // Zapewnienie, że starsze profile mają datę startu
-            state.users.forEach(u => {
-                if (!u.startDate) u.startDate = new Date().toISOString().split('T')[0];
-            });
+            if(state.settings.geminiApiKey === undefined) state.settings.geminiApiKey = '';
+            if(state.settings.lastBackup === undefined) state.settings.lastBackup = '';
+            
+            // Add messages to chat if empty
+            if(state.chatHistory.length === 0) {
+                state.chatHistory.push({ role: 'model', text: 'Cześć! Jestem Twoim dietetycznym asystentem Gemini AI. Powiedz mi co zjadłeś (np. "zjadłem burgera drwala i duże frytki"), a ja oszacuję kalorie i pozwolę Ci dodać to do dziennika!' });
+            }
         }
         initData();
 
         function saveState() {
-            localStorage.setItem('diet_v8_users', JSON.stringify(state.users));
-            localStorage.setItem('diet_v8_curr_user', state.userId);
-            localStorage.setItem('diet_v8_products', JSON.stringify(state.products));
-            localStorage.setItem('diet_v8_workouts_db', JSON.stringify(state.workoutsDb));
-            localStorage.setItem('diet_v8_diaries', JSON.stringify(state.diaries));
-            localStorage.setItem('diet_v8_settings', JSON.stringify(state.settings));
+            localStorage.setItem('diet_v9_users', JSON.stringify(state.users));
+            localStorage.setItem('diet_v9_curr_user', state.userId);
+            localStorage.setItem('diet_v9_products', JSON.stringify(state.products));
+            localStorage.setItem('diet_v9_workouts_db', JSON.stringify(state.workoutsDb));
+            localStorage.setItem('diet_v9_diaries', JSON.stringify(state.diaries));
+            localStorage.setItem('diet_v9_settings', JSON.stringify(state.settings));
         }
 
         function getDayData() {
@@ -151,9 +146,13 @@
             if (!state.diaries[state.userId][state.date]) {
                 state.diaries[state.userId][state.date] = {
                     goals: state.userId === 'u1' ? { kcal: 2500, p: 170, f: 70, c: 220 } : { kcal: 2000, p: 120, f: 60, c: 180 },
-                    meals: [], workouts: [], weight: ''
+                    meals: [], workouts: [], weight: '', water: 0, measurements: { waist: '', biceps: '', chest: '', thigh: '' }
                 };
             }
+            // Ensure backwards compatibility for new fields
+            if(state.diaries[state.userId][state.date].water === undefined) state.diaries[state.userId][state.date].water = 0;
+            if(state.diaries[state.userId][state.date].measurements === undefined) state.diaries[state.userId][state.date].measurements = { waist: '', biceps: '', chest: '', thigh: '' };
+            
             return state.diaries[state.userId][state.date];
         }
 
@@ -165,6 +164,58 @@
             return diff >= 0 ? diff + 1 : 0;
         }
 
+        function renderWeightChart() {
+            const userDiary = state.diaries[state.userId] || {};
+            const dates = Object.keys(userDiary).sort((a,b) => new Date(a) - new Date(b));
+            
+            // Pobierz ostatnie 14 wpisów wagi
+            const weights = [];
+            dates.forEach(d => {
+                const w = parseFloat(userDiary[d].weight);
+                if(w && !isNaN(w)) weights.push({ date: d, val: w });
+            });
+            
+            const last14 = weights.slice(-14);
+            if(last14.length < 2) return `<div class="text-xs text-gray-400 text-center py-6 border border-dashed border-gray-200 rounded-xl">Dodaj wagę przez min. 2 dni, by wygenerować wykres.</div>`;
+
+            const minW = Math.min(...last14.map(w => w.val));
+            const maxW = Math.max(...last14.map(w => w.val));
+            const range = (maxW - minW) || 1;
+            
+            const w = 340; const h = 100; const padX = 20; const padY = 20;
+            const usableW = w - (padX * 2);
+            const usableH = h - (padY * 2);
+            const stepX = usableW / (last14.length - 1);
+
+            let points = last14.map((pt, i) => {
+                const x = padX + (i * stepX);
+                const y = h - padY - (((pt.val - minW) / range) * usableH);
+                return `${x},${y}`;
+            }).join(' ');
+
+            return `
+                <svg viewBox="0 0 ${w} ${h}" class="w-full h-auto drop-shadow-md bg-white rounded-xl border border-indigo-100 p-2">
+                    <polyline fill="none" stroke="#e0e7ff" stroke-width="1" points="0,${h-padY} ${w},${h-padY}" />
+                    <polyline fill="none" stroke="#e0e7ff" stroke-width="1" points="0,${padY} ${w},${padY}" />
+                    <polyline fill="none" stroke="#4f46e5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" points="${points}" />
+                    ${last14.map((pt, i) => {
+                        const x = padX + (i * stepX);
+                        const y = h - padY - (((pt.val - minW) / range) * usableH);
+                        return `<circle cx="${x}" cy="${y}" r="3" fill="#ffffff" stroke="#4f46e5" stroke-width="2" />
+                                ${i === 0 || i === last14.length - 1 ? `<text x="${x}" y="${y - 8}" font-size="8" font-weight="bold" fill="#4f46e5" text-anchor="middle">${pt.val}</text>` : ''}`;
+                    }).join('')}
+                </svg>
+            `;
+        }
+
+        function checkBackupReminder() {
+            const now = new Date();
+            const isSunday = now.getDay() === 0;
+            const isAfternoon = now.getHours() >= 12;
+            const todayStr = now.toISOString().split('T')[0];
+            return isSunday && isAfternoon && state.settings.lastBackup !== todayStr;
+        }
+
         function render() {
             const app = document.getElementById('app');
             const day = getDayData();
@@ -174,7 +225,6 @@
             day.meals.forEach(m => { eatenKcal += m.kcal; eatenP += m.p; eatenF += m.f; eatenC += m.c; });
             const burned = day.workouts.reduce((s, w) => s + w.kcal, 0);
             
-            // Logika odliczania treningu i nadwyżki
             const nettoKcal = Math.max(0, eatenKcal - burned);
             const left = day.goals.kcal - nettoKcal;
             
@@ -187,13 +237,15 @@
                 statusColor = 'text-red-500';
                 bgClass = 'bg-red-50 border-red-100';
             } else if (eatenKcal > day.goals.kcal && left >= 0) {
-                // Zjedzono więcej niż cel, ale trening uratował sytuację
                 statusLabel = 'Zostało z treningu';
                 statusColor = 'text-blue-500';
                 bgClass = 'bg-blue-50 border-blue-100';
             }
 
+            const showReminder = checkBackupReminder();
+
             let html = `
+                ${showReminder ? `<div class="bg-yellow-400 text-yellow-900 text-[10px] font-bold text-center py-1.5 px-4 shadow-sm z-50">⚠️ Jest niedziela po południu! Zrób tygodniową kopię zapasową w zakładce Ustawienia.</div>` : ''}
                 <div class="bg-blue-600 text-white p-4 shadow-md w-full">
                     <div class="flex justify-between items-center mb-3">
                         <h1 class="text-xl font-bold tracking-tight">Dziennik Diety</h1>
@@ -203,7 +255,7 @@
                         </div>
                     </div>
                     <div class="flex items-center space-x-2 bg-blue-700 p-1.5 rounded-lg shadow-inner">
-                        <span class="text-xs text-blue-200 pl-2 font-semibold uppercase">Profil:</span>
+                        <span class="text-[10px] text-blue-200 pl-2 font-bold uppercase tracking-wider">Profil:</span>
                         <div class="flex space-x-1 flex-1">
                             ${state.users.map(u => `
                                 <button onclick="switchUser('${u.id}')" class="flex-1 py-1.5 rounded-md text-xs font-bold transition-colors truncate ${state.userId === u.id ? 'bg-white text-blue-700 shadow' : 'text-white hover:bg-blue-500'}">
@@ -213,12 +265,10 @@
                         </div>
                     </div>
                 </div>
-                <div class="p-3 w-full flex-1 overflow-x-hidden">
+                <div class="p-3 w-full flex-1 overflow-x-hidden relative">
             `;
-
-            if (state.tab === 'dziennik') {
+             if (state.tab === 'dziennik') {
                 html += `
-                    <!-- Data i Waga -->
                     <div class="flex space-x-2 mb-3">
                         <div class="flex-1 bg-white p-2.5 rounded-xl shadow-sm border border-gray-100 min-w-0">
                             <label class="text-[10px] font-bold text-gray-400 uppercase mb-0.5 block">Data</label>
@@ -230,7 +280,6 @@
                         </div>
                     </div>
 
-                    <!-- Cel Dnia -->
                     <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl mb-3">
                         <div class="flex justify-between items-center mb-2">
                             <span class="font-bold text-blue-900 text-xs">🎯 Cel (${user.name}): ${day.goals.kcal} kcal</span>
@@ -249,7 +298,6 @@
                         ` : ''}
                     </div>
 
-                    <!-- Pasek Postępu z uwzględnieniem treningu -->
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4">
                         <div class="flex justify-between items-center mb-3">
                             <div class="text-center w-1/3">
@@ -269,20 +317,28 @@
                             <span class="text-[10px] font-bold text-gray-500 uppercase">${statusLabel}</span>
                             <span class="text-xl font-black ${statusColor}">${Math.abs(Math.round(left))} kcal</span>
                         </div>
-                        <div class="grid grid-cols-3 gap-2">
+                        <div class="grid grid-cols-3 gap-2 mb-3">
                             <div class="bg-blue-50 text-blue-800 py-1 rounded text-center text-[10px] font-bold">B: ${Math.round(eatenP)}/${day.goals.p}g</div>
                             <div class="bg-amber-50 text-amber-800 py-1 rounded text-center text-[10px] font-bold">T: ${Math.round(eatenF)}/${day.goals.f}g</div>
                             <div class="bg-emerald-50 text-emerald-800 py-1 rounded text-center text-[10px] font-bold">W: ${Math.round(eatenC)}/${day.goals.c}g</div>
                         </div>
+                        
+                        <!-- Woda Tracker -->
+                        <div class="pt-3 border-t border-gray-100 flex items-center justify-between">
+                            <span class="text-[10px] font-bold text-blue-400 uppercase flex items-center"><span class="text-sm mr-1">💧</span> Nawodnienie</span>
+                            <div class="flex space-x-1">
+                                ${Array.from({length: 8}).map((_, i) => `
+                                    <button onclick="toggleWater(${i})" class="text-lg transition-all ${i < day.water ? 'opacity-100 scale-110 drop-shadow-md' : 'opacity-30 grayscale hover:opacity-50'}">🥛</button>
+                                `).join('')}
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Dodawanie Posiłku (Własne Autocomplete) -->
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4">
                         <h3 class="font-bold text-sm text-gray-800 mb-2 flex items-center">🍽️ Posiłki</h3>
-                        
                         <div class="flex space-x-2 mb-3 relative">
                             <div class="relative flex-1 min-w-0">
-                                <input id="pSearchInp" placeholder="Wpisz nazwę (np. skyr)..." value="${state.prodSearch}" oninput="searchProd(this.value)" autocomplete="off" class="w-full bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium px-3 py-2 outline-none focus:border-blue-400" />
+                                <input id="pSearchInp" placeholder="Wpisz (np. skyr)..." value="${state.prodSearch}" oninput="searchProd(this.value)" autocomplete="off" class="w-full bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium px-3 py-2 outline-none focus:border-blue-400" />
                                 ${state.prodResults.length > 0 ? `
                                     <div class="absolute top-full left-0 w-full mt-1 bg-white border border-gray-200 shadow-xl rounded-lg max-h-48 overflow-y-auto z-50">
                                         ${state.prodResults.map(p => `
@@ -297,8 +353,6 @@
                             <input id="inpW" type="number" placeholder="Waga(g)" value="${state.inputWeight}" oninput="state.inputWeight=this.value" class="w-16 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-center outline-none shrink-0" />
                             <button onclick="addMeal()" class="bg-blue-600 text-white px-3 rounded-lg font-bold shadow-md active:scale-95 shrink-0">+</button>
                         </div>
-
-                        <!-- Lista posiłków -->
                         <div class="space-y-2">
                             ${day.meals.length === 0 ? '<p class="text-[10px] text-gray-400 text-center py-2">Brak posiłków</p>' : ''}
                             ${day.meals.map(m => `
@@ -315,7 +369,7 @@
                             `).join('')}
                         </div>
                     </div>
-                     <!-- Dodawanie Treningu (Autouzupełnianie z bazy) -->
+
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-orange-100">
                         <h3 class="font-bold text-sm text-orange-600 mb-2 flex items-center">🔥 Dodaj trening (Dzisiaj)</h3>
                         <div class="flex space-x-2 mb-3 relative">
@@ -348,7 +402,12 @@
                             `).join('')}
                         </div>
                     </div>
-                `;
+                    
+                    <!-- Przycisk Gemini Floating -->
+                    <button onclick="toggleChat()" class="fab-gemini bg-blue-600 hover:bg-blue-700 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-90">
+                        <span class="text-2xl">✨</span>
+                    </button>
+                     `;
             } else if (state.tab === 'trening') {
                 const curr = new Date(state.date);
                 const dayOfWeek = curr.getDay();
@@ -361,42 +420,36 @@
                     weekDates.push(next.toISOString().split('T')[0]);
                 }
 
-                let weekTime = 0;
-                let weekKcal = 0;
-                const types = {};
-
+                let weekTime = 0; let weekKcal = 0; const types = {};
                 weekDates.forEach(d => {
                     const dObj = state.diaries[state.userId]?.[d];
                     if (dObj && dObj.workouts) {
                         dObj.workouts.forEach(w => {
-                            weekTime += w.time;
-                            weekKcal += w.kcal;
+                            weekTime += w.time; weekKcal += w.kcal;
                             if(!types[w.name]) types[w.name] = { time: 0, kcal: 0, count: 0 };
-                            types[w.name].time += w.time;
-                            types[w.name].kcal += w.kcal;
-                            types[w.name].count += 1;
+                            types[w.name].time += w.time; types[w.name].kcal += w.kcal; types[w.name].count += 1;
                         });
                     }
                 });
 
                 html += `
-                    <div class="bg-orange-50 border border-orange-200 p-4 rounded-xl">
-                        <h3 class="font-black text-lg text-orange-900 mb-1 text-center">📊 Treningi (${user.name})</h3>
+                    <div class="bg-orange-50 border border-orange-200 p-4 rounded-xl mb-4">
+                        <h3 class="font-black text-lg text-orange-900 mb-1 text-center">📊 Statystyki Tygodnia</h3>
                         <p class="text-xs text-orange-600 font-bold text-center mb-4 uppercase">${weekDates[0]} — ${weekDates[6]}</p>
                         
                         <div class="grid grid-cols-2 gap-2 mb-4">
                             <div class="bg-white p-3 rounded-xl shadow-sm border border-orange-100 text-center">
-                                <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">Łączny czas w tyg.</p>
+                                <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">Łączny czas</p>
                                 <p class="text-2xl font-black text-orange-600">${weekTime} <span class="text-xs font-semibold opacity-60">min</span></p>
                             </div>
                             <div class="bg-white p-3 rounded-xl shadow-sm border border-orange-100 text-center">
-                                <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">Spalono w tyg.</p>
+                                <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">Spalono</p>
                                 <p class="text-2xl font-black text-orange-600">${weekKcal} <span class="text-xs font-semibold opacity-60">kcal</span></p>
                             </div>
                         </div>
                         
                         ${Object.keys(types).length > 0 ? `
-                            <h4 class="text-xs font-black text-orange-800 uppercase mb-2 pl-1">Rodzaje aktywności z 7 dni:</h4>
+                            <h4 class="text-xs font-black text-orange-800 uppercase mb-2 pl-1">Aktywności:</h4>
                             <div class="space-y-2">
                                 ${Object.keys(types).map(t => `
                                     <div class="bg-white p-3 rounded-xl border border-orange-100 flex justify-between items-center shadow-sm">
@@ -411,7 +464,30 @@
                                     </div>
                                 `).join('')}
                             </div>
-                        ` : '<p class="text-center text-xs text-gray-500 font-bold mt-6">Brak zarejestrowanych treningów w tym tygodniu.</p>'}
+                        ` : '<p class="text-center text-xs text-gray-500 font-bold mt-4">Brak treningów w tym tygodniu.</p>'}
+                    </div>
+
+                    <!-- Sekcja Wymiary Ciała -->
+                    <div class="bg-white border border-gray-100 p-4 rounded-xl shadow-sm mb-4">
+                        <h3 class="font-black text-sm text-gray-800 mb-3 flex items-center">📏 Pomiary Ciała (cm)</h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Pas</label>
+                                <input type="number" step="0.1" value="${day.measurements.waist}" onchange="updateMeasurement('waist', this.value)" placeholder="cm" class="w-full bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold p-2 outline-none text-center focus:border-blue-400" />
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Biceps</label>
+                                <input type="number" step="0.1" value="${day.measurements.biceps}" onchange="updateMeasurement('biceps', this.value)" placeholder="cm" class="w-full bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold p-2 outline-none text-center focus:border-blue-400" />
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Klatka</label>
+                                <input type="number" step="0.1" value="${day.measurements.chest}" onchange="updateMeasurement('chest', this.value)" placeholder="cm" class="w-full bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold p-2 outline-none text-center focus:border-blue-400" />
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-400 uppercase mb-1 block">Udo</label>
+                                <input type="number" step="0.1" value="${day.measurements.thigh}" onchange="updateMeasurement('thigh', this.value)" placeholder="cm" class="w-full bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold p-2 outline-none text-center focus:border-blue-400" />
+                            </div>
+                        </div>
                     </div>
                 `;
             } else if (state.tab === 'baza') {
@@ -421,7 +497,7 @@
                         <input id="pName" placeholder="Nazwa produktu" class="w-full mb-2 p-2 text-xs rounded-lg border border-blue-200 font-bold outline-none" />
                         <div class="grid grid-cols-2 gap-2 mb-2">
                             <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Waga bazowa (g)</label><input id="pW" type="number" value="100" class="w-full p-2 text-xs rounded-lg border border-blue-200 outline-none" /></div>
-                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Kalorie (Kcal)</label><input id="pK" type="number" placeholder="Wpisz lub Auto" class="w-full p-2 text-xs rounded-lg border border-blue-200 bg-white outline-none" /></div>
+                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Kcal</label><input id="pK" type="number" placeholder="Opcjonalne" class="w-full p-2 text-xs rounded-lg border border-blue-200 bg-white outline-none" /></div>
                         </div>
                         <div class="grid grid-cols-3 gap-2 mb-3">
                             <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Białko</label><input id="pP" type="number" step="0.1" placeholder="0" class="w-full p-1.5 text-xs rounded-lg border border-blue-200 outline-none" /></div>
@@ -463,7 +539,7 @@
 
                 const userDiary = state.diaries[state.userId] || {};
                 let tKcal = 0, tBurned = 0, dCount = 0;
-                const weights = [];
+                const weightsForWeek = [];
 
                 weekDates.forEach(d => {
                     const dObj = userDiary[d];
@@ -472,15 +548,16 @@
                         const b = (dObj.workouts || []).reduce((s, w) => s + w.kcal, 0);
                         if (e > 0) { tKcal += e; dCount++; }
                         tBurned += b;
-                        if (dObj.weight && !isNaN(parseFloat(dObj.weight))) weights.push(parseFloat(dObj.weight));
+                        if (dObj.weight && !isNaN(parseFloat(dObj.weight))) weightsForWeek.push(parseFloat(dObj.weight));
                     }
                 });
 
                 const avgKcal = dCount > 0 ? Math.round(tKcal / dCount) : 0;
-                const wDiff = weights.length >= 2 ? (weights[weights.length - 1] - weights[0]) : 0;
+                const wDiff = weightsForWeek.length >= 2 ? (weightsForWeek[weightsForWeek.length - 1] - weightsForWeek[0]) : 0;
                 const wDiffStr = (wDiff > 0 ? '+' : '') + wDiff.toFixed(1);
-              html += `
-                    <div class="bg-indigo-50 border border-indigo-200 p-5 rounded-xl text-center">
+
+                html += `
+                    <div class="bg-indigo-50 border border-indigo-200 p-5 rounded-xl text-center mb-4">
                         <h2 class="font-black text-lg text-indigo-900 mb-1">Podsumowanie (${user.name})</h2>
                         <p class="text-[10px] text-indigo-500 font-bold uppercase mb-4">${weekDates[0]} — ${weekDates[6]}</p>
                         
@@ -495,9 +572,15 @@
                             </div>
                         </div>
                         <div class="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
-                            <p class="text-[10px] font-bold text-gray-500 uppercase mb-1">Zmiana wagi w tym tygodniu</p>
+                            <p class="text-[10px] font-bold text-gray-500 uppercase mb-1">Zmiana wagi (7 dni)</p>
                             <p class="text-3xl font-black ${wDiff > 0 ? 'text-red-500' : 'text-emerald-500'}">${wDiffStr} kg</p>
                         </div>
+                    </div>
+
+                    <!-- WYKRES WAGI -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="font-black text-sm text-gray-800 mb-3">📈 Wykres Wagi (Ostatnie 14 dni)</h3>
+                        ${renderWeightChart()}
                     </div>
                 `;
             } else if (state.tab === 'kopia') {
@@ -521,6 +604,13 @@
                                 <option value="0" ${state.settings.startOfWeek === 0 ? 'selected' : ''}>Niedziela</option>
                             </select>
                         </div>
+                    </div>
+
+                    <!-- USTAWIENIA GEMINI -->
+                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl shadow-sm border border-blue-200 mb-4">
+                        <h3 class="font-black text-blue-900 mb-2 text-sm flex items-center">✨ Asystent AI (Gemini)</h3>
+                        <p class="text-[10px] text-blue-700 mb-3 font-medium">Wklej darmowy klucz z Google AI Studio, aby aktywować czat z asystentem, który automatycznie przeliczy Twoje posiłki i pozwoli dodać je do bazy.</p>
+                        <input type="password" value="${state.settings.geminiApiKey}" onchange="changeGeminiKey(this.value)" placeholder="Wklej klucz API..." class="w-full p-2 bg-white border border-blue-200 rounded-lg text-xs outline-none focus:border-blue-400" />
                     </div>
 
                     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 text-center">
@@ -549,11 +639,49 @@
                         </div>
                     </div>
                 `;
+             }
+                 // MODAL CZATU GEMINI
+            if (state.chatOpen) {
+                html += `
+                    <div class="fixed inset-0 bg-black/50 z-[100] flex flex-col justify-end">
+                        <div class="bg-white w-full h-[85vh] rounded-t-3xl flex flex-col shadow-2xl overflow-hidden">
+                            <div class="bg-blue-600 text-white p-4 flex justify-between items-center rounded-t-3xl">
+                                <span class="font-black text-lg flex items-center">✨ Asystent AI</span>
+                                <button onclick="toggleChat()" class="font-bold text-blue-200 hover:text-white px-2">Zamknij</button>
+                            </div>
+                            
+                            <div id="chatBox" class="flex-1 p-4 overflow-y-auto space-y-4 bg-gray-50">
+                                ${state.chatHistory.map(msg => `
+                                    <div class="flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}">
+                                        <div class="max-w-[85%] rounded-2xl p-3 ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm text-sm'}">
+                                            ${msg.text}
+                                            ${msg.parsedFood ? `
+                                                <div class="mt-3 pt-3 border-t border-gray-100">
+                                                    <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">Znaleziono Posiłek:</p>
+                                                    <p class="font-bold text-blue-700 text-xs">${msg.parsedFood.name} (${msg.parsedFood.kcal} kcal)</p>
+                                                    <p class="text-[10px] text-gray-500">B:${msg.parsedFood.p} T:${msg.parsedFood.f} W:${msg.parsedFood.c}</p>
+                                                    <button onclick="addGeminiMeal('${encodeURIComponent(JSON.stringify(msg.parsedFood))}')" class="mt-2 w-full bg-blue-50 text-blue-600 border border-blue-200 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors">➕ Dodaj do dziennika</button>
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                                ${state.chatLoading ? `<div class="flex justify-start"><div class="bg-white border border-gray-200 rounded-2xl p-3 rounded-tl-sm shadow-sm text-sm text-gray-400 animate-pulse">Gemini myśli...</div></div>` : ''}
+                            </div>
+                            
+                            <div class="p-3 bg-white border-t border-gray-200 pb-safe">
+                                <div class="flex space-x-2">
+                                    <input id="chatInput" type="text" placeholder="Co dziś zjadłeś?" class="flex-1 bg-gray-100 border-none rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" onkeypress="if(event.key==='Enter') sendChat()" />
+                                    <button onclick="sendChat()" class="bg-blue-600 text-white px-4 rounded-xl font-bold active:scale-95 transition-transform">➤</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
             }
 
             html += `
                 </div>
-                <!-- Dolny Pasek Nawigacji (5 elementów) -->
                 <div class="fixed bottom-0 left-1/2 transform -translate-x-1/2 w-full max-w-md bg-white/95 backdrop-blur border-t border-gray-200 grid grid-cols-5 p-1 pb-safe z-50">
                     <button onclick="switchTab('dziennik')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'dziennik' ? 'text-blue-600' : 'text-gray-400'}">
                         <span class="text-xl mb-0.5">📅</span><span class="text-[9px] font-bold truncate w-full text-center">Dziennik</span>
@@ -562,7 +690,7 @@
                         <span class="text-xl mb-0.5">🍎</span><span class="text-[9px] font-bold truncate w-full text-center">Baza</span>
                     </button>
                     <button onclick="switchTab('trening')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'trening' ? 'text-blue-600' : 'text-gray-400'}">
-                        <span class="text-xl mb-0.5">💪</span><span class="text-[9px] font-bold truncate w-full text-center">Trening</span>
+                        <span class="text-xl mb-0.5">💪</span><span class="text-[9px] font-bold truncate w-full text-center">Ciało</span>
                     </button>
                     <button onclick="switchTab('podsumowanie')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'podsumowanie' ? 'text-blue-600' : 'text-gray-400'}">
                         <span class="text-xl mb-0.5">📊</span><span class="text-[9px] font-bold truncate w-full text-center">Tydzień</span>
@@ -573,16 +701,32 @@
                 </div>
             `;
             app.innerHTML = html;
+
+            if(state.chatOpen) {
+                const cb = document.getElementById('chatBox');
+                if(cb) cb.scrollTop = cb.scrollHeight;
+            }
         }
 
-        window.switchTab = (t) => { 
-            state.tab = t; state.statusMsg = ''; state.prodResults = []; state.wResults = []; render(); 
-        };
+        window.switchTab = (t) => { state.tab = t; state.statusMsg = ''; state.prodResults = []; state.wResults = []; render(); };
         window.switchUser = (u) => { state.userId = u; saveState(); render(); };
         window.changeDate = (d) => { state.date = d; render(); };
         window.changeWeight = (w) => { getDayData().weight = w; saveState(); };
         window.toggleGoals = () => { state.isEditingGoals = !state.isEditingGoals; render(); };
         window.changeStartOfWeek = (val) => { state.settings.startOfWeek = parseInt(val); saveState(); render(); };
+        window.changeGeminiKey = (val) => { state.settings.geminiApiKey = val.trim(); saveState(); };
+        
+        window.toggleWater = (idx) => {
+            const d = getDayData();
+            if (idx === d.water - 1) d.water -= 1; // click last active to remove
+            else d.water = idx + 1;
+            saveState(); render();
+        };
+
+        window.updateMeasurement = (key, val) => {
+            getDayData().measurements[key] = val;
+            saveState();
+        };
 
         window.changeUserName = (id, newName) => {
             const u = state.users.find(x => x.id === id);
@@ -608,7 +752,7 @@
                 state.prodResults = [];
             }
             render();
-          setTimeout(() => { const el = document.getElementById('pSearchInp'); if (el) { el.focus(); el.setSelectionRange(val.length, val.length); } }, 0);
+            setTimeout(() => { const el = document.getElementById('pSearchInp'); if (el) { el.focus(); el.setSelectionRange(val.length, val.length); } }, 0);
         };
 
         window.selectProdDrop = (id) => {
@@ -625,7 +769,6 @@
         window.addMeal = () => {
             let p = state.products.find(x => x.id === state.selectedProdId);
             if (!p) {
-                // Jesli uzytkownik wpisal cala nazwe recznie ale nie kliknal podpowiedzi
                 p = state.products.find(x => x.name.toLowerCase() === state.prodSearch.trim().toLowerCase());
             }
             const w = parseFloat(state.inputWeight);
@@ -667,7 +810,6 @@
             const kcal = parseInt(state.wInputKcal) || 0;
             if (!name || !kcal) return alert('Podaj nazwę i spalone kalorie!');
             
-            // Zapis do bazy treningów (jeśli nie istnieje)
             const existing = state.workoutsDb.find(w => w.name.toLowerCase() === name.toLowerCase());
             if (!existing) {
                 state.workoutsDb.push({ name, time, kcal });
@@ -688,7 +830,6 @@
             state.isEditingGoals = false; getDayData().goals = { kcal, p, f, c };
             saveState(); render();
         };
-
         window.addProd = () => {
             const name = document.getElementById('pName').value;
             const w = parseFloat(document.getElementById('pW').value) || 100;
@@ -705,9 +846,14 @@
         window.delProd = (id) => { if (confirm('Usunąć?')) { state.products = state.products.filter(x => x.id !== id); saveState(); render(); } };
 
         window.exportFullJson = () => {
-            const payload = { version: 8, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries };
+            const payload = { version: 9, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries };
             const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `dieta_${state.date}.json`; a.click();
+            
+            // Zapisz date ostatniego backupu
+            state.settings.lastBackup = new Date().toISOString().split('T')[0];
+            saveState();
+            
             state.statusMsg = 'Pobrano plik!'; render();
         };
 
@@ -732,6 +878,73 @@
                 }
                 saveState(); render();
             } catch(e) { alert('Błąd JSON!'); }
+        };
+
+        // --- GEMINI AI INTEGRATION ---
+        window.toggleChat = () => {
+            if(!state.settings.geminiApiKey) {
+                alert('Najpierw wklej klucz API z Google AI Studio w zakładce Kopia i Ustawienia!');
+                switchTab('kopia');
+                return;
+            }
+            state.chatOpen = !state.chatOpen;
+            render();
+            if(state.chatOpen) setTimeout(() => document.getElementById('chatInput').focus(), 100);
+        };
+
+        window.sendChat = async () => {
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            if(!text) return;
+            
+            input.value = '';
+            state.chatHistory.push({ role: 'user', text: text });
+            state.chatLoading = true;
+            render();
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${state.settings.geminiApiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        system_instruction: { parts: [{ text: "Jesteś polskim asystentem dietetycznym. Oszacuj kalorie i makro posiłku z wiadomości. Odpowiedz krótko i naturalnie. Jeśli to posiłek, ZAWSZE na samym końcu odpowiedzi dodaj formatowany blok kodu w markdown, zawierający wyłącznie JSON. Przykład: ```json\n{\"name\":\"Kebab w tortilli\",\"kcal\":850,\"p\":40,\"f\":45,\"c\":70}\n``` Jeśli to luźna rozmowa, po prostu odpowiedz." }]},
+                        contents: state.chatHistory.map(m => ({ role: m.role, parts: [{ text: m.text }] }))
+                    })
+                });
+                
+                const data = await response.json();
+                if(data.error) throw new Error(data.error.message);
+                
+                let botText = data.candidates[0].content.parts[0].text;
+                let parsedFood = null;
+
+                // Szukanie bloku JSON w odpowiedzi
+                const jsonMatch = botText.match(/```json\n([\s\S]*?)\n```/);
+                if(jsonMatch) {
+                    try {
+                        parsedFood = JSON.parse(jsonMatch[1].trim());
+                        botText = botText.replace(jsonMatch[0], ''); // usuń kod JSON z tekstu widocznego
+                    } catch(e){}
+                }
+
+                state.chatHistory.push({ role: 'model', text: botText.trim(), parsedFood });
+            } catch (err) {
+                state.chatHistory.push({ role: 'model', text: 'Wystąpił błąd z API: ' + err.message });
+            }
+            
+            state.chatLoading = false;
+            render();
+        };
+
+        window.addGeminiMeal = (encodedJson) => {
+            const food = JSON.parse(decodeURIComponent(encodedJson));
+            getDayData().meals.push({ 
+                id: Date.now(), name: food.name + " (AI)", 
+                weight: 100, kcal: food.kcal, p: food.p, f: food.f, c: food.c 
+            });
+            saveState();
+            state.chatOpen = false;
+            render();
         };
 
         render();
