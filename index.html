@@ -1,458 +1,410 @@
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1d4ed8">
-<title>Dziennik Diety</title>
-  <link rel="manifest" href="./manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Dziennik Diety">
-<style>
-:root{--blue:#2563eb;--blue-dark:#1d4ed8;--bg:#f3f4f6;--card:#fff;--text:#1f2937;--muted:#6b7280;--border:#e5e7eb;--green:#059669;--orange:#ea580c;--red:#dc2626}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding-bottom:calc(78px + env(safe-area-inset-bottom))}
-button,input,select{font:inherit}
-button{cursor:pointer;touch-action:manipulation}
-.app{max-width:720px;min-height:100vh;margin:auto;background:#f9fafb}
-header{background:linear-gradient(135deg,var(--blue-dark),var(--blue));color:#fff;padding:18px 16px 14px;position:sticky;top:0;z-index:5;box-shadow:0 2px 8px #0001}
-.headrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.brand{font-weight:800;font-size:20px}
-.profile-select{max-width:45%;border:1px solid #ffffff66;background:#ffffff18;color:white;border-radius:9px;padding:8px}
-.profile-select option{color:#111}
-main{padding:14px}
-.panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:0 2px 5px #00000005}
-.panel h2{font-size:16px;margin:0 0 12px}
-.panel h3{font-size:14px;margin:0 0 8px}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
-.field label{display:block;color:var(--muted);font-size:12px;font-weight:700;margin-bottom:5px}
-.field input,.field select,.field textarea,input,select{width:100%;min-width:0;padding:10px 11px;border:1px solid #d1d5db;border-radius:9px;background:white;color:var(--text)}
-input[type=checkbox]{width:auto}
-.btn{border:0;border-radius:9px;padding:10px 13px;background:var(--blue);color:white;font-weight:700;min-height:42px}
-.btn.secondary{background:#e5e7eb;color:#374151}
-.btn.green{background:var(--green)}
-.btn.orange{background:var(--orange)}
-.btn.red{background:#fee2e2;color:#991b1b}
-.btn.small{padding:6px 9px;min-height:32px;font-size:12px}
-.btn.full{width:100%}
-.actions{display:flex;gap:8px;flex-wrap:wrap}
-.actions>*{flex:1}
-.nav{position:fixed;z-index:10;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:720px;display:grid;grid-template-columns:repeat(5,1fr);background:#fff;border-top:1px solid var(--border);padding:6px 4px calc(6px + env(safe-area-inset-bottom));box-shadow:0 -3px 12px #00000008}
-.nav button{border:0;background:transparent;color:var(--muted);padding:7px 2px;font-size:11px;font-weight:700;border-radius:8px}
-.nav button span{display:block;font-size:19px;margin-bottom:2px}
-.nav button.active{color:var(--blue);background:#eff6ff}
-.kpi-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
-.kpi{padding:12px;background:#f3f4f6;border-radius:11px}
-.kpi .label{font-size:11px;color:var(--muted);font-weight:800}
-.kpi .value{font-size:22px;font-weight:800;margin-top:3px}
-.kpi .sub{font-size:11px;color:var(--muted);margin-top:2px}
-.progress{height:8px;border-radius:99px;background:#e5e7eb;overflow:hidden;margin-top:7px}
-.progress>div{height:100%;background:var(--blue);border-radius:99px}
-.progress.green>div{background:var(--green)}
-.progress.orange>div{background:var(--orange)}
-.suggestions{position:absolute;left:0;right:0;top:100%;z-index:20;background:#fff;border:1px solid #cbd5e1;border-radius:10px;box-shadow:0 8px 22px #0002;max-height:240px;overflow-y:auto;margin-top:4px}
-.suggestion{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid #f3f4f6;background:#fff;padding:11px 12px;color:var(--text)}
-.suggestion:last-child{border-bottom:0}
-.suggestion:active,.suggestion:hover{background:#eff6ff}
-.suggestion strong{display:block;font-size:14px}
-.suggestion small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
-.item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid #f3f4f6}
-.item:last-child{border-bottom:0}
-.item-title{font-weight:700;font-size:14px}
-.muted{color:var(--muted);font-size:12px}
-.num{font-variant-numeric:tabular-nums}
-.pill{display:inline-block;background:#eff6ff;color:#1d4ed8;border-radius:7px;padding:4px 7px;font-size:11px;font-weight:700}
-.chart{width:100%;height:210px;display:block}
-.empty{padding:18px 8px;text-align:center;color:var(--muted);font-size:13px}
-.notice{font-size:12px;color:#4b5563;background:#fef3c7;border-radius:9px;padding:10px;margin-bottom:12px}
-.macroline{margin:12px 0}
-.macroline .row{display:flex;justify-content:space-between;font-size:12px;gap:8px}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.hidden{display:none!important}
-@media(min-width:600px){
-main{padding:20px}
-.kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
-.nav button{font-size:12px}
-.panel{padding:17px}
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dziennik Diety</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background: #f3f4f6; color: #1f2937; padding-bottom: 70px; }
+        .container { max-width: 480px; margin: 0 auto; min-height: 100vh; background: #fff; position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .header { background: #2563eb; color: #fff; padding: 16px; }
+        .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+        .content { padding: 16px; }
+        .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+        .card-blue { background: #eff6ff; border-color: #bfdbfe; }
+        .card-gray { background: #f9fafb; }
+        input, select, textarea { width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+        label { display: block; font-size: 11px; color: #4b5563; margin-bottom: 2px; font-weight: bold; }
+        .btn { padding: 8px 12px; border: none; border-radius: 6px; font-size: 13px; font-weight: bold; cursor: pointer; color: #fff; background: #2563eb; text-align: center; }
+        .btn-orange { background: #f97316; }
+        .btn-green { background: #059669; }
+        .btn-full { width: 100%; display: block; }
+        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+        .del-btn { background: none; border: none; color: #ef4444; font-weight: bold; cursor: pointer; font-size: 14px; padding: 2px 6px; }
+        .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: #fff; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-around; padding: 10px 0; z-index: 50; }
+        .nav-btn { background: none; border: none; font-size: 12px; font-weight: bold; color: #6b7280; cursor: pointer; }
+        .nav-btn.active { color: #2563eb; }
+        .text-green { color: #16a34a; }
+        .text-red { color: #dc2626; }
+        .text-orange { color: #ea580c; }
+    </style>
 </head>
 <body>
-<div class="app">
-<header>
-<div class="headrow">
-<div>
-<div class="brand">🥗 Dziennik Diety</div>
-<div id="headerDate" style="font-size:12px;opacity:.85">Twoje posiłki i postępy</div>
-</div>
-<select id="profileSelect" class="profile-select" aria-label="Wybierz profil"></select>
-</div>
-</header>
-<main id="view"></main>
-<nav class="nav" aria-label="Nawigacja">
-<button data-tab="dziennik" class="active"><span>🍽️</span>Dziennik</button>
-<button data-tab="waga"><span>⚖️</span>Waga</button>
-<button data-tab="tydzien"><span>📊</span>Tydzień</button>
-<button data-tab="produkty"><span>🥑</span>Produkty</button>
-<button data-tab="ustawienia"><span>⚙️</span>Więcej</button>
-</nav>
-</div>
-<script>
-'use strict';
-const KEY='dziennik_diety_v2';
-const today=()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
-const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
-const num=(v,def=0)=>Number.isFinite(Number(v))&&v!==''?Number(v):def;
-const round=(n,d=0)=>Number(n.toFixed(d));
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const defaults=[
-{id:'p1',name:'Skyr naturalny (150 g)',baseWeight:150,kcal:98,p:18,f:0,c:6.2},
-{id:'p2',name:'Skyr pitny (360 g)',baseWeight:360,kcal:225,p:36,f:1,c:16},
-{id:'p3',name:'Pudding proteinowy (200 g)',baseWeight:200,kcal:152,p:20,f:3,c:11},
-{id:'p4',name:'Pierś z kurczaka — surowa',baseWeight:100,kcal:98,p:21.5,f:1.3,c:0},
-{id:'p5',name:'Ryż basmati — suchy (50 g)',baseWeight:50,kcal:175,p:3.8,f:.4,c:38.5},
-{id:'p6',name:'Jajko (1 szt. / 55 g)',baseWeight:55,kcal:77,p:6.9,f:5.3,c:.3},
-{id:'p7',name:'Płatki owsiane (50 g)',baseWeight:50,kcal:188,p:6,f:3.6,c:31.2},
-{id:'p8',name:'Masło orzechowe (15 g)',baseWeight:15,kcal:88,p:3.9,f:7.5,c:2.1},
-{id:'p9',name:'Twaróg chudy (100 g)',baseWeight:100,kcal:86,p:19.8,f:.5,c:3.5},
-{id:'p10',name:'Banan (120 g)',baseWeight:120,kcal:116,p:1.2,f:.4,c:26.2},
-{id:'p11',name:'Twaróg półtłusty (100 g)',baseWeight:100,kcal:122,p:18,f:4,c:3.5},
-{id:'p12',name:'Kurczak wędzony (100 g)',baseWeight:100,kcal:113,p:22,f:2,c:1},
-{id:'p13',name:'Szproty w pomidorach (puszka 170 g)',baseWeight:170,kcal:170,p:12,f:11,c:5},
-{id:'p14',name:'Go On Protein Crisp (50 g)',baseWeight:50,kcal:216,p:10,f:9,c:22},
-{id:'p15',name:'Buraki z bulgurem — porcja',baseWeight:1,kcal:368,p:10,f:8,c:60}
-];
-function fresh(){return {version:2,profiles:[{id:'u1',name:'Ja',goals:{kcal:2500,p:170,f:70,c:220}},{id:'u2',name:'Żona',goals:{kcal:2000,p:120,f:60,c:180}}],active:'u1',products:structuredClone(defaults),diaries:{}}}
-function load(){
-try{
-const x=JSON.parse(localStorage.getItem(KEY));
-if(x&&x.version===2&&Array.isArray(x.profiles)&&x.diaries&&Array.isArray(x.products))return x;
-}catch(e){}
-const s=fresh();
-try{
-const oldUsers=JSON.parse(localStorage.getItem('diet_users')||'null');
-const oldProducts=JSON.parse(localStorage.getItem('diet_products')||'null');
-const oldDiaries=JSON.parse(localStorage.getItem('diet_diaries')||'null');
-if(Array.isArray(oldUsers)&&oldUsers.length)s.profiles=oldUsers.map(u=>({id:String(u.id),name:String(u.name||'Profil'),goals:{kcal:2500,p:170,f:70,c:220}}));
-if(Array.isArray(oldProducts)&&oldProducts.length)s.products=oldProducts.map(p=>({id:String(p.id||uid()),name:String(p.name||'Produkt'),baseWeight:num(p.baseWeight,100),kcal:num(p.baseKcal??p.kcal),p:num(p.baseP??p.p),f:num(p.baseF??p.f),c:num(p.baseC??p.c)}));
-if(oldDiaries&&typeof oldDiaries==='object'){
-for(const [pid,days] of Object.entries(oldDiaries)){
-s.diaries[pid]={};
-for(const [date,d] of Object.entries(days||{})){
-s.diaries[pid][date]={goals:{kcal:num(d.goals?.kcal,2500),p:num(d.goals?.p,170),f:num(d.goals?.f,70),c:num(d.goals?.c,220)},weight:d.weight??'',meals:(d.meals||[]).map(m=>({id:m.id||uid(),name:m.name||'Posiłek',weight:num(m.weight),kcal:num(m.kcal),p:num(m.p),f:num(m.f),c:num(m.c)})),workouts:(d.workouts||[]).map(w=>({id:w.id||uid(),name:w.name||'Trening',time:num(w.time),kcal:num(w.kcal)}))};
-}
-}
-}
-s.active=localStorage.getItem('diet_user')||s.profiles[0].id;
-}catch(e){}
-if(!s.profiles.some(p=>p.id===s.active))s.active=s.profiles[0]?.id||'u1';
-return s;
-}
-let db=load(),tab='dziennik',date=today(),selectedProduct='';
-function persist(){try{localStorage.setItem(KEY,JSON.stringify(db));return true}catch(e){alert('Nie udało się zapisać danych. Wyeksportuj kopię zapasową i zwolnij miejsce w pamięci przeglądarki.');return false}}
-function profile(){return db.profiles.find(p=>p.id===db.active)||db.profiles[0]}
-function dayFor(d=date,pid=db.active){if(!db.diaries[pid])db.diaries[pid]={};if(!db.diaries[pid][d]){const p=db.profiles.find(x=>x.id===pid)||profile();db.diaries[pid][d]={goals:{...p.goals},weight:'',meals:[],workouts:[]}}return db.diaries[pid][d]}
-function totals(day){return day.meals.reduce((a,m)=>({kcal:a.kcal+num(m.kcal),p:a.p+num(m.p),f:a.f+num(m.f),c:a.c+num(m.c)}),{kcal:0,p:0,f:0,c:0})}
-function fmt(n,d=0){return round(n,d).toLocaleString('pl-PL',{maximumFractionDigits:d})}
-function dateLabel(s){if(!s)return '';return new Date(s+'T12:00:00').toLocaleDateString('pl-PL',{day:'2-digit',month:'2-digit',year:'numeric'})}
-function safeDay(d){return d&&typeof d==='object'&&Array.isArray(d.meals)&&Array.isArray(d.workouts)}
-function setTab(t){tab=t;render()}
-function render(){
-const p=profile();if(!p)return;
-document.getElementById('profileSelect').innerHTML=db.profiles.map(x=>`<option value="${esc(x.id)}" ${x.id===db.active?'selected':''}>${esc(x.name)}</option>`).join('');
-document.getElementById('headerDate').textContent=`${p.name} · ${dateLabel(date)}`;
-document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
-const view=document.getElementById('view');
-if(tab==='dziennik')view.innerHTML=renderDiary(p);
-else if(tab==='waga')view.innerHTML=renderWeight();
-else if(tab==='tydzien')view.innerHTML=renderWeek();
-else if(tab==='produkty')view.innerHTML=renderProducts();
-else view.innerHTML=renderSettings(p);
-}
-function kpi(label,value,sub=''){return `<div class="kpi"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`}
-function macro(label,val,goal,cls=''){const pct=goal>0?Math.min(100,val/goal*100):0;return `<div class="macroline"><div class="row"><b>${label}</b><span>${fmt(val,1)} / ${fmt(goal,1)} g</span></div><div class="progress ${cls}"><div style="width:${pct}%"></div></div></div>`}
-function renderDiary(p){
-const d=dayFor(),t=totals(d),burn=d.workouts.reduce((s,w)=>s+num(w.kcal),0),left=d.goals.kcal-t.kcal;
-return `
-<div class="panel"><div class="grid">
-<div class="field"><label>Data</label><input type="date" value="${date}" onchange="changeDate(this.value)"></div>
-<div class="field"><label>Waga (kg)</label><input type="number" inputmode="decimal" step=".1" placeholder="np. 83,2" value="${esc(d.weight)}" onchange="changeWeight(this.value)"></div>
-</div></div>
-<div class="panel"><h2>Dzisiejszy bilans</h2>
-<div class="kpi-grid">
-${kpi('SPOŻYTE',fmt(t.kcal)+' kcal',`Cel ${fmt(d.goals.kcal)} kcal`)}
-${kpi('DO CELU',fmt(left)+' kcal',left<0?'Powyżej celu':'Pozostały limit')}
-${kpi('BIAŁKO',fmt(t.p,1)+' g',`Cel ${fmt(d.goals.p)} g`)}
-${kpi('TRENINGI',fmt(burn)+' kcal',`${d.workouts.length} zapisane`)}
-</div>
-<div style="margin-top:14px">
-${macro('Białko',t.p,d.goals.p,'green')}
-${macro('Tłuszcze',t.f,d.goals.f,'orange')}
-${macro('Węglowodany',t.c,d.goals.c)}
-</div>
-<div class="muted">Kalorie z treningu pokazujemy osobno — nie zwiększają automatycznie dziennego celu.</div>
-</div>
-<div class="panel"><h2>➕ Dodaj posiłek</h2>
-<div class="field" style="margin-bottom:9px;position:relative">
-<label for="mealSearch">Produkt — wpisz początek nazwy</label>
-<input id="mealSearch" type="text" autocomplete="off" placeholder="Zacznij pisać, np. sky..." oninput="searchMealProducts()" onfocus="searchMealProducts()" value="${esc(db.products.find(x=>x.id===selectedProduct)?.name||'')}" aria-autocomplete="list" aria-controls="mealSuggestions">
-<div id="mealSuggestions" class="suggestions hidden" role="listbox"></div>
-<div id="selectedProductInfo" class="muted" style="margin-top:5px">${selectedProduct&&db.products.find(x=>x.id===selectedProduct)?`Wybrano: ${esc(db.products.find(x=>x.id===selectedProduct).name)}`:'Wybierz produkt z podpowiedzi.'}</div>
-</div>
-<div class="grid">
-<div class="field"><label>Ilość (g lub porcji)</label><input id="mealWeight" type="number" min=".1" step=".1" inputmode="decimal" placeholder="np. 150"></div>
-<div class="field"><label>Nazwa posiłku (opcjonalnie)</label><input id="mealLabel" placeholder="np. śniadanie"></div>
-</div>
-<button class="btn full" style="margin-top:10px" onclick="addMeal()">Dodaj do dziennika</button>
-${d.meals.length?d.meals.map(m=>`<div class="item"><div><div class="item-title">${esc(m.name)}</div><div class="muted">${fmt(m.weight,1)} g/porc. · B ${fmt(m.p,1)} · T ${fmt(m.f,1)} · W ${fmt(m.c,1)}</div></div><div style="text-align:right;white-space:nowrap"><b>${fmt(m.kcal)} kcal</b><br><button class="btn red small" onclick="deleteMeal('${esc(m.id)}')">Usuń</button></div></div>`).join(''):'<div class="empty">Brak posiłków — dodaj pierwszy powyżej.</div>'}
-</div>
-<div class="panel"><h2>🏃 Trening</h2>
-<div class="grid">
-<div class="field"><label>Rodzaj treningu</label><input id="workName" placeholder="np. siłowy"></div>
-<div class="field"><label>Czas (min)</label><input id="workTime" type="number" min="0" inputmode="numeric" placeholder="45"></div>
-<div class="field"><label>Aktywne kcal (opcjonalnie)</label><input id="workKcal" type="number" min="0" inputmode="numeric" placeholder="200"></div>
-</div>
-<button class="btn orange full" style="margin-top:10px" onclick="addWorkout()">Zapisz trening</button>
-${d.workouts.length?d.workouts.map(w=>`<div class="item"><div><div class="item-title">${esc(w.name)}</div><div class="muted">${fmt(w.time)} min · ${fmt(w.kcal)} aktywnych kcal</div></div><button class="btn red small" onclick="deleteWorkout('${esc(w.id)}')">Usuń</button></div>`).join(''):'<div class="empty">Nie dodano jeszcze treningu.</div>'}
-</div>`;
-}
+    <div id="app" class="container"></div>
 
-function changeDate(v){if(v){date=v;render()}}
-function changeWeight(v){const d=dayFor();d.weight=v===''?'':Math.max(0,num(v));persist();render()}
+    <script>
+        const FULL_PRODUCTS = [
+            { id: "hb1", name: "Fruvita Skyr naturalny (kubek 150g)", baseWeight: 150, baseKcal: 98, baseP: 18.0, baseF: 0.0, baseC: 6.2 },
+            { id: "hb2", name: "Fruvita Skyr pitny (butelka 360g)", baseWeight: 360, baseKcal: 225, baseP: 36.0, baseF: 1.0, baseC: 16.0 },
+            { id: "hb3", name: "Fruvita Skyr owocowy - truskawka/jagoda (150g)", baseWeight: 150, baseKcal: 129, baseP: 14.4, baseF: 0.0, baseC: 18.0 },
+            { id: "hb4", name: "Go Active Protein Pudding (kubek 200g)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 11.0 },
+            { id: "hb5", name: "Go Active Protein Napój mleczny (butelka 350g)", baseWeight: 350, baseKcal: 215, baseP: 35.0, baseF: 0.7, baseC: 17.2 },
+            { id: "hb6", name: "Go Active Protein Kaszka (kubek 200g)", baseWeight: 200, baseKcal: 160, baseP: 15.0, baseF: 3.5, baseC: 17.0 },
+            { id: "hb7", name: "Go Active Protein Mousse - mus czekoladowy/pistacjowy (200g)", baseWeight: 200, baseKcal: 158, baseP: 20.0, baseF: 3.0, baseC: 12.4 },
+            { id: "hb8", name: "Go Active Serek wiejski wysokobiałkowy (200g)", baseWeight: 200, baseKcal: 184, baseP: 28.0, baseF: 6.0, baseC: 4.6 },
+            { id: "hb9", name: "Müllermilch Protein Zero bez dod. cukru - czekolada/kokos (400g)", baseWeight: 400, baseKcal: 248, baseP: 26.0, baseF: 6.8, baseC: 20.4 },
+            { id: "hb10", name: "Müllermilch Protein klasyczny - czekolada-banan/wanilia (400g)", baseWeight: 400, baseKcal: 336, baseP: 26.0, baseF: 6.4, baseC: 42.4 },
+            { id: "hb11", name: "Piątnica Skyr naturalny (kubek 150g)", baseWeight: 150, baseKcal: 96, baseP: 18.0, baseF: 0.0, baseC: 6.0 },
+            { id: "hb12", name: "Piątnica Skyr naturalny (duży kubek 450g)", baseWeight: 450, baseKcal: 288, baseP: 54.0, baseF: 0.0, baseC: 18.0 },
+            { id: "hb13", name: "Piątnica Skyr waniliowy (kubek 150g)", baseWeight: 150, baseKcal: 123, baseP: 14.4, baseF: 0.0, baseC: 16.5 },
+            { id: "hb14", name: "Piątnica Skyr owocowy - jagoda/truskawka/brzoskwinia (150g)", baseWeight: 150, baseKcal: 120, baseP: 14.4, baseF: 0.0, baseC: 15.0 },
+            { id: "hb15", name: "Piątnica Skyr pitny - wanilia/owoce (butelka 330g)", baseWeight: 330, baseKcal: 257, baseP: 21.5, baseF: 5.0, baseC: 31.4 },
+            { id: "hb16", name: "Piątnica Serek wiejski wysokobiałkowy (200g)", baseWeight: 200, baseKcal: 186, baseP: 28.0, baseF: 6.0, baseC: 4.8 },
+            { id: "hb17", name: "Pilos Skyr naturalny Lidl (kubek 150g)", baseWeight: 150, baseKcal: 96, baseP: 18.5, baseF: 0.0, baseC: 6.5 },
+            { id: "hb18", name: "Pilos Skyr owocowy Lidl - malina/borówka (kubek 150g)", baseWeight: 150, baseKcal: 84, baseP: 13.0, baseF: 0.0, baseC: 7.0 },
+            { id: "hb19", name: "Pilos Skyr pitny Lidl (butelka 330g)", baseWeight: 330, baseKcal: 178, baseP: 21.5, baseF: 0.3, baseC: 22.0 },
+            { id: "hb20", name: "Pilos High Protein Pudding Lidl - wanilia/czekolada (200g)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 10.4 },
+            { id: "hb21", name: "Ehrmann High Protein Pudding - wanilia/czekolada/karmel (200g)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 11.0 },
+            { id: "hb22", name: "Ehrmann High Protein Mousse - mus czekolada/biała czek. (200g)", baseWeight: 200, baseKcal: 146, baseP: 20.0, baseF: 2.8, baseC: 10.0 },
+            { id: "hb23", name: "Danone YoPRO jogurt gęsty - wanilia/truskawka/banan (160g)", baseWeight: 160, baseKcal: 90, baseP: 15.0, baseF: 0.2, baseC: 7.0 },
+            { id: "hb24", name: "Danone YoPRO napój pitny - mango/wanilia-ciasteczko (270g)", baseWeight: 270, baseKcal: 162, baseP: 23.0, baseF: 1.4, baseC: 15.0 },
+            { id: "hb25", name: "Bakoma Men Protein Shake pitny - czekolada/truskawka (380g)", baseWeight: 380, baseKcal: 175, baseP: 20.0, baseF: 0.5, baseC: 22.0 },
+            { id: "hb26", name: "Bakoma Men Protein jogurt gęsty owocowy (kubek 150g)", baseWeight: 150, baseKcal: 126, baseP: 12.0, baseF: 3.0, baseC: 13.5 },
+            { id: "hb27", name: "Zott Primo Protein jogurt naturalny wysokobiałkowy (200g)", baseWeight: 200, baseKcal: 134, baseP: 17.0, baseF: 2.2, baseC: 11.2 },
+            { id: "hb28", name: "Maluta Skyr+ jogurt typu islandzkiego naturalny (150g)", baseWeight: 150, baseKcal: 78, baseP: 13.5, baseF: 0.0, baseC: 6.0 },
+            { id: "r1", name: "Pierś z kurczaka (surowa)", baseWeight: 100, baseKcal: 98, baseP: 21.5, baseF: 1.3, baseC: 0 },
+            { id: "r2", name: "Pierś z indyka (surowa)", baseWeight: 100, baseKcal: 84, baseP: 19.2, baseF: 0.7, baseC: 0 },
+            { id: "r3", name: "Polędwica wołowa (chuda)", baseWeight: 100, baseKcal: 120, baseP: 21.0, baseF: 4.0, baseC: 0 },
+            { id: "r4", name: "Schab wieprzowy (bez kości, chudy)", baseWeight: 100, baseKcal: 128, baseP: 21.0, baseF: 4.5, baseC: 0 },
+            { id: "r5", name: "Polędwiczka wieprzowa", baseWeight: 100, baseKcal: 110, baseP: 21.0, baseF: 2.5, baseC: 0 },
+            { id: "r6", name: "Mięso mielone z indyka (chude)", baseWeight: 100, baseKcal: 115, baseP: 19.5, baseF: 4.0, baseC: 0 },
+            { id: "r7", name: "Mięso mielone wołowe (tatar / 5% tłuszczu)", baseWeight: 100, baseKcal: 125, baseP: 21.0, baseF: 4.5, baseC: 0 },
+            { id: "r8", name: "Szynka z piersi kurczaka (wędlina, 4 plastry)", baseWeight: 60, baseKcal: 58, baseP: 12.0, baseF: 0.9, baseC: 0.5 },
+            { id: "r9", name: "Polędwica sopocka (4 plastry)", baseWeight: 60, baseKcal: 70, baseP: 12.5, baseF: 2.0, baseC: 0.5 },
+            { id: "r10", name: "Kabanosy drobiowe (porcja)", baseWeight: 50, baseKcal: 165, baseP: 14.0, baseF: 11.5, baseC: 1.0 },
+            { id: "r11", name: "Dorsz świeży (filet)", baseWeight: 100, baseKcal: 78, baseP: 17.7, baseF: 0.7, baseC: 0 },
+            { id: "r12", name: "Mintaj świeży (filet)", baseWeight: 100, baseKcal: 73, baseP: 16.6, baseF: 0.6, baseC: 0 },
+            { id: "r13", name: "Łosoś świeży (filet)", baseWeight: 100, baseKcal: 201, baseP: 19.9, baseF: 13.6, baseC: 0 },
+            { id: "r14", name: "Makrela wędzona", baseWeight: 100, baseKcal: 221, baseP: 20.7, baseF: 15.5, baseC: 0 },
+            { id: "r15", name: "Pstrąg tęczowy (filet)", baseWeight: 100, baseKcal: 119, baseP: 20.5, baseF: 4.0, baseC: 0 },
+            { id: "r16", name: "Krewetki tygrysie (oczyszczone)", baseWeight: 100, baseKcal: 85, baseP: 18.0, baseF: 1.0, baseC: 0.9 },
+            { id: "r17", name: "Śledź w sosie pomidorowym (puszka)", baseWeight: 170, baseKcal: 255, baseP: 18.7, baseF: 15.3, baseC: 10.2 },
+            { id: "r18", name: "Sardynki w sosie własnym (puszka)", baseWeight: 100, baseKcal: 135, baseP: 21.0, baseF: 5.5, baseC: 0 },
+            { id: "r19", name: "Twaróg chudy (0%)", baseWeight: 100, baseKcal: 86, baseP: 19.8, baseF: 0.5, baseC: 3.5 },
+            { id: "r20", name: "Twaróg półtłusty", baseWeight: 100, baseKcal: 117, baseP: 18.7, baseF: 3.5, baseC: 3.7 },
+            { id: "r21", name: "Serek wiejski lekki 3% (opakowanie)", baseWeight: 200, baseKcal: 162, baseP: 22.0, baseF: 6.0, baseC: 4.8 },
+            { id: "r22", name: "Serek wiejski klasyczny (opakowanie)", baseWeight: 200, baseKcal: 194, baseP: 22.0, baseF: 10.0, baseC: 4.0 },
+            { id: "r23", name: "Jajko kurze (1 sztuka M/L)", baseWeight: 55, baseKcal: 77, baseP: 6.9, baseF: 5.3, baseC: 0.3 },
+            { id: "r24", name: "Białko jajka kurzego (1 sztuka)", baseWeight: 35, baseKcal: 17, baseP: 3.8, baseF: 0.1, baseC: 0.2 },
+            { id: "r25", name: "Mozzarella Light (1 kulka)", baseWeight: 125, baseKcal: 196, baseP: 23.8, baseF: 10.6, baseC: 1.3 },
+            { id: "r26", name: "Ser Feta lekki (12% tłuszczu)", baseWeight: 100, baseKcal: 185, baseP: 19.0, baseF: 12.0, baseC: 1.0 },
+            { id: "r27", name: "Ser żółty Piórko / Hit z Ryk (3 plastry)", baseWeight: 45, baseKcal: 76, baseP: 15.8, baseF: 1.4, baseC: 0 },
+            { id: "r28", name: "Ser Halloumi Light", baseWeight: 100, baseKcal: 265, baseP: 24.0, baseF: 18.0, baseC: 2.0 },
+            { id: "r29", name: "Jogurt grecki lekki", baseWeight: 150, baseKcal: 90, baseP: 9.0, baseF: 3.0, baseC: 6.8 },
+            { id: "r30", name: "Kefir naturalny 1.5% (butelka)", baseWeight: 400, baseKcal: 184, baseP: 13.6, baseF: 6.0, baseC: 18.8 },
+            { id: "r31", name: "Maślanka naturalna (szklanka)", baseWeight: 250, baseKcal: 105, baseP: 8.5, baseF: 3.8, baseC: 11.8 },
+            { id: "r32", name: "Mleko spożywcze 1.5% (szklanka)", baseWeight: 250, baseKcal: 118, baseP: 8.5, baseF: 3.8, baseC: 12.5 },
+            { id: "r33", name: "Mleko bez laktozy 0.5% (szklanka)", baseWeight: 250, baseKcal: 95, baseP: 8.5, baseF: 1.3, baseC: 12.5 },
+            { id: "r34", name: "Napój sojowy niesłodzony (szklanka)", baseWeight: 250, baseKcal: 83, baseP: 8.3, baseF: 4.5, baseC: 0.5 },
+            { id: "r35", name: "Napój migdałowy niesłodzony (szklanka)", baseWeight: 250, baseKcal: 35, baseP: 1.0, baseF: 2.8, baseC: 0.3 },
+            { id: "r36", name: "Odżywka białkowa WPC (1 miarka)", baseWeight: 30, baseKcal: 117, baseP: 23.4, baseF: 1.8, baseC: 1.8 },
+            { id: "r37", name: "Tofu naturalne (kostka)", baseWeight: 180, baseKcal: 225, baseP: 23.4, baseF: 13.5, baseC: 2.7 },
+            { id: "r38", name: "Płatki owsiane górskie (5 łyżek)", baseWeight: 50, baseKcal: 188, baseP: 6.0, baseF: 3.6, baseC: 31.2 },
+            { id: "r39", name: "Otręby owsiane (2 łyżki)", baseWeight: 20, baseKcal: 72, baseP: 3.6, baseF: 1.4, baseC: 9.0 },
+            { id: "r40", name: "Ryż basmati / jaśminowy (przed ugotowaniem)", baseWeight: 50, baseKcal: 175, baseP: 3.8, baseF: 0.4, baseC: 38.5 },
+            { id: "r41", name: "Ryż brązowy (przed ugotowaniem)", baseWeight: 50, baseKcal: 177, baseP: 3.6, baseF: 1.0, baseC: 37.5 },
+            { id: "r42", name: "Kasza gryczana (przed ugotowaniem)", baseWeight: 50, baseKcal: 173, baseP: 6.3, baseF: 1.6, baseC: 34.5 },
+            { id: "r43", name: "Kasza bulgur (przed ugotowaniem)", baseWeight: 50, baseKcal: 175, baseP: 6.0, baseF: 0.7, baseC: 35.0 },
+            { id: "r44", name: "Kasza jaglana (przed ugotowaniem)", baseWeight: 50, baseKcal: 178, baseP: 5.3, baseF: 1.5, baseC: 35.8 },
+            { id: "r45", name: "Komosa ryżowa / Quinoa (przed ugotowaniem)", baseWeight: 50, baseKcal: 184, baseP: 7.0, baseF: 3.0, baseC: 32.0 },
+            { id: "r46", name: "Makaron pełnoziarnisty (przed ugotowaniem)", baseWeight: 70, baseKcal: 245, baseP: 10.5, baseF: 1.8, baseC: 45.5 },
+            { id: "r47", name: "Makaron z ciecierzycy / soczewicy (przed ugotowaniem)", baseWeight: 70, baseKcal: 240, baseP: 17.5, baseF: 2.1, baseC: 35.0 },
+            { id: "r48", name: "Ziemniaki gotowane (porcja obiadowa)", baseWeight: 200, baseKcal: 154, baseP: 3.8, baseF: 0.2, baseC: 34.0 },
+            { id: "r49", name: "Bataty / słodkie ziemniaki", baseWeight: 200, baseKcal: 172, baseP: 3.2, baseF: 0.2, baseC: 40.0 },
+            { id: "r50", name: "Chleb żytni razowy (1 kromka)", baseWeight: 35, baseKcal: 78, baseP: 2.0, baseF: 0.5, baseC: 16.0 },
+            { id: "r51", name: "Chleb graham (1 kromka)", baseWeight: 35, baseKcal: 80, baseP: 2.8, baseF: 0.6, baseC: 16.5 },
+            { id: "r52", name: "Bułka grahamka (1 sztuka)", baseWeight: 70, baseKcal: 182, baseP: 6.3, baseF: 1.2, baseC: 37.0 },
+            { id: "r53", name: "Pieczywo chrupkie typu Wasa (2 kromki)", baseWeight: 20, baseKcal: 68, baseP: 2.0, baseF: 0.4, baseC: 13.0 },
+            { id: "r54", name: "Wafle ryżowe naturalne (2 sztuki)", baseWeight: 20, baseKcal: 77, baseP: 1.6, baseF: 0.6, baseC: 16.0 },
+            { id: "r55", name: "Tortilla pełnoziarnista (1 placek)", baseWeight: 62, baseKcal: 180, baseP: 5.6, baseF: 3.7, baseC: 30.0 },
+            { id: "r56", name: "Soczewica czerwona (sucha)", baseWeight: 50, baseKcal: 170, baseP: 12.5, baseF: 0.6, baseC: 29.0 },
+            { id: "r57", name: "Ciecierzyca konserwowa (odsączona)", baseWeight: 100, baseKcal: 120, baseP: 6.5, baseF: 2.2, baseC: 16.0 },
+            { id: "r58", name: "Fasola czerwona konserwowa (odsączona)", baseWeight: 100, baseKcal: 105, baseP: 7.5, baseF: 0.6, baseC: 15.0 },
+            { id: "r59", name: "Awokado Hass (pół sztuki)", baseWeight: 70, baseKcal: 112, baseP: 1.4, baseF: 10.5, baseC: 1.3 },
+            { id: "r60", name: "Oliwa z oliwek (1 łyżka)", baseWeight: 10, baseKcal: 88, baseP: 0, baseF: 10.0, baseC: 0 },
+            { id: "r61", name: "Olej rzepakowy / lniany (1 łyżka)", baseWeight: 10, baseKcal: 88, baseP: 0, baseF: 10.0, baseC: 0 },
+            { id: "r62", name: "Masło ekstra 82% (1 płaska łyżeczka)", baseWeight: 5, baseKcal: 37, baseP: 0, baseF: 4.1, baseC: 0 },
+            { id: "r63", name: "Masło orzechowe 100% (1 łyżeczka)", baseWeight: 15, baseKcal: 88, baseP: 3.9, baseF: 7.5, baseC: 2.1 },
+            { id: "r64", name: "Orzechy włoskie (garść)", baseWeight: 30, baseKcal: 196, baseP: 4.8, baseF: 19.0, baseC: 3.5 },
+            { id: "r65", name: "Migdały (garść)", baseWeight: 30, baseKcal: 174, baseP: 6.0, baseF: 15.6, baseC: 2.3 },
+            { id: "r66", name: "Orzechy nerkowca (garść)", baseWeight: 30, baseKcal: 166, baseP: 5.4, baseF: 13.1, baseC: 8.0 },
+            { id: "r67", name: "Pestki dyni (1 łyżka)", baseWeight: 15, baseKcal: 85, baseP: 4.4, baseF: 7.0, baseC: 1.5 },
+            { id: "r68", name: "Nasiona słonecznika (1 łyżka)", baseWeight: 15, baseKcal: 87, baseP: 3.2, baseF: 7.4, baseC: 2.0 },
+            { id: "r69", name: "Nasiona Chia (1 łyżka)", baseWeight: 10, baseKcal: 49, baseP: 1.7, baseF: 3.1, baseC: 0.8 },
+            { id: "r70", name: "Siemię lniane (1 łyżka)", baseWeight: 10, baseKcal: 53, baseP: 1.8, baseF: 4.2, baseC: 0.2 },
+            { id: "r71", name: "Gorzka czekolada 70-85% (2 kostki)", baseWeight: 20, baseKcal: 116, baseP: 2.0, baseF: 9.0, baseC: 6.0 },
+            { id: "r72", name: "Pomidor (1 średni)", baseWeight: 150, baseKcal: 29, baseP: 1.4, baseF: 0.3, baseC: 5.4 },
+            { id: "r73", name: "Ogórek zielony (obrany)", baseWeight: 150, baseKcal: 21, baseP: 1.1, baseF: 0.2, baseC: 3.6 },
+            { id: "r74", name: "Papryka czerwona (1 sztuka)", baseWeight: 150, baseKcal: 48, baseP: 2.0, baseF: 0.8, baseC: 9.0 },
+            { id: "r75", name: "Brokuł (porcja)", baseWeight: 200, baseKcal: 68, baseP: 6.0, baseF: 0.8, baseC: 10.0 },
+            { id: "r76", name: "Kalafior (porcja)", baseWeight: 200, baseKcal: 50, baseP: 4.0, baseF: 0.6, baseC: 8.0 },
+            { id: "r77", name: "Cukinia", baseWeight: 200, baseKcal: 34, baseP: 2.4, baseF: 0.2, baseC: 5.0 },
+            { id: "r78", name: "Szpinak świeży (2 garście)", baseWeight: 50, baseKcal: 12, baseP: 1.4, baseF: 0.2, baseC: 1.5 },
+            { id: "r79", name: "Mix sałat / Rukola / Roszponka (opakowanie)", baseWeight: 100, baseKcal: 20, baseP: 1.8, baseF: 0.3, baseC: 2.5 },
+            { id: "r80", name: "Pieczarki świeże", baseWeight: 150, baseKcal: 32, baseP: 4.1, baseF: 0.6, baseC: 2.7 },
+            { id: "r81", name: "Fasolka szparagowa (porcja)", baseWeight: 200, baseKcal: 62, baseP: 4.8, baseF: 0.4, baseC: 10.0 },
+            { id: "r82", name: "Marchewka surowa (1 sztuka)", baseWeight: 100, baseKcal: 33, baseP: 1.0, baseF: 0.2, baseC: 6.0 },
+            { id: "r83", name: "Kapusta kiszona (porcja do obiadu)", baseWeight: 150, baseKcal: 24, baseP: 1.7, baseF: 0.3, baseC: 3.0 },
+            { id: "r84", name: "Ogórek kiszony (2 sztuki)", baseWeight: 120, baseKcal: 14, baseP: 1.2, baseF: 0.1, baseC: 2.2 },
+            { id: "r85", name: "Warzywa na patelnię (mrożonka bez tłuszczu)", baseWeight: 300, baseKcal: 120, baseP: 6.0, baseF: 1.2, baseC: 20.0 },
+            { id: "r86", name: "Jabłko (1 średnia sztuka)", baseWeight: 150, baseKcal: 75, baseP: 0.6, baseF: 0.6, baseC: 15.2 },
+            { id: "r87", name: "Banan (1 obrana sztuka)", baseWeight: 120, baseKcal: 116, baseP: 1.2, baseF: 0.4, baseC: 26.2 },
+            { id: "r88", name: "Truskawki (świeże lub mrożone)", baseWeight: 150, baseKcal: 48, baseP: 1.1, baseF: 0.6, baseC: 9.0 },
+            { id: "r89", name: "Borówki amerykańskie (opakowanie)", baseWeight: 125, baseKcal: 71, baseP: 0.9, baseF: 0.4, baseC: 15.0 },
+            { id: "r90", name: "Maliny (opakowanie)", baseWeight: 125, baseKcal: 54, baseP: 1.6, baseF: 0.4, baseC: 6.6 },
+            { id: "r91", name: "Pomarańcza (1 obrana sztuka)", baseWeight: 180, baseKcal: 85, baseP: 1.6, baseF: 0.4, baseC: 17.5 },
+            { id: "r92", name: "Kiwi (1 sztuka)", baseWeight: 75, baseKcal: 45, baseP: 0.7, baseF: 0.4, baseC: 9.0 },
+            { id: "r93", name: "Grejpfrut czerwony (pół sztuki)", baseWeight: 150, baseKcal: 63, baseP: 0.9, baseF: 0.3, baseC: 14.0 },
+            { id: "r94", name: "Arbuz (duży plaster)", baseWeight: 250, baseKcal: 90, baseP: 1.5, baseF: 0.3, baseC: 20.0 },
+            { id: "r95", name: "Hummus klasyczny (2 łyżki)", baseWeight: 40, baseKcal: 108, baseP: 3.0, baseF: 7.6, baseC: 6.0 },
+            { id: "r96", name: "Passata pomidorowa / pomidory krojone", baseWeight: 200, baseKcal: 52, baseP: 2.6, baseF: 0.4, baseC: 9.0 },
+            { id: "r97", name: "Ketchup Kotlin 60% mniej kalorii (2 łyżki)", baseWeight: 30, baseKcal: 15, baseP: 0.5, baseF: 0, baseC: 3.0 },
+            { id: "r98", name: "Musztarda (1 łyżka)", baseWeight: 15, baseKcal: 16, baseP: 0.8, baseF: 0.9, baseC: 1.2 },
+            { id: "r99", name: "Majonez lekki (1 łyżka)", baseWeight: 15, baseKcal: 42, baseP: 0.1, baseF: 4.1, baseC: 1.2 },
+            { id: "r100", name: "Kakao ciemne odtłuszczone (1 łyżka)", baseWeight: 10, baseKcal: 30, baseP: 2.3, baseF: 1.1, baseC: 1.3 }
+              ];
 
-function searchMealProducts(){
-const input=document.getElementById('mealSearch'),box=document.getElementById('mealSuggestions');
-if(!input||!box)return;
-const q=input.value.trim().toLocaleLowerCase('pl-PL');
-const found=db.products.filter(p=>!q||p.name.toLocaleLowerCase('pl-PL').includes(q)).slice(0,12);
-box.innerHTML=found.length?found.map(p=>`<button type="button" class="suggestion" role="option" onclick="chooseMealProduct('${esc(p.id)}')"><strong>${esc(p.name)}</strong><small>${fmt(p.kcal)} kcal · B ${fmt(p.p,1)} g · ${fmt(p.baseWeight)} g / porcja bazowa</small></button>`).join(''):'<div class="empty">Brak pasujących produktów w bazie.</div>';
-box.classList.remove('hidden');
-}
+        function loadStorage(key, fallback) {
+            try {
+                const item = localStorage.getItem(key);
+                return item ? JSON.parse(item) : fallback;
+            } catch (e) {
+                return fallback;
+            }
+        }
 
-function chooseMealProduct(id){
-const p=db.products.find(x=>x.id===id);
-if(!p)return;
-selectedProduct=id;
-const input=document.getElementById('mealSearch'),box=document.getElementById('mealSuggestions'),info=document.getElementById('selectedProductInfo');
-if(input)input.value=p.name;
-if(box)box.classList.add('hidden');
-if(info)info.textContent=`Wybrano: ${p.name} · ${fmt(p.kcal)} kcal / ${fmt(p.baseWeight)} g`;
-const weight=document.getElementById('mealWeight');
-if(weight&&!weight.value)weight.value=p.baseWeight;
-}
+        const state = {
+            tab: 'dziennik',
+            users: loadStorage('diet_users', [{ id: 'u1', name: 'Ja' }, { id: 'u2', name: 'Zona' }]),
+            userId: localStorage.getItem('diet_user') || 'u1',
+            products: FULL_PRODUCTS, // Zawsze ładowana jest pełna, gotowa baza 128 produktów
+            diaries: loadStorage('diet_diaries', {}),
+            date: new Date().toISOString().split('T')[0],
+            selectedProd: '',
+            weightInput: ''
+        };
 
-document.addEventListener('click',e=>{
-const box=document.getElementById('mealSuggestions'),input=document.getElementById('mealSearch');
-if(box&&input&&!box.contains(e.target)&&e.target!==input)box.classList.add('hidden');
-});
+        function save() {
+            try {
+                localStorage.setItem('diet_users', JSON.stringify(state.users));
+                localStorage.setItem('diet_user', state.userId);
+                localStorage.setItem('diet_products', JSON.stringify(state.products));
+                localStorage.setItem('diet_diaries', JSON.stringify(state.diaries));
+            } catch (e) {}
+        }
 
-function addMeal(){
-const id=selectedProduct,prod=db.products.find(x=>x.id===id);
-const weight=num(document.getElementById('mealWeight').value);
-const label=document.getElementById('mealLabel').value.trim();
-if(!prod){alert('Wpisz początek nazwy i wybierz produkt z podpowiedzi.');return}
-if(weight<=0){alert('Podaj ilość większą od zera.');return}
-const ratio=weight/Math.max(.001,num(prod.baseWeight,100));
-const d=dayFor();
-d.meals.push({id:uid(),productId:prod.id,name:label?`${label}: ${prod.name}`:prod.name,weight,kcal:round(prod.kcal*ratio,1),p:round(prod.p*ratio,1),f:round(prod.f*ratio,1),c:round(prod.c*ratio,1)});
-selectedProduct=id;
-persist();
-render();
-}
+        function getDay() {
+            if (!state.diaries[state.userId]) state.diaries[state.userId] = {};
+            if (!state.diaries[state.userId][state.date]) {
+                state.diaries[state.userId][state.date] = {
+                    goals: state.userId === 'u1' ? { kcal: 2500, p: 170, f: 70, c: 220 } : { kcal: 2000, p: 120, f: 60, c: 180 },
+                    meals: [], workouts: [], weight: ''
+                };
+            }
+            return state.diaries[state.userId][state.date];
+        }
 
-function deleteMeal(id){const d=dayFor();d.meals=d.meals.filter(x=>String(x.id)!==String(id));persist();render()}
+        function render() {
+            const app = document.getElementById('app');
+            const day = getDay();
+            const user = state.users.find(u => u.id === state.userId) || state.users[0];
 
-function addWorkout(){
-const name=document.getElementById('workName').value.trim(),time=num(document.getElementById('workTime').value),kcal=num(document.getElementById('workKcal').value);
-if(!name){alert('Wpisz rodzaj treningu.');return}
-if(time<0||kcal<0){alert('Wartości nie mogą być ujemne.');return}
-dayFor().workouts.push({id:uid(),name,time,kcal});
-persist();
-render();
-}
+            let eatenKcal = 0, eatenP = 0, eatenF = 0, eatenC = 0;
+            day.meals.forEach(m => { eatenKcal += m.kcal; eatenP += m.p; eatenF += m.f; eatenC += m.c; });
+            const burned = day.workouts.reduce((s, w) => s + w.kcal, 0);
+            const left = day.goals.kcal - eatenKcal + burned;
 
-function deleteWorkout(id){const d=dayFor();d.workouts=d.workouts.filter(x=>String(x.id)!==String(id));persist();render()}
-function changeProfile(id){if(db.profiles.some(p=>p.id===id)){db.active=id;persist();render()}}
+            let html = `
+                <div class="header">
+                    <div class="row" style="margin-bottom:8px;">
+                        <b>Dziennik Diety (Baza: ${state.products.length} prod.)</b>
+                        <span style="font-size:11px; background:#1d4ed8; padding:3px 8px; border-radius:4px;">Profil: ${user.name}</span>
+                    </div>
+                    <div style="display:flex; gap:4px;">
+                        ${state.users.map(u => `<button onclick="switchUser('${u.id}')" style="flex:1; padding:4px; border:none; border-radius:4px; font-weight:bold; background:${state.userId === u.id ? '#fff' : '#1d4ed8'}; color:${state.userId === u.id ? '#2563eb' : '#fff'}">${u.name}</button>`).join('')}
+                    </div>
+                </div>
+                <div class="content">
+            `;
 
-function renderWeight(){
-const entries=Object.entries(db.diaries[db.active]||{}).filter(([d,x])=>x.weight!==''&&Number.isFinite(Number(x.weight))).sort(([a],[b])=>a.localeCompare(b));
-const recent=entries.slice(-7),avg=recent.length?recent.reduce((s,[,x])=>s+num(x.weight),0)/recent.length:0;
-let chart='';
-if(entries.length){
-const vals=entries.map(([,x])=>num(x.weight)),min=Math.min(...vals)-.5,max=Math.max(...vals)+.5,range=max-min||1,W=600,H=210,pad=28;
-const pts=vals.map((v,i)=>`${pad+(entries.length===1?0:i*(W-2*pad)/(entries.length-1))},${H-pad-(v-min)/range*(H-2*pad)}`).join(' ');
-chart=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Wykres wagi">
-<line x1="${pad}" y1="${pad}" x2="${W-pad}" y2="${pad}" stroke="#e5e7eb"/>
-<line x1="${pad}" y1="${H/2}" x2="${W-pad}" y2="${H/2}" stroke="#e5e7eb"/>
-<line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="#e5e7eb"/>
-<polyline points="${pts}" fill="none" stroke="#2563eb" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
-${vals.map((v,i)=>`<circle cx="${pad+(entries.length===1?0:i*(W-2*pad)/(entries.length-1))}" cy="${H-pad-(v-min)/range*(H-2*pad)}" r="4" fill="#2563eb"/>`).join('')}
-<text x="${pad}" y="17" fill="#6b7280" font-size="12">${fmt(max,1)} kg</text>
-<text x="${pad}" y="${H-5}" fill="#6b7280" font-size="12">${fmt(min,1)} kg</text>
-</svg>`;
-}
-return `<div class="panel"><h2>⚖️ Historia wagi</h2><p class="muted">Zapisuj pomiar w zakładce Dziennik. Wykres pokaże tylko dni z wpisaną wagą.</p>${entries.length?chart:'<div class="empty">Nie ma jeszcze pomiarów. Dodaj wagę w dzienniku.</div>'}<div class="kpi-grid">${kpi('OSTATNI POMIAR',entries.length?fmt(num(entries.at(-1)[1].weight),1)+' kg':'—',entries.length?dateLabel(entries.at(-1)[0]):'')}${kpi('ŚREDNIA OSTATNICH WPISÓW',recent.length?fmt(avg,1)+' kg':'—',`${recent.length} pomiarów`)}${kpi('ZMIANA OD PIERWSZEGO',entries.length>1?`${num(entries.at(-1)[1].weight)-num(entries[0][1].weight)>0?'+':''}${fmt(num(entries.at(-1)[1].weight)-num(entries[0][1].weight),1)} kg`:'—',entries.length>1?`${dateLabel(entries[0][0])} → dziś`:'Potrzeba min. 2 pomiarów')}${kpi('LICZBA POMIARÓW',entries.length,'W tym profilu')}</div></div><div class="panel"><h2>Ostatnie pomiary</h2>${entries.length?entries.slice().reverse().slice(0,30).map(([d,x])=>`<div class="item"><div><b>${dateLabel(d)}</b><div class="muted">Dziennik dzienny</div></div><b>${fmt(num(x.weight),1)} kg</b></div>`).join(''):'<div class="empty">Brak danych.</div>'}</div>`;
-}
-function weekDates(base){
-const d=new Date(base+'T12:00:00'),day=(d.getDay()+6)%7;
-d.setDate(d.getDate()-day);
-return Array.from({length:7},(_,i)=>{
-const x=new Date(d);x.setDate(d.getDate()+i);
-return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`;
-});
-}
+            if (state.tab === 'dziennik') {
+                html += `
+                    <div class="card">
+                        <div class="row">
+                            <div style="flex:1;"><label>Data</label><input type="date" value="${state.date}" onchange="changeDate(this.value)" /></div>
+                            <div style="width:100px;"><label>Waga (kg)</label><input type="number" step="0.1" value="${day.weight}" onchange="changeWeight(this.value)" /></div>
+                        </div>
+                    </div>
+                    <div class="card card-blue">
+                        <div class="row" style="font-size:12px; margin-bottom:4px;"><b>Cel: ${day.goals.kcal} kcal</b><span>B: ${day.goals.p}g | T: ${day.goals.f}g | W: ${day.goals.c}g</span></div>
+                    </div>
+                    <div class="card card-gray">
+                        <div class="row">
+                            <div><div style="font-size:10px; color:#6b7280;">ZJEDZONO</div><div style="font-size:22px; font-weight:bold;">${Math.round(eatenKcal)} kcal</div></div>
+                            <div style="text-align:right;"><div style="font-size:10px; color:#6b7280;">POZOSTAŁO</div><div style="font-size:22px; font-weight:bold;" class="${left < 0 ? 'text-red' : 'text-green'}">${Math.abs(Math.round(left))} kcal</div></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div style="font-weight:bold; margin-bottom:6px; font-size:13px;">Dodaj posiłek</div>
+                        <div class="row" style="margin-bottom:6px;">
+                            <input id="searchProd" placeholder="Szukaj produktu..." oninput="filterProducts(this.value)" />
+                        </div>
+                        <div class="row">
+                            <select id="selProd" onchange="selectProd(this.value)" style="flex:1;">
+                                <option value="">Wybierz produkt...</option>
+                                ${state.products.map(p => `<option value="${p.id}" ${state.selectedProd === p.id ? 'selected' : ''}>${p.name} (${p.baseWeight}g / ${p.baseKcal}kcal)</option>`).join('')}
+                            </select>
+                            <input id="inpW" type="number" placeholder="Gramy" value="${state.weightInput}" oninput="state.weightInput = this.value" style="width:80px;" />
+                            <button onclick="addMeal()" class="btn">+</button>
+                        </div>
+                        <div style="margin-top:10px;">
+                            ${day.meals.map(m => `<div class="item-row"><div><b>${m.name}</b><div style="font-size:11px; color:#6b7280;">${m.weight}g | B:${m.p} T:${m.f} W:${m.c}</div></div><div class="row"><b>${m.kcal} kcal</b><button onclick="delMeal(${m.id})" class="del-btn">X</button></div></div>`).join('')}
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div style="font-weight:bold; margin-bottom:6px; font-size:13px;" class="text-orange">Treningy (-${burned} kcal)</div>
+                        <div class="row" style="margin-bottom:6px;">
+                            <input id="wName" placeholder="Nazwa" style="flex:1;" />
+                            <input id="wTime" type="number" placeholder="Min" style="width:60px;" />
+                            <input id="wKcal" type="number" placeholder="Kcal" style="width:65px;" />
+                            <button onclick="addWorkout()" class="btn btn-orange">+</button>
+                        </div>
+                        <div>
+                            ${day.workouts.map(w => `<div class="item-row"><span><b>${w.name}</b> (${w.time}min)</span><div class="row"><span class="text-orange"><b>${w.kcal} kcal</b></span><button onclick="delWorkout(${w.id})" class="del-btn">X</button></div></div>`).join('')}
+                        </div>
+                    </div>
+                `;
+            } else if (state.tab === 'baza') {
+                html += `
+                    <div class="card card-blue">
+                        <div style="font-weight:bold; margin-bottom:6px; font-size:13px;">Dodaj produkt do bazy</div>
+                        <input id="pName" placeholder="Nazwa" style="margin-bottom:6px;" />
+                        <div class="row" style="margin-bottom:6px;">
+                            <div><label>Waga bazowa (g)</label><input id="pW" type="number" value="100" /></div>
+                            <div><label>Kalorie</label><input id="pK" type="number" placeholder="Kcal" /></div>
+                        </div>
+                        <div class="row" style="margin-bottom:8px;">
+                            <div><label>Białko</label><input id="pP" type="number" step="0.1" value="0" /></div>
+                            <div><label>Tłuszcz</label><input id="pF" type="number" step="0.1" value="0" /></div>
+                            <div><label>Węglo</label><input id="pC" type="number" step="0.1" value="0" /></div>
+                        </div>
+                        <button onclick="addProd()" class="btn btn-full">Zapisz produkt</button>
+                    </div>
+                    <div class="card">
+                        <div style="font-weight:bold; margin-bottom:6px; font-size:13px;">Baza produktów (${state.products.length})</div>
+                        ${state.products.map(p => `<div class="item-row"><div><b>${p.name}</b> <span style="color:#2563eb;">(${p.baseWeight}g)</span><div style="font-size:11px; color:#6b7280;">B:${p.baseP} T:${p.baseF} W:${p.baseC}</div></div><div class="row"><b class="text-green">${p.baseKcal} kcal</b><button onclick="delProd('${p.id}')" class="del-btn">X</button></div></div>`).join('')}
+                    </div>
+                `;
+            } else if (state.tab === 'kopia') {
+                html += `
+                    <div class="card">
+                        <div style="font-weight:bold; margin-bottom:6px; font-size:13px;">Kopia zapasowa dziennika</div>
+                        <button onclick="exportJson()" class="btn btn-full" style="margin-bottom:8px;">Pobierz plik kopii (.json)</button>
+                    </div>
+                `;
+            }
 
-function renderWeek(){
-const dates=weekDates(date),items=dates.map(d=>({date:d,day:(db.diaries[db.active]||{})[d]}));
-const valid=items.filter(x=>x.day),daysWithMeals=items.filter(x=>x.day&&x.day.meals.length);
-const aver=key=>daysWithMeals.length?daysWithMeals.reduce((s,x)=>s+totals(x.day)[key],0)/daysWithMeals.length:0;
-const totalWork=valid.reduce((s,x)=>s+(x.day.workouts||[]).length,0);
-const weights=items.filter(x=>x.day&&x.day.weight!=='');
-const rows=items.map(x=>{
-const t=x.day?totals(x.day):{kcal:0,p:0,f:0,c:0};
-return `<div class="item"><div><b>${dateLabel(x.date)}${x.date===today()?' · dziś':''}</b><div class="muted">${x.day?(x.day.meals.length+' posiłków · '+x.day.workouts.length+' treningów'):'Brak wpisu'}</div></div><div style="text-align:right"><b>${x.day?fmt(t.kcal)+' kcal':'—'}</b><div class="muted">${x.day?'B '+fmt(t.p)+' g':''}</div></div></div>`;
-}).join('');
-let weightChange='—';
-if(weights.length>=2)weightChange=`${num(weights.at(-1).day.weight)-num(weights[0].day.weight)>0?'+':''}${fmt(num(weights.at(-1).day.weight)-num(weights[0].day.weight),1)} kg`;
-return `<div class="panel"><h2>📊 Podsumowanie tygodnia</h2><div class="field"><label>Wybierz dowolny dzień z tygodnia</label><input type="date" value="${date}" onchange="changeDate(this.value)"></div><p class="muted" style="margin-top:8px">Tydzień: ${dateLabel(dates[0])} – ${dateLabel(dates[6])}</p><div class="kpi-grid" style="margin-top:12px">${kpi('ŚREDNIE KALORIE',daysWithMeals.length?fmt(aver('kcal'))+' kcal':'—',`z ${daysWithMeals.length} dni z jedzeniem`)}${kpi('ŚREDNIE BIAŁKO',daysWithMeals.length?fmt(aver('p'))+' g':'—','na dzień z wpisem')}${kpi('TRENINGI',totalWork,'zapisane w tym tygodniu')}${kpi('ZMIANA WAGI',weightChange,weights.length>=2?'pierwszy → ostatni pomiar':'Potrzeba 2 pomiarów')}</div></div><div class="panel"><h2>Dzień po dniu</h2>${rows}</div><div class="panel"><h2>Średnie makroskładniki</h2>${macro('Białko',aver('p'),profile().goals.p,'green')}${macro('Tłuszcze',aver('f'),profile().goals.f,'orange')}${macro('Węglowodany',aver('c'),profile().goals.c)}</div>`;
-}
+            html += `
+                </div>
+                <div class="bottom-nav">
+                    <button onclick="switchTab('dziennik')" class="nav-btn ${state.tab === 'dziennik' ? 'active' : ''}">Dziennik</button>
+                    <button onclick="switchTab('baza')" class="nav-btn ${state.tab === 'baza' ? 'active' : ''}">Baza</button>
+                    <button onclick="switchTab('kopia')" class="nav-btn ${state.tab === 'kopia' ? 'active' : ''}">Kopia</button>
+                </div>
+            `;
+            app.innerHTML = html;
+        }
 
-function renderProducts(){
-return `<div class="panel"><h2>🥑 Baza produktów</h2><p class="muted">Wartości podawaj dla wskazanej wagi bazowej. Dla produktów w gramach najlepiej używać etykiety opakowania.</p>${db.products.map(p=>`<div class="item"><div style="min-width:0"><div class="item-title">${esc(p.name)}</div><div class="muted">${fmt(p.kcal)} kcal · B ${fmt(p.p,1)} · T ${fmt(p.f,1)} · W ${fmt(p.c,1)} / ${fmt(p.baseWeight)} g</div></div><button class="btn secondary small" onclick="editProduct('${esc(p.id)}')">Edytuj</button></div>`).join('')}</div><div class="panel"><h2>Dodaj produkt</h2><form id="productForm" onsubmit="saveProduct(event)"><input type="hidden" id="editId"><div class="field" style="margin-bottom:9px"><label>Nazwa produktu</label><input id="prodName" required maxlength="100" placeholder="np. Jogurt proteinowy"></div><div class="grid three"><div class="field"><label>Waga bazowa (g)</label><input id="prodWeight" type="number" min=".1" step=".1" required value="100"></div><div class="field"><label>Kalorie</label><input id="prodKcal" type="number" min="0" step=".1" required></div><div class="field"><label>Białko (g)</label><input id="prodP" type="number" min="0" step=".1" required value="0"></div><div class="field"><label>Tłuszcz (g)</label><input id="prodF" type="number" min="0" step=".1" required value="0"></div><div class="field"><label>Węglowodany (g)</label><input id="prodC" type="number" min="0" step=".1" required value="0"></div></div><div class="actions" style="margin-top:10px"><button class="btn" type="submit">Zapisz produkt</button><button class="btn secondary" type="button" onclick="resetProductForm()">Wyczyść</button></div></form></div>`;
-}
+        window.switchTab = (t) => { state.tab = t; render(); };
+        window.switchUser = (u) => { state.userId = u; save(); render(); };
+        window.changeDate = (d) => { state.date = d; render(); };
+        window.changeWeight = (w) => { getDay().weight = w; save(); };
 
-function editProduct(id){
-const p=db.products.find(x=>x.id===id);if(!p)return;
-document.getElementById('editId').value=p.id;
-document.getElementById('prodName').value=p.name;
-document.getElementById('prodWeight').value=p.baseWeight;
-document.getElementById('prodKcal').value=p.kcal;
-document.getElementById('prodP').value=p.p;
-document.getElementById('prodF').value=p.f;
-document.getElementById('prodC').value=p.c;
-document.getElementById('prodName').scrollIntoView({behavior:'smooth',block:'center'});
-}
+        window.filterProducts = (q) => {
+            const query = q.toLowerCase();
+            const select = document.getElementById('selProd');
+            if (!select) return;
+            const filtered = FULL_PRODUCTS.filter(p => p.name.toLowerCase().includes(query));
+            select.innerHTML = `<option value="">Wybierz produkt (${filtered.length})...</option>` +
+                filtered.map(p => `<option value="${p.id}">${p.name} (${p.baseWeight}g / ${p.baseKcal}kcal)</option>`).join('');
+        };
 
-function resetProductForm(){
-document.getElementById('productForm').reset();
-document.getElementById('editId').value='';
-document.getElementById('prodWeight').value=100;
-document.getElementById('prodP').value=0;
-document.getElementById('prodF').value=0;
-document.getElementById('prodC').value=0;
-}
+        window.selectProd = (id) => {
+            state.selectedProd = id;
+            const p = FULL_PRODUCTS.find(x => x.id === id);
+            state.weightInput = p ? p.baseWeight : '';
+            const el = document.getElementById('inpW');
+            if (el) el.value = state.weightInput;
+        };
 
-function saveProduct(e){
-e.preventDefault();
-const id=document.getElementById('editId').value;
-const p={
-id:id||uid(),
-name:document.getElementById('prodName').value.trim(),
-baseWeight:num(document.getElementById('prodWeight').value),
-kcal:num(document.getElementById('prodKcal').value),
-p:num(document.getElementById('prodP').value),
-f:num(document.getElementById('prodF').value),
-c:num(document.getElementById('prodC').value)
-};
-if(!p.name||p.baseWeight<=0||[p.kcal,p.p,p.f,p.c].some(x=>x<0)){
-alert('Sprawdź dane produktu.');return;
-}
-const i=db.products.findIndex(x=>x.id===id);
-if(i>=0)db.products[i]=p;else db.products.push(p);
-persist();render();
-}
+        window.addMeal = () => {
+            const p = FULL_PRODUCTS.find(x => x.id === state.selectedProd);
+            const w = parseFloat(state.weightInput);
+            if (!p || !w) return alert('Wybierz produkt i wagę!');
+            const r = w / p.baseWeight;
+            getDay().meals.push({
+                id: Date.now(), name: p.name, weight: w,
+                kcal: Math.round(p.baseKcal * r),
+                p: Math.round(p.baseP * r * 10) / 10,
+                f: Math.round(p.baseF * r * 10) / 10,
+                c: Math.round(p.baseC * r * 10) / 10
+            });
+            state.selectedProd = ''; state.weightInput = '';
+            save(); render();
+        };
 
-function renderSettings(p){
-return `<div class="panel"><h2>🎯 Cele dzienne — ${esc(p.name)}</h2><form onsubmit="saveGoals(event)"><div class="grid"><div class="field"><label>Kalorie (kcal)</label><input id="goalKcal" type="number" min="1" required value="${p.goals.kcal}"></div><div class="field"><label>Białko (g)</label><input id="goalP" type="number" min="0" required value="${p.goals.p}"></div><div class="field"><label>Tłuszcze (g)</label><input id="goalF" type="number" min="0" required value="${p.goals.f}"></div><div class="field"><label>Węglowodany (g)</label><input id="goalC" type="number" min="0" required value="${p.goals.c}"></div></div><p class="muted" style="margin:8px 0">Zmiana celu wpływa na nowe dni; istniejące dni zachowują zapisane cele.</p><button class="btn full" style="margin-top:10px">Zapisz cele</button></form></div>
-<div class="panel"><h2>👨‍👩‍👧 Profile domowników</h2>${db.profiles.map(x=>`<div class="item"><div><b>${esc(x.name)}</b><div class="muted">Cel ${fmt(x.goals.kcal)} kcal · B ${fmt(x.goals.p)} g</div></div><button class="btn secondary small" onclick="renameProfile('${esc(x.id)}')">Zmień nazwę</button></div>`).join('')}<div class="field" style="margin-top:12px"><label>Nazwa nowego profilu</label><input id="newProfileName" maxlength="40" placeholder="np. Syn"></div><button class="btn full" style="margin-top:8px" onclick="addProfile()">Dodaj profil</button><p class="muted" style="margin-top:8px">Każdy profil ma osobny dziennik i cele. Dane pozostają na tym urządzeniu/przeglądarce.</p></div>
-<div class="panel"><h2>💾 Kopia zapasowa i eksport</h2><p class="muted" style="margin-bottom:10px">JSON zachowuje produkty, profile, cele i całą historię. CSV otworzysz np. w Excelu.</p><div class="actions"><button class="btn" onclick="exportJSON()">Eksport JSON</button><button class="btn secondary" onclick="exportCSV()">Eksport CSV</button></div><div class="field" style="margin-top:12px"><label>Import kopii JSON</label><input id="importFile" type="file" accept=".json,application/json"></div><button class="btn orange full" style="margin-top:8px" onclick="importJSON()">Importuj kopię</button><div class="notice" style="margin-top:12px">Przed importem aktualna baza zostanie zastąpiona. Najpierw wyeksportuj obecną kopię, jeśli chcesz ją zachować.</div></div>
-<div class="panel"><h2>ℹ️ Informacje</h2><p class="muted">Wersja 2 · działa lokalnie w przeglądarce. Nie usuń danych witryny ani pamięci przeglądarki bez kopii zapasowej. Kalorie i makra są szacunkami na podstawie danych produktu.</p><button class="btn red full" onclick="clearAll()">Usuń wszystkie dane aplikacji</button></div>`;
-}
+        window.delMeal = (id) => {
+            const day = getDay();
+            day.meals = day.meals.filter(x => x.id !== id);
+            save(); render();
+        };
 
-function saveGoals(e){
-e.preventDefault();
-const g={
-kcal:num(document.getElementById('goalKcal').value),
-p:num(document.getElementById('goalP').value),
-f:num(document.getElementById('goalF').value),
-c:num(document.getElementById('goalC').value)
-};
-if(g.kcal<=0||[g.p,g.f,g.c].some(x=>x<0)){
-alert('Cele muszą być nieujemne, a kalorie większe od zera.');return;
-}
-profile().goals=g;persist();render();
-}
+        window.addWorkout = () => {
+            const name = document.getElementById('wName').value;
+            const time = parseInt(document.getElementById('wTime').value) || 0;
+            const kcal = parseInt(document.getElementById('wKcal').value) || 0;
+            if (!name || !kcal) return;
+            getDay().workouts.push({ id: Date.now(), name, time, kcal });
+            save(); render();
+        };
 
-function renameProfile(id){
-const p=db.profiles.find(x=>x.id===id);if(!p)return;
-const n=prompt('Nowa nazwa profilu:',p.name);
-if(n&&n.trim()){p.name=n.trim().slice(0,40);persist();render()}
-}
+        window.delWorkout = (id) => {
+            const day = getDay();
+            day.workouts = day.workouts.filter(x => x.id !== id);
+            save(); render();
+        };
 
-function addProfile(){
-const input=document.getElementById('newProfileName'),name=input.value.trim();
-if(!name){alert('Wpisz nazwę profilu.');return}
-if(db.profiles.length>=10){alert('Maksymalnie 10 profili.');return}
-const p={id:uid(),name:name.slice(0,40),goals:{kcal:2000,p:120,f:60,c:180}};
-db.profiles.push(p);db.active=p.id;persist();render();
-}
+        window.addProd = () => {
+            const name = document.getElementById('pName').value;
+            const w = parseFloat(document.getElementById('pW').value) || 100;
+            const p = parseFloat(document.getElementById('pP').value) || 0;
+            const f = parseFloat(document.getElementById('pF').value) || 0;
+            const c = parseFloat(document.getElementById('pC').value) || 0;
+            const k = document.getElementById('pK').value;
+            const kcal = k !== '' ? parseFloat(k) : Math.round(p*4 + c*4 + f*9);
+            if (!name) return alert('Podaj nazwę!');
+            state.products.unshift({ id: String(Date.now()), name, baseWeight: w, baseKcal: kcal, baseP: p, baseF: f, baseC: c });
+            save(); render();
+        };
 
-function download(name,content,type){
-const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');
-a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
-setTimeout(()=>URL.revokeObjectURL(url),1000);
-}
+        window.delProd = (id) => {
+            if (confirm('Usunąć?')) {
+                state.products = state.products.filter(x => x.id !== id);
+                save(); render();
+            }
+        };
 
-function exportJSON(){
-download(`dziennik-diety-${today()}.json`,JSON.stringify(db,null,2),'application/json;charset=utf-8');
-}
+        window.exportJson = () => {
+            const blob = new Blob([JSON.stringify({ diaries: state.diaries }, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'dieta_kopia.json';
+            a.click();
+        };
 
-function csvCell(v){return '"'+String(v??'').replace(/"/g,'""')+'"'}
-
-function exportCSV(){
-const rows=[['Profil','Data','Waga kg','Cel kcal','Kalorie','Białko g','Tłuszcze g','Węglowodany g','Liczba posiłków','Treningi','Spalone kcal']];
-for(const p of db.profiles){
-for(const [d,x] of Object.entries(db.diaries[p.id]||{})){
-const t=totals(x);
-rows.push([p.name,d,x.weight,x.goals?.kcal??p.goals.kcal,t.kcal,t.p,t.f,t.c,x.meals.length,x.workouts.length,x.workouts.reduce((s,w)=>s+num(w.kcal),0)]);
-}}
-download(`dziennik-diety-${today()}.csv`,'\ufeff'+rows.map(r=>r.map(csvCell).join(';')).join('\r\n'),'text/csv;charset=utf-8');
-}
-
-function importJSON(){
-const input=document.getElementById('importFile'),file=input.files?.[0];
-if(!file){alert('Wybierz plik JSON.');return}
-if(!confirm('Import zastąpi aktualne dane aplikacji. Kontynuować?'))return;
-const reader=new FileReader();
-reader.onload=()=>{
-try{
-const x=JSON.parse(reader.result);
-if(!x||x.version!==2||!Array.isArray(x.profiles)||!Array.isArray(x.products)||!x.diaries||typeof x.diaries!=='object'||!x.profiles.length)throw new Error('Nieprawidłowy format');
-for(const p of x.profiles){if(!p.id||!p.name||!p.goals)throw new Error('Nieprawidłowy profil')}
-for(const [pid,days] of Object.entries(x.diaries)){
-if(!days||typeof days!=='object')throw new Error('Nieprawidłowy dziennik');
-for(const d of Object.values(days)){if(!safeDay(d))throw new Error('Nieprawidłowy wpis dzienny')}
-}
-db=x;
-if(!db.profiles.some(p=>p.id===db.active))db.active=db.profiles[0].id;
-persist();alert('Import zakończony.');render();
-}catch(e){
-alert('Nie udało się zaimportować pliku. Upewnij się, że to kopia JSON tej aplikacji.');
-}};
-reader.readAsText(file);
-}
-
-function clearAll(){
-if(!confirm('Na pewno usunąć wszystkie profile, posiłki, treningi i pomiary? Tej operacji nie można cofnąć.'))return;
-if(!confirm('Ostatnie potwierdzenie: wyeksportowałeś kopię zapasową?'))return;
-db=fresh();date=today();tab='dziennik';persist();render();
-}
-
-document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
-document.getElementById('profileSelect').addEventListener('change',e=>changeProfile(e.target.value));
-persist();
-render();
-</script>
+        render();
+    </script>
 </body>
 </html>
+        ];
