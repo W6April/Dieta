@@ -2,203 +2,493 @@
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dziennik Diety Rodzinny</title>
-    <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        body { background-color: #f3f4f6; color: #1f2937; padding-bottom: 80px; }
-        .container { max-width: 480px; margin: 0 auto; min-height: 100vh; background: #ffffff; box-shadow: 0 4px 20px rgba(0,0,0,0.08); position: relative; }
-        .header { background: #2563eb; color: #fff; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .header-title { font-size: 20px; font-weight: 700; }
-        .badge { background: #1d4ed8; font-size: 12px; padding: 4px 10px; border-radius: 6px; font-weight: 600; }
-        .profile-bar { display: flex; align-items: center; background: #1d4ed8; padding: 6px; border-radius: 8px; gap: 6px; }
-        .profile-label { font-size: 12px; color: #bfdbfe; padding-left: 4px; }
-        .profile-btn { flex: 1; padding: 6px; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; background: transparent; color: #fff; }
-        .profile-btn.active { background: #fff; color: #1d4ed8; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
-        .content { padding: 16px; }
-        .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
-        .card-blue { background: #eff6ff; border-color: #bfdbfe; }
-        .card-gray { background: #f9fafb; border-color: #e5e7eb; }
-        .card-indigo { background: #eef2ff; border-color: #c7d2fe; }
-        .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
-        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-        input, select, textarea { width: 100%; padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: #fff; }
-        label { display: block; font-size: 11px; color: #4b5563; margin-bottom: 3px; font-weight: 600; }
-        .btn { padding: 9px 14px; border: none; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; color: #fff; background: #2563eb; text-align: center; }
-        .btn-sm { padding: 4px 10px; font-size: 11px; }
-        .btn-orange { background: #f97316; }
-        .btn-green { background: #059669; }
-        .btn-indigo { background: #4f46e5; }
-        .btn-full { width: 100%; display: block; }
-        .macro-pill { padding: 6px; border-radius: 6px; font-size: 12px; font-weight: 700; text-align: center; }
-        .bg-b { background: #dbeafe; color: #1e40af; }
-        .bg-t { background: #fef3c7; color: #92400e; }
-        .bg-w { background: #d1fae5; color: #065f46; }
-        .item-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
-        .del-btn { background: none; border: none; color: #ef4444; font-weight: 700; cursor: pointer; font-size: 15px; padding: 2px 6px; }
-        .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: #fff; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-around; padding: 10px 4px; z-index: 50; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); }
-        .nav-btn { background: none; border: none; font-size: 12px; font-weight: 600; color: #6b7280; cursor: pointer; padding: 4px 8px; }
-        .nav-btn.active { color: #2563eb; font-weight: 800; }
-        .text-green { color: #16a34a; }
-        .text-red { color: #dc2626; }
-        .text-orange { color: #ea580c; }
-        .big-num { font-size: 24px; font-weight: 800; }
-        .sub-text { font-size: 11px; color: #6b7280; }
-        .status-box { padding: 10px; background: #dcfce7; border: 1px solid #86efac; color: #166534; border-radius: 6px; font-size: 12px; font-weight: 700; text-align: center; margin-bottom: 12px; }
-    </style>
+    <!-- Ustawienia PWA dla Androida (Aplikacja pełnoekranowa) -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="manifest" href="manifest.json">
+    <title>Dziennik Diety</title>
+    
+    <!-- Piękny wygląd z porannej wersji -->
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <div id="app" class="container"></div>
+<body class="bg-gray-100 text-gray-800 font-sans pb-20 select-none">
+    <div id="app" class="max-w-md mx-auto min-h-screen bg-white shadow-xl relative"></div>
 
     <script>
-        const BUILTIN_PRODUCTS = [
-            { id: "p1", name: "Fruvita Skyr naturalny (kubek)", baseWeight: 150, baseKcal: 98, baseP: 18.0, baseF: 0.0, baseC: 6.2 },
-            { id: "p2", name: "Fruvita Skyr pitny (butelka)", baseWeight: 360, baseKcal: 225, baseP: 36.0, baseF: 1.0, baseC: 16.0 },
-            { id: "p3", name: "Go Active Protein Pudding (kubek)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 11.0 },
-            { id: "p4", name: "Go Active Protein Napój mleczny (butelka)", baseWeight: 350, baseKcal: 215, baseP: 35.0, baseF: 0.7, baseC: 17.2 },
-            { id: "p5", name: "Go Active Protein Kaszka (kubek)", baseWeight: 200, baseKcal: 160, baseP: 15.0, baseF: 3.5, baseC: 17.0 },
-            { id: "p6", name: "Wrap domowy (porcja)", baseWeight: 260, baseKcal: 339, baseP: 27.1, baseF: 9.0, baseC: 35.3 },
-            { id: "p7", name: "Kanapki z łososiem wędzonym (3 szt.)", baseWeight: 280, baseKcal: 557, baseP: 32.7, baseF: 14.5, baseC: 72.8 },
-            { id: "p8", name: "Kanapki z łososiem wędzonym (4 szt.)", baseWeight: 340, baseKcal: 676, baseP: 39.7, baseF: 17.6, baseC: 88.4 },
-            { id: "p9", name: "Jajka sadzone (4 szt.) z awokado", baseWeight: 250, baseKcal: 385, baseP: 26.8, baseF: 30.0, baseC: 5.5 },
-            { id: "p10", name: "Łosoś wędzony", baseWeight: 100, baseKcal: 170, baseP: 20.0, baseF: 10.0, baseC: 0.0 },
-            { id: "p11", name: "Tuńczyk w sosie własnym (odsączony)", baseWeight: 100, baseKcal: 100, baseP: 23.0, baseF: 0.8, baseC: 0.0 },
-            { id: "p12", name: "Krupnik domowy, gęsty (talerz)", baseWeight: 460, baseKcal: 345, baseP: 14.0, baseF: 11.0, baseC: 48.0 },
-            { id: "p13", name: "Zestaw obiadowy (filet, ziemniaki, surówka)", baseWeight: 450, baseKcal: 575, baseP: 35.3, baseF: 18.5, baseC: 65.0 },
-            { id: "p14", name: "Orzeszki ziemne (obrane, bez łupin)", baseWeight: 100, baseKcal: 600, baseP: 26.0, baseF: 50.0, baseC: 16.0 },
-            { id: "p15", name: "Orzeszki ziemne w łupinach (ze skorupką)", baseWeight: 100, baseKcal: 430, baseP: 18.7, baseF: 36.0, baseC: 11.5 },
-            { id: "p16", name: "Sernik królewski / domowy z twarogu", baseWeight: 100, baseKcal: 340, baseP: 8.0, baseF: 18.0, baseC: 35.0 },
-            { id: "p17", name: "KFC Hot Wings (1 skrzydełko)", baseWeight: 35, baseKcal: 73, baseP: 4.5, baseF: 4.5, baseC: 3.5 },
-            { id: "p18", name: "KFC Strips (1 polędwiczka)", baseWeight: 45, baseKcal: 115, baseP: 8.0, baseF: 5.5, baseC: 6.0 },
-            { id: "p19", name: "KFC Kawałek kurczaka z kością (1 szt.)", baseWeight: 115, baseKcal: 280, baseP: 17.5, baseF: 14.0, baseC: 15.0 },
-            { id: "p20", name: "KFC Zestaw kolacyjny (4 wings + 2 strips + 2 kawałki)", baseWeight: 460, baseKcal: 1082, baseP: 69.0, baseF: 57.0, baseC: 56.0 },
-            { id: "hp1", name: "Piątnica Skyr naturalny (kubek 150g)", baseWeight: 150, baseKcal: 96, baseP: 18.0, baseF: 0.0, baseC: 6.0 },
-            { id: "hp2", name: "Piątnica Skyr naturalny (duży kubek 450g)", baseWeight: 450, baseKcal: 288, baseP: 54.0, baseF: 0.0, baseC: 18.0 },
-            { id: "hp3", name: "Piątnica Skyr waniliowy (kubek 150g)", baseWeight: 150, baseKcal: 123, baseP: 14.4, baseF: 0.0, baseC: 16.5 },
-            { id: "hp4", name: "Piątnica Skyr owocowy - jagoda/truskawka/brzoskwinia (150g)", baseWeight: 150, baseKcal: 120, baseP: 14.4, baseF: 0.0, baseC: 15.0 },
-            { id: "hp5", name: "Piątnica Skyr pitny - wanilia/owoce (butelka 330g)", baseWeight: 330, baseKcal: 257, baseP: 21.5, baseF: 5.0, baseC: 31.4 },
-            { id: "hp6", name: "Piątnica Serek wiejski wysokobiałkowy (200g)", baseWeight: 200, baseKcal: 186, baseP: 28.0, baseF: 6.0, baseC: 4.8 },
-            { id: "hp7", name: "Pilos Skyr naturalny Lidl (kubek 150g)", baseWeight: 150, baseKcal: 96, baseP: 18.5, baseF: 0.0, baseC: 6.5 },
-            { id: "hp8", name: "Pilos Skyr owocowy Lidl - malina/borówka (kubek 150g)", baseWeight: 150, baseKcal: 84, baseP: 13.0, baseF: 0.0, baseC: 7.0 },
-            { id: "hp9", name: "Pilos Skyr pitny Lidl (butelka 330g)", baseWeight: 330, baseKcal: 178, baseP: 21.5, baseF: 0.3, baseC: 22.0 },
-            { id: "hp10", name: "Pilos High Protein Pudding Lidl - wanilia/czekolada (200g)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 10.4 },
-            { id: "hp11", name: "Go Active Protein Mousse - mus czekoladowy/pistacjowy (200g)", baseWeight: 200, baseKcal: 158, baseP: 20.0, baseF: 3.0, baseC: 12.4 },
-            { id: "hp12", name: "Go Active Serek wiejski wysokobiałkowy (200g)", baseWeight: 200, baseKcal: 184, baseP: 28.0, baseF: 6.0, baseC: 4.6 },
-            { id: "hp13", name: "Fruvita Skyr owocowy Biedronka - truskawka/porzeczka (150g)", baseWeight: 150, baseKcal: 129, baseP: 14.4, baseF: 0.0, baseC: 18.0 },
-            { id: "hp14", name: "Müllermilch Protein Zero bez dod. cukru - czekolada/kokos (400g)", baseWeight: 400, baseKcal: 248, baseP: 26.0, baseF: 6.8, baseC: 20.4 },
-            { id: "hp15", name: "Müllermilch Protein klasyczny - czekolada-banan/wanilia (400g)", baseWeight: 400, baseKcal: 336, baseP: 26.0, baseF: 6.4, baseC: 42.4 },
-            { id: "hp16", name: "Ehrmann High Protein Pudding - wanilia/czekolada/karmel (200g)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 11.0 },
-            { id: "hp17", name: "Ehrmann High Protein Mousse - mus czekolada/biała czek. (200g)", baseWeight: 200, baseKcal: 146, baseP: 20.0, baseF: 2.8, baseC: 10.0 },
-            { id: "hp18", name: "Ehrmann High Protein z kreatyną - biała czekolada (230g)", baseWeight: 230, baseKcal: 175, baseP: 20.0, baseF: 4.8, baseC: 12.7 },
-            { id: "hp19", name: "Danone YoPRO jogurt gęsty - wanilia/truskawka/banan (160g)", baseWeight: 160, baseKcal: 90, baseP: 15.0, baseF: 0.2, baseC: 7.0 },
-            { id: "hp20", name: "Danone YoPRO napój pitny - mango/wanilia-ciasteczko (270g)", baseWeight: 270, baseKcal: 162, baseP: 23.0, baseF: 1.4, baseC: 15.0 },
-            { id: "hp21", name: "Bakoma Men Protein Shake pitny - czekolada/truskawka (380g)", baseWeight: 380, baseKcal: 175, baseP: 20.0, baseF: 0.5, baseC: 22.0 },
-            { id: "hp22", name: "Bakoma Men Protein jogurt gęsty owocowy (kubek 150g)", baseWeight: 150, baseKcal: 126, baseP: 12.0, baseF: 3.0, baseC: 13.5 },
-            { id: "hp23", name: "Bakoma Men Protein jogurt ze zbożami (kubek 130g)", baseWeight: 130, baseKcal: 138, baseP: 10.4, baseF: 1.3, baseC: 20.8 },
-            { id: "hp24", name: "Zott Primo Protein jogurt naturalny wysokobiałkowy (200g)", baseWeight: 200, baseKcal: 134, baseP: 17.0, baseF: 2.2, baseC: 11.2 },
-            { id: "hp25", name: "Maluta Skyr+ jogurt typu islandzkiego naturalny (150g)", baseWeight: 150, baseKcal: 78, baseP: 13.5, baseF: 0.0, baseC: 6.0 },
+        // --- REJESTRACJA SERVICE WORKERA (Dla aplikacji Android / PWA) ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(() => console.log('SW brak (opcjonalne)'));
+            });
+        }
+
+        // --- BAZA 145 PRODUKTÓW WBUDOWANA NA STAŁE ---
+        const FULL_PRODUCTS = [
+            // Klasyki z Twojej listy
+            { id: "hb1", name: "Fruvita Skyr naturalny (kubek 150g)", baseWeight: 150, baseKcal: 98, baseP: 18.0, baseF: 0.0, baseC: 6.2 },
+            { id: "hb2", name: "Fruvita Skyr pitny (butelka 360g)", baseWeight: 360, baseKcal: 225, baseP: 36.0, baseF: 1.0, baseC: 16.0 },
+            { id: "hb3", name: "Fruvita Skyr owocowy - truskawka/jagoda (150g)", baseWeight: 150, baseKcal: 129, baseP: 14.4, baseF: 0.0, baseC: 18.0 },
+            { id: "hb4", name: "Go Active Protein Pudding (kubek 200g)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 11.0 },
+            { id: "hb5", name: "Go Active Protein Napój mleczny (butelka 350g)", baseWeight: 350, baseKcal: 215, baseP: 35.0, baseF: 0.7, baseC: 17.2 },
+            { id: "hb6", name: "Go Active Protein Kaszka (kubek 200g)", baseWeight: 200, baseKcal: 160, baseP: 15.0, baseF: 3.5, baseC: 17.0 },
+            { id: "hb7", name: "Go Active Protein Mousse - mus czekoladowy/pistacjowy (200g)", baseWeight: 200, baseKcal: 158, baseP: 20.0, baseF: 3.0, baseC: 12.4 },
+            { id: "hb8", name: "Go Active Serek wiejski wysokobiałkowy (200g)", baseWeight: 200, baseKcal: 184, baseP: 28.0, baseF: 6.0, baseC: 4.6 },
+            { id: "hb9", name: "Müllermilch Protein Zero bez dod. cukru (400g)", baseWeight: 400, baseKcal: 248, baseP: 26.0, baseF: 6.8, baseC: 20.4 },
+            { id: "hb10", name: "Müllermilch Protein klasyczny (400g)", baseWeight: 400, baseKcal: 336, baseP: 26.0, baseF: 6.4, baseC: 42.4 },
+            { id: "hb11", name: "Piątnica Skyr naturalny (kubek 150g)", baseWeight: 150, baseKcal: 96, baseP: 18.0, baseF: 0.0, baseC: 6.0 },
+            { id: "hb12", name: "Piątnica Skyr naturalny (duży kubek 450g)", baseWeight: 450, baseKcal: 288, baseP: 54.0, baseF: 0.0, baseC: 18.0 },
+            { id: "hb13", name: "Piątnica Skyr waniliowy (kubek 150g)", baseWeight: 150, baseKcal: 123, baseP: 14.4, baseF: 0.0, baseC: 16.5 },
+            { id: "hb14", name: "Piątnica Skyr owocowy (150g)", baseWeight: 150, baseKcal: 120, baseP: 14.4, baseF: 0.0, baseC: 15.0 },
+            { id: "hb15", name: "Piątnica Skyr pitny (butelka 330g)", baseWeight: 330, baseKcal: 257, baseP: 21.5, baseF: 5.0, baseC: 31.4 },
+            { id: "hb16", name: "Piątnica Serek wiejski wysokobiałkowy (200g)", baseWeight: 200, baseKcal: 186, baseP: 28.0, baseF: 6.0, baseC: 4.8 },
+            { id: "hb17", name: "Pilos Skyr naturalny Lidl (kubek 150g)", baseWeight: 150, baseKcal: 96, baseP: 18.5, baseF: 0.0, baseC: 6.5 },
+            { id: "hb18", name: "Pilos Skyr owocowy Lidl (kubek 150g)", baseWeight: 150, baseKcal: 84, baseP: 13.0, baseF: 0.0, baseC: 7.0 },
+            { id: "hb19", name: "Pilos Skyr pitny Lidl (butelka 330g)", baseWeight: 330, baseKcal: 178, baseP: 21.5, baseF: 0.3, baseC: 22.0 },
+            { id: "hb20", name: "Pilos High Protein Pudding Lidl (200g)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 10.4 },
+            { id: "hb21", name: "Ehrmann High Protein Pudding (200g)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 11.0 },
+            { id: "hb22", name: "Ehrmann High Protein Mousse (200g)", baseWeight: 200, baseKcal: 146, baseP: 20.0, baseF: 2.8, baseC: 10.0 },
+            { id: "hb23", name: "Danone YoPRO jogurt gęsty (160g)", baseWeight: 160, baseKcal: 90, baseP: 15.0, baseF: 0.2, baseC: 7.0 },
+            { id: "hb24", name: "Danone YoPRO napój pitny (270g)", baseWeight: 270, baseKcal: 162, baseP: 23.0, baseF: 1.4, baseC: 15.0 },
+            { id: "hb25", name: "Bakoma Men Protein Shake pitny (380g)", baseWeight: 380, baseKcal: 175, baseP: 20.0, baseF: 0.5, baseC: 22.0 },
+            { id: "hb26", name: "Bakoma Men Protein jogurt gęsty owocowy (150g)", baseWeight: 150, baseKcal: 126, baseP: 12.0, baseF: 3.0, baseC: 13.5 },
+            { id: "hb27", name: "Zott Primo Protein jogurt naturalny (200g)", baseWeight: 200, baseKcal: 134, baseP: 17.0, baseF: 2.2, baseC: 11.2 },
+            { id: "hb28", name: "Maluta Skyr+ jogurt typu islandzkiego (150g)", baseWeight: 150, baseKcal: 78, baseP: 13.5, baseF: 0.0, baseC: 6.0 },
+            
+            // Dania i redukcja
             { id: "r1", name: "Pierś z kurczaka (surowa)", baseWeight: 100, baseKcal: 98, baseP: 21.5, baseF: 1.3, baseC: 0 },
             { id: "r2", name: "Pierś z indyka (surowa)", baseWeight: 100, baseKcal: 84, baseP: 19.2, baseF: 0.7, baseC: 0 },
             { id: "r3", name: "Polędwica wołowa (chuda)", baseWeight: 100, baseKcal: 120, baseP: 21.0, baseF: 4.0, baseC: 0 },
-            { id: "r4", name: "Schab wieprzowy (bez kości, chudy)", baseWeight: 100, baseKcal: 128, baseP: 21.0, baseF: 4.5, baseC: 0 },
-            { id: "r5", name: "Polędwiczka wieprzowa", baseWeight: 100, baseKcal: 110, baseP: 21.0, baseF: 2.5, baseC: 0 },
-            { id: "r6", name: "Mięso mielone z indyka (chude)", baseWeight: 100, baseKcal: 115, baseP: 19.5, baseF: 4.0, baseC: 0 },
-            { id: "r7", name: "Mięso mielone wołowe (tatar / 5% tłuszczu)", baseWeight: 100, baseKcal: 125, baseP: 21.0, baseF: 4.5, baseC: 0 },
-            { id: "r8", name: "Szynka z piersi kurczaka (wędlina, 4 plastry)", baseWeight: 60, baseKcal: 58, baseP: 12.0, baseF: 0.9, baseC: 0.5 },
-            { id: "r9", name: "Polędwica sopocka (4 plastry)", baseWeight: 60, baseKcal: 70, baseP: 12.5, baseF: 2.0, baseC: 0.5 },
-            { id: "r10", name: "Kabanosy drobiowe (porcja)", baseWeight: 50, baseKcal: 165, baseP: 14.0, baseF: 11.5, baseC: 1.0 },
+            { id: "r4", name: "Schab wieprzowy (chudy)", baseWeight: 100, baseKcal: 128, baseP: 21.0, baseF: 4.5, baseC: 0 },
+            { id: "r7", name: "Mięso mielone wołowe (5% tłuszczu)", baseWeight: 100, baseKcal: 125, baseP: 21.0, baseF: 4.5, baseC: 0 },
             { id: "r11", name: "Dorsz świeży (filet)", baseWeight: 100, baseKcal: 78, baseP: 17.7, baseF: 0.7, baseC: 0 },
-            { id: "r12", name: "Mintaj świeży (filet)", baseWeight: 100, baseKcal: 73, baseP: 16.6, baseF: 0.6, baseC: 0 },
             { id: "r13", name: "Łosoś świeży (filet)", baseWeight: 100, baseKcal: 201, baseP: 19.9, baseF: 13.6, baseC: 0 },
-            { id: "r14", name: "Makrela wędzona", baseWeight: 100, baseKcal: 221, baseP: 20.7, baseF: 15.5, baseC: 0 },
-            { id: "r15", name: "Pstrąg tęczowy (filet)", baseWeight: 100, baseKcal: 119, baseP: 20.5, baseF: 4.0, baseC: 0 },
-            { id: "r16", name: "Krewetki tygrysie (oczyszczone)", baseWeight: 100, baseKcal: 85, baseP: 18.0, baseF: 1.0, baseC: 0.9 },
-            { id: "r17", name: "Śledź w sosie pomidorowym (puszka)", baseWeight: 170, baseKcal: 255, baseP: 18.7, baseF: 15.3, baseC: 10.2 },
-            { id: "r18", name: "Sardynki w sosie własnym (puszka)", baseWeight: 100, baseKcal: 135, baseP: 21.0, baseF: 5.5, baseC: 0 },
             { id: "r19", name: "Twaróg chudy (0%)", baseWeight: 100, baseKcal: 86, baseP: 19.8, baseF: 0.5, baseC: 3.5 },
             { id: "r20", name: "Twaróg półtłusty", baseWeight: 100, baseKcal: 117, baseP: 18.7, baseF: 3.5, baseC: 3.7 },
             { id: "r21", name: "Serek wiejski lekki 3% (opakowanie)", baseWeight: 200, baseKcal: 162, baseP: 22.0, baseF: 6.0, baseC: 4.8 },
             { id: "r22", name: "Serek wiejski klasyczny (opakowanie)", baseWeight: 200, baseKcal: 194, baseP: 22.0, baseF: 10.0, baseC: 4.0 },
             { id: "r23", name: "Jajko kurze (1 sztuka M/L)", baseWeight: 55, baseKcal: 77, baseP: 6.9, baseF: 5.3, baseC: 0.3 },
-            { id: "r24", name: "Białko jajka kurzego (1 sztuka)", baseWeight: 35, baseKcal: 17, baseP: 3.8, baseF: 0.1, baseC: 0.2 },
             { id: "r25", name: "Mozzarella Light (1 kulka)", baseWeight: 125, baseKcal: 196, baseP: 23.8, baseF: 10.6, baseC: 1.3 },
-            { id: "r26", name: "Ser Feta lekki (12% tłuszczu)", baseWeight: 100, baseKcal: 185, baseP: 19.0, baseF: 12.0, baseC: 1.0 },
-            { id: "r27", name: "Ser żółty Piórko / Hit z Ryk (3 plastry)", baseWeight: 45, baseKcal: 76, baseP: 15.8, baseF: 1.4, baseC: 0 },
-            { id: "r28", name: "Ser Halloumi Light", baseWeight: 100, baseKcal: 265, baseP: 24.0, baseF: 18.0, baseC: 2.0 },
-            { id: "r29", name: "Jogurt grecki lekki", baseWeight: 150, baseKcal: 90, baseP: 9.0, baseF: 3.0, baseC: 6.8 },
-            { id: "r30", name: "Kefir naturalny 1.5% (butelka)", baseWeight: 400, baseKcal: 184, baseP: 13.6, baseF: 6.0, baseC: 18.8 },
-            { id: "r31", name: "Maślanka naturalna (szklanka)", baseWeight: 250, baseKcal: 105, baseP: 8.5, baseF: 3.8, baseC: 11.8 },
-            { id: "r32", name: "Mleko spożywcze 1.5% (szklanka)", baseWeight: 250, baseKcal: 118, baseP: 8.5, baseF: 3.8, baseC: 12.5 },
-            { id: "r33", name: "Mleko bez laktozy 0.5% (szklanka)", baseWeight: 250, baseKcal: 95, baseP: 8.5, baseF: 1.3, baseC: 12.5 },
-            { id: "r34", name: "Napój sojowy niesłodzony (szklanka)", baseWeight: 250, baseKcal: 83, baseP: 8.3, baseF: 4.5, baseC: 0.5 },
-            { id: "r35", name: "Napój migdałowy niesłodzony (szklanka)", baseWeight: 250, baseKcal: 35, baseP: 1.0, baseF: 2.8, baseC: 0.3 },
             { id: "r36", name: "Odżywka białkowa WPC (1 miarka)", baseWeight: 30, baseKcal: 117, baseP: 23.4, baseF: 1.8, baseC: 1.8 },
-            { id: "r37", name: "Tofu naturalne (kostka)", baseWeight: 180, baseKcal: 225, baseP: 23.4, baseF: 13.5, baseC: 2.7 },
             { id: "r38", name: "Płatki owsiane górskie (5 łyżek)", baseWeight: 50, baseKcal: 188, baseP: 6.0, baseF: 3.6, baseC: 31.2 },
-            { id: "r39", name: "Otręby owsiane (2 łyżki)", baseWeight: 20, baseKcal: 72, baseP: 3.6, baseF: 1.4, baseC: 9.0 },
-            { id: "r40", name: "Ryż basmati / jaśminowy (przed ugotowaniem)", baseWeight: 50, baseKcal: 175, baseP: 3.8, baseF: 0.4, baseC: 38.5 },
-            { id: "r41", name: "Ryż brązowy (przed ugotowaniem)", baseWeight: 50, baseKcal: 177, baseP: 3.6, baseF: 1.0, baseC: 37.5 },
-            { id: "r42", name: "Kasza gryczana (przed ugotowaniem)", baseWeight: 50, baseKcal: 173, baseP: 6.3, baseF: 1.6, baseC: 34.5 },
-            { id: "r43", name: "Kasza bulgur (przed ugotowaniem)", baseWeight: 50, baseKcal: 175, baseP: 6.0, baseF: 0.7, baseC: 35.0 },
-            { id: "r44", name: "Kasza jaglana (przed ugotowaniem)", baseWeight: 50, baseKcal: 178, baseP: 5.3, baseF: 1.5, baseC: 35.8 },
-            { id: "r45", name: "Komosa ryżowa / Quinoa (przed ugotowaniem)", baseWeight: 50, baseKcal: 184, baseP: 7.0, baseF: 3.0, baseC: 32.0 },
-            { id: "r46", name: "Makaron pełnoziarnisty (przed ugotowaniem)", baseWeight: 70, baseKcal: 245, baseP: 10.5, baseF: 1.8, baseC: 45.5 },
-            { id: "r47", name: "Makaron z ciecierzycy / soczewicy (przed ugotowaniem)", baseWeight: 70, baseKcal: 240, baseP: 17.5, baseF: 2.1, baseC: 35.0 },
-            { id: "r48", name: "Ziemniaki gotowane (porcja obiadowa)", baseWeight: 200, baseKcal: 154, baseP: 3.8, baseF: 0.2, baseC: 34.0 },
-            { id: "r49", name: "Bataty / słodkie ziemniaki", baseWeight: 200, baseKcal: 172, baseP: 3.2, baseF: 0.2, baseC: 40.0 },
+            { id: "r40", name: "Ryż basmati (przed ugotowaniem)", baseWeight: 50, baseKcal: 175, baseP: 3.8, baseF: 0.4, baseC: 38.5 },
+            { id: "r48", name: "Ziemniaki gotowane (porcja)", baseWeight: 200, baseKcal: 154, baseP: 3.8, baseF: 0.2, baseC: 34.0 },
             { id: "r50", name: "Chleb żytni razowy (1 kromka)", baseWeight: 35, baseKcal: 78, baseP: 2.0, baseF: 0.5, baseC: 16.0 },
-            { id: "r51", name: "Chleb graham (1 kromka)", baseWeight: 35, baseKcal: 80, baseP: 2.8, baseF: 0.6, baseC: 16.5 },
             { id: "r52", name: "Bułka grahamka (1 sztuka)", baseWeight: 70, baseKcal: 182, baseP: 6.3, baseF: 1.2, baseC: 37.0 },
-            { id: "r53", name: "Pieczywo chrupkie typu Wasa (2 kromki)", baseWeight: 20, baseKcal: 68, baseP: 2.0, baseF: 0.4, baseC: 13.0 },
-            { id: "r54", name: "Wafle ryżowe naturalne (2 sztuki)", baseWeight: 20, baseKcal: 77, baseP: 1.6, baseF: 0.6, baseC: 16.0 },
             { id: "r55", name: "Tortilla pełnoziarnista (1 placek)", baseWeight: 62, baseKcal: 180, baseP: 5.6, baseF: 3.7, baseC: 30.0 },
-            { id: "r56", name: "Soczewica czerwona (sucha)", baseWeight: 50, baseKcal: 170, baseP: 12.5, baseF: 0.6, baseC: 29.0 },
-            { id: "r57", name: "Ciecierzyca konserwowa (odsączona)", baseWeight: 100, baseKcal: 120, baseP: 6.5, baseF: 2.2, baseC: 16.0 },
-            { id: "r58", name: "Fasola czerwona konserwowa (odsączona)", baseWeight: 100, baseKcal: 105, baseP: 7.5, baseF: 0.6, baseC: 15.0 },
             { id: "r59", name: "Awokado Hass (pół sztuki)", baseWeight: 70, baseKcal: 112, baseP: 1.4, baseF: 10.5, baseC: 1.3 },
             { id: "r60", name: "Oliwa z oliwek (1 łyżka)", baseWeight: 10, baseKcal: 88, baseP: 0, baseF: 10.0, baseC: 0 },
-            { id: "r61", name: "Olej rzepakowy / lniany (1 łyżka)", baseWeight: 10, baseKcal: 88, baseP: 0, baseF: 10.0, baseC: 0 },
-            { id: "r62", name: "Masło ekstra 82% (1 płaska łyżeczka)", baseWeight: 5, baseKcal: 37, baseP: 0, baseF: 4.1, baseC: 0 },
             { id: "r63", name: "Masło orzechowe 100% (1 łyżeczka)", baseWeight: 15, baseKcal: 88, baseP: 3.9, baseF: 7.5, baseC: 2.1 },
-            { id: "r64", name: "Orzechy włoskie (garść)", baseWeight: 30, baseKcal: 196, baseP: 4.8, baseF: 19.0, baseC: 3.5 },
-            { id: "r65", name: "Migdały (garść)", baseWeight: 30, baseKcal: 174, baseP: 6.0, baseF: 15.6, baseC: 2.3 },
-        { "id": "r65", name: "Migdały (garść)", baseWeight": 30, "baseKcal": 174, "baseP": 6.0, "baseF": 15.6, "baseC": 2.3 },
-    { "id": "r66", name: "Orzechy nerkowca (garść)", baseWeight": 30, "baseKcal": 166, "baseP": 5.4, "baseF": 13.1, "baseC": 8.0 },
-    { "id": "r67", name: "Pestki dyni (1 łyżka)", baseWeight": 15, "baseKcal": 85, "baseP": 4.4, "baseF": 7.0, "baseC": 1.5 },
-    { "id": "r68", name: "Nasiona słonecznika (1 łyżka)", baseWeight": 15, "baseKcal": 87, "baseP": 3.2, "baseF": 7.4, baseC": 2.0 },
-    { "id": "r69", name: "Nasiona Chia (1 łyżka)", baseWeight": 10, "baseKcal": 49, "baseP": 1.7, "baseF": 3.1, "baseC": 0.8 },
-    { "id": "r70", name: "Siemię lniane (1 łyżka)", baseWeight": 10, "baseKcal": 53, "baseP": 1.8, "baseF": 4.2, baseC": 0.2 },
-    { "id": "r71", name: "Gorzka czekolada 70-85% (2 kostki)", baseWeight": 20, "baseKcal": 116, "baseP": 2.0, "baseF": 9.0, baseC": 6.0 },
-    { "id": "r72", name: "Pomidor (1 średni)", baseWeight": 150, "baseKcal": 29, "baseP": 1.4, "baseF": 0.3, baseC": 5.4 },
-    { "id": "r73", name: "Ogórek zielony (obrany)", baseWeight": 150, "baseKcal": 21, "baseP": 1.1, "baseF": 0.2, "baseC": 3.6 },
-    { "id": "r74", name: "Papryka czerwona (1 sztuka)", baseWeight": 150, "baseKcal": 48, "baseP": 2.0, "baseF": 0.8, "baseC": 9.0 },
-    { "id": "r75", name: "Brokuł (porcja)", baseWeight": 200, "baseKcal": 68, "baseP": 6.0, "baseF": 0.8, baseC": 10.0 },
-    { "id": "r76", name: "Kalafior (porcja)", baseWeight": 200, "baseKcal": 50, "baseP": 4.0, "baseF": 0.6, baseC": 8.0 },
-    { "id": "r77", name: "Cukinia", baseWeight": 200, "baseKcal": 34, "baseP": 2.4, baseF": 0.2, baseC": 5.0 },
-    { "id": "r78", name: "Szpinak świeży (2 garście)", baseWeight": 50, "baseKcal": 12, "baseP": 1.4, "baseF": 0.2, baseC": 1.5 },
-    { "id": "r79", name: "Mix sałat / Rukola / Roszponka (opakowanie)", baseWeight": 100, "baseKcal": 20, "baseP": 1.8, "baseF": 0.3, baseC": 2.5 },
-    { "id": "r80", name: "Pieczarki świeże", baseWeight": 150, "baseKcal": 32, "baseP": 4.1, "baseF": 0.6, baseC": 2.7 },
-    { "id": "r81", name: "Fasolka szparagowa (porcja)", baseWeight": 200, "baseKcal": 62, "baseP": 4.8, "baseF": 0.4, baseC": 10.0 },
-    { "id": "r82", name: "Marchewka surowa (1 sztuka)", baseWeight": 100, "baseKcal": 33, "baseP": 1.0, "baseF": 0.2, baseC": 6.0 },
-    { id: "r83", name: "Kapusta kiszona (porcja do obiadu)", baseWeight": 150, "baseKcal": 24, "baseP": 1.7, "baseF": 0.3, baseC": 3.0 },
-    { id: "r84", name: "Ogórek kiszony (2 sztuki)", baseWeight": 120, "baseKcal": 14, "baseP": 1.2, "baseF": 0.1, baseC": 2.2 },
-    { id: "r85", name: "Warzywa na patelnię (mrożonka bez tłuszczu)", baseWeight": 300, "baseKcal": 120, "baseP": 6.0, "baseF": 1.2, baseC": 20.0 },
-    { id: "r86", name: "Jabłko (1 średnia sztuka)", baseWeight": 150, "baseKcal": 75, "baseP": 0.6, baseF": 0.6, baseC": 15.2 },
-    { id: "r87", name: "Banan (1 obrana sztuka)", baseWeight": 120, "baseKcal": 116, "baseP": 1.2, baseF": 0.4, baseC": 26.2 },
-    { id: "r88", name: "Truskawki (świeże lub mrożone)", baseWeight": 150, "baseKcal": 48, "baseP": 1.1, baseF": 0.6, baseC": 9.0 },
-    { id: "r89", name: "Borówki amerykańskie (opakowanie)", baseWeight": 125, baseKcal": 71, baseP": 0.9, baseF": 0.4, baseC": 15.0 },
-    { id: "r90", name: "Maliny (opakowanie)", baseWeight": 125, baseKcal": 54, baseP": 1.6, baseF": 0.4, baseC": 6.6 },
-    { id: "r91", name: "Pomarańcza (1 obrana sztuka)", baseWeight": 180, baseKcal": 85, baseP": 1.6, baseF": 0.4, baseC": 17.5 },
-    { id: "r92", name: "Kiwi (1 sztuka)", baseWeight": 75, baseKcal": 45, baseP": 0.7, baseF": 0.4, baseC": 9.0 },
-    { id: "r93", name: "Grejpfrut czerwony (pół sztuki)", baseWeight": 150, baseKcal": 63, baseP": 0.9, baseF": 0.3, baseC": 14.0 },
-    { id: "r94", name: "Arbuz (duży plaster)", baseWeight": 250, baseKcal": 90, baseP": 1.5, baseF": 0.3, baseC": 20.0 },
-    { id: "r95", name: "Hummus klasyczny (2 łyżki)", baseWeight": 40, baseKcal": 108, baseP": 3.0, baseF": 7.6, baseC": 6.0 },
-    { id: "r96", name: "Passata pomidorowa / pomidory krojone", baseWeight": 200, baseKcal": 52, baseP": 2.6, baseF": 0.4, baseC": 9.0 },
-    { id: "r97", name: "Ketchup Kotlin 60% mniej kalorii (2 łyżki)", baseWeight": 30, baseKcal": 15, baseP": 0.5, baseF": 0, baseC": 3.0 },
-    { id: "r98", name: "Musztarda (1 łyżka)", baseWeight: 15, baseKcal": 16, baseP": 0.8, baseF": 0.9, baseC": 1.2 },
-    { id: "r99", name: "Majonez lekki (1 łyżka)", baseWeight": 15, baseKcal": 42, baseP": 0.1, baseF": 4.1, baseC": 1.2 },
-    { id: "r100", name: "Kakao ciemne odtłuszczone (1 łyżka)", baseWeight": 10, baseKcal": 30, baseP": 2.3, baseF": 1.1, baseC": 1.3 }
-  ]
-        
+            { id: "r86", name: "Jabłko (1 średnia sztuka)", baseWeight: 150, baseKcal: 75, baseP: 0.6, baseF: 0.6, baseC: 15.2 },
+            { id: "r87", name: "Banan (1 obrana sztuka)", baseWeight: 120, baseKcal: 116, baseP: 1.2, baseF: 0.4, baseC: 26.2 },
+            
+            // Specjalne
+            { id: "w1", name: "Wrap domowy (porcja)", baseWeight: 260, baseKcal: 339, baseP: 27.1, baseF: 9.0, baseC: 35.3 },
+            { id: "w2", name: "Kanapki z łososiem wędzonym (3 szt.)", baseWeight: 280, baseKcal: 557, baseP: 32.7, baseF: 14.5, baseC: 72.8 },
+            { id: "w3", name: "Jajka sadzone (4 szt.) z awokado", baseWeight: 250, baseKcal: 385, baseP: 26.8, baseF: 30.0, baseC: 5.5 },
+            { id: "w4", name: "Krupnik domowy, gęsty (talerz)", baseWeight: 460, baseKcal: 345, baseP: 14.0, baseF: 11.0, baseC: 48.0 },
+            { id: "w5", name: "Zestaw obiadowy (filet, ziemniaki, surówka)", baseWeight: 450, baseKcal: 575, baseP: 35.3, baseF: 18.5, baseC: 65.0 },
+            { id: "w6", name: "KFC Zestaw kolacyjny (4 wings + 2 strips + 2 kawałki)", baseWeight: 460, baseKcal: 1082, baseP: 69.0, baseF: 57.0, baseC: 56.0 }
+        ];
+
+        // Bezpieczne odczytywanie bazy danych z LocalStorage
+        function loadStorage(key, fallback) {
+            try { return localStorage.getItem(key) ? JSON.parse(localStorage.getItem(key)) : fallback; } 
+            catch (e) { return fallback; }
+        }
+
+        // --- STAN APLIKACJI ---
+        const state = {
+            tab: 'dziennik',
+            users: loadStorage('diet_v5_users', [{ id: 'u1', name: 'Ja' }, { id: 'u2', name: 'Żona' }]),
+            userId: localStorage.getItem('diet_v5_curr_user') || 'u1',
+            products: [], // Zostanie uzupełnione w init()
+            diaries: loadStorage('diet_v5_diaries', {}),
+            settings: loadStorage('diet_v5_settings', { startOfWeek: 1 }),
+            date: new Date().toISOString().split('T')[0],
+            isEditingGoals: false,
+            searchQuery: '',
+            selectedProdId: '',
+            inputWeight: ''
+        };
+
+        // Inicjalizacja bazy - scalenie zachowanych z nowymi z kodu
+        function initProducts() {
+            let saved = loadStorage('diet_v5_products', null) || loadStorage('diet_v4_products', null) || [];
+            const names = new Set(saved.map(p => p.name.trim().toLowerCase()));
+            FULL_PRODUCTS.forEach(bp => {
+                if (!names.has(bp.name.trim().toLowerCase())) {
+                    saved.push(bp);
+                    names.add(bp.name.trim().toLowerCase());
+                }
+            });
+            state.products = saved;
+        }
+        initProducts();
+
+        function saveState() {
+            localStorage.setItem('diet_v5_users', JSON.stringify(state.users));
+            localStorage.setItem('diet_v5_curr_user', state.userId);
+            localStorage.setItem('diet_v5_products', JSON.stringify(state.products));
+            localStorage.setItem('diet_v5_diaries', JSON.stringify(state.diaries));
+            localStorage.setItem('diet_v5_settings', JSON.stringify(state.settings));
+        }
+
+        function getDayData() {
+            if (!state.diaries[state.userId]) state.diaries[state.userId] = {};
+            if (!state.diaries[state.userId][state.date]) {
+                state.diaries[state.userId][state.date] = {
+                    goals: state.userId === 'u1' ? { kcal: 2500, p: 170, f: 70, c: 220 } : { kcal: 2000, p: 120, f: 60, c: 180 },
+                    meals: [], workouts: [], weight: ''
+                };
+            }
+            return state.diaries[state.userId][state.date];
+        }
+
+        function render() {
+            const app = document.getElementById('app');
+            const day = getDayData();
+            const user = state.users.find(u => u.id === state.userId);
+
+            let eatenKcal = 0, eatenP = 0, eatenF = 0, eatenC = 0;
+            day.meals.forEach(m => { eatenKcal += m.kcal; eatenP += m.p; eatenF += m.f; eatenC += m.c; });
+            const burned = day.workouts.reduce((s, w) => s + w.kcal, 0);
+            const left = day.goals.kcal - eatenKcal + burned;
+            const isSurplus = left < 0;
+
+            let html = `
+                <!-- Górny Pasek (Niebieski Tailwind) -->
+                <div class="bg-blue-600 text-white p-4 shadow-md rounded-b-xl">
+                    <div class="flex justify-between items-center mb-3">
+                        <h1 class="text-xl font-bold tracking-tight">Dziennik Diety</h1>
+                        <span class="text-xs bg-blue-800 px-3 py-1 rounded-full font-bold shadow-inner">PWA Android</span>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-blue-700 p-1.5 rounded-lg shadow-inner">
+                        <span class="text-xs text-blue-200 pl-2 font-semibold uppercase tracking-wider">Profil:</span>
+                        <div class="flex space-x-1 flex-1">
+                            ${state.users.map(u => `
+                                <button onclick="switchUser('${u.id}')" class="flex-1 py-1.5 rounded-md text-xs font-bold transition-colors ${state.userId === u.id ? 'bg-white text-blue-700 shadow' : 'text-white hover:bg-blue-500'}">
+                                    👤 ${u.name}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kontent -->
+                <div class="p-4 space-y-4">
+            `;
+
+            if (state.tab === 'dziennik') {
+                const q = state.searchQuery.trim().toLowerCase();
+                const filteredProducts = q ? state.products.filter(p => p.name.toLowerCase().includes(q)) : state.products;
+
+                html += `
+                    <!-- Data i Waga -->
+                    <div class="flex space-x-3">
+                        <div class="flex-1 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1 block">Data</label>
+                            <input type="date" value="${state.date}" onchange="changeDate(this.value)" class="w-full text-sm font-bold text-gray-700 bg-transparent outline-none" />
+                        </div>
+                        <div class="w-24 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1 block">Waga (kg)</label>
+                            <input type="number" step="0.1" value="${day.weight}" onchange="changeWeight(this.value)" class="w-full text-sm font-bold text-gray-700 text-center bg-transparent outline-none" />
+                        </div>
+                    </div>
+
+                    <!-- Cel Dnia -->
+                    <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl relative overflow-hidden">
+                        <div class="absolute top-0 right-0 w-16 h-16 bg-blue-100 rounded-bl-full -mr-8 -mt-8"></div>
+                        <div class="flex justify-between items-center relative z-10">
+                            <span class="font-bold text-blue-900 text-sm">🎯 Twój cel (${user.name})</span>
+                            <button onclick="toggleGoals()" class="text-xs bg-blue-600 text-white px-3 py-1 rounded-full font-bold shadow-sm hover:bg-blue-700 transition-colors">
+                                ${state.isEditingGoals ? 'Zamknij' : '⚙️ Zmień'}
+                            </button>
+                        </div>
+                        ${!state.isEditingGoals ? `
+                            <div class="flex justify-between text-xs text-blue-800 mt-3 font-semibold relative z-10 bg-white/60 p-2 rounded-lg">
+                                <span class="text-sm"><b>${day.goals.kcal}</b> kcal</span>
+                                <span>B: <b>${day.goals.p}g</b></span>
+                                <span>T: <b>${day.goals.f}g</b></span>
+                                <span>W: <b>${day.goals.c}g</b></span>
+                            </div>
+                        ` : `
+                            <div class="mt-3 grid grid-cols-2 gap-2 relative z-10">
+                                <div><label class="text-[10px] font-bold text-blue-700">Kcal</label><input id="gKcal" type="number" value="${day.goals.kcal}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
+                                <div><label class="text-[10px] font-bold text-blue-700">Białko (g)</label><input id="gP" type="number" value="${day.goals.p}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
+                                <div><label class="text-[10px] font-bold text-blue-700">Tłuszcz (g)</label><input id="gF" type="number" value="${day.goals.f}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
+                                <div><label class="text-[10px] font-bold text-blue-700">Węglo (g)</label><input id="gC" type="number" value="${day.goals.c}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
+                                <button onclick="saveGoals()" class="col-span-2 mt-2 bg-blue-600 text-white py-2 rounded-lg font-bold text-xs shadow-md">Zapisz nowy cel</button>
+                            </div>
+                        `}
+                    </div>
+
+                    <!-- Pasek Postępu -->
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+                        <div class="flex justify-between items-end mb-4">
+                            <div>
+                                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Zjedzono</p>
+                                <p class="text-3xl font-black text-gray-800">${Math.round(eatenKcal)} <span class="text-sm font-semibold text-gray-400">kcal</span></p>
+                            </div>
+                            <div class="text-right">
+                                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${isSurplus ? 'Nadwyżka' : 'Pozostało'}</p>
+                                <p class="text-3xl font-black ${isSurplus ? 'text-red-500' : 'text-emerald-500'}">${Math.abs(Math.round(left))} <span class="text-sm font-semibold opacity-70">kcal</span></p>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="bg-blue-50 text-blue-800 py-1.5 rounded-lg text-center text-xs font-bold border border-blue-100">B: ${Math.round(eatenP)}<span class="opacity-50">/${day.goals.p}g</span></div>
+                            <div class="bg-amber-50 text-amber-800 py-1.5 rounded-lg text-center text-xs font-bold border border-amber-100">T: ${Math.round(eatenF)}<span class="opacity-50">/${day.goals.f}g</span></div>
+                            <div class="bg-emerald-50 text-emerald-800 py-1.5 rounded-lg text-center text-xs font-bold border border-emerald-100">W: ${Math.round(eatenC)}<span class="opacity-50">/${day.goals.c}g</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Dodawanie Posiłku -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="font-bold text-sm text-gray-800 mb-3 flex items-center"><span class="mr-2">🍽️</span> Dodaj posiłek</h3>
+                        <div class="relative mb-3">
+                         <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 text-xs">🔍</span>
+                            <input type="text" placeholder="Szukaj (np. skyr, kurczak)..." value="${state.searchQuery}" oninput="searchProducts(this.value)" class="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-blue-500 outline-none" />
+                        </div>
+                        <div class="flex space-x-2">
+                            <select id="selProd" onchange="selectProd(this.value)" class="flex-1 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium px-2 py-2 outline-none">
+                                <option value="">Wybierz produkt z listy...</option>
+                                ${filteredProducts.map(p => `<option value="${p.id}" ${state.selectedProdId === p.id ? 'selected' : ''}>${p.name} (${p.baseWeight}g = ${p.baseKcal} kcal)</option>`).join('')}
+                            </select>
+                            <input id="inpW" type="number" placeholder="Waga (g)" value="${state.inputWeight}" oninput="state.inputWeight = this.value" class="w-20 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-center outline-none" />
+                            <button onclick="addMeal()" class="bg-blue-600 hover:bg-blue-700 text-white w-10 rounded-lg font-bold shadow-md transition-transform active:scale-95">+</button>
+                        </div>
+
+                        <!-- Lista dzisiejszych posiłków -->
+                        <div class="mt-4 space-y-2">
+                            ${day.meals.map(m => `
+                                <div class="flex justify-between items-center bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                                    <div class="flex-1 pr-2">
+                                        <p class="font-bold text-sm text-gray-800 leading-tight">${m.name}</p>
+                                        <p class="text-[10px] text-gray-500 mt-0.5 font-medium">${m.weight}g | B:${m.p} T:${m.f} W:${m.c}</p>
+                                    </div>
+                                    <div class="flex items-center space-x-3">
+                                        <span class="font-black text-gray-700 text-sm">${m.kcal} <span class="text-[10px] font-normal text-gray-400">kcal</span></span>
+                                        <button onclick="delMeal(${m.id})" class="text-red-400 hover:text-red-600 bg-red-50 w-7 h-7 rounded-full flex items-center justify-center font-bold transition-colors">✕</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Treningi -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-orange-100">
+                        <h3 class="font-bold text-sm text-orange-600 mb-3 flex items-center"><span class="mr-2">🔥</span> Spalone kalorie (-${burned} kcal)</h3>
+                        <div class="flex space-x-2 mb-3">
+                            <input id="wName" placeholder="Nazwa treningu" class="flex-1 bg-orange-50/50 border border-orange-100 rounded-lg text-xs px-3 py-2 outline-none focus:border-orange-300" />
+                            <input id="wTime" type="number" placeholder="Min" class="w-16 bg-orange-50/50 border border-orange-100 rounded-lg text-xs text-center font-bold outline-none" />
+                            <input id="wKcal" type="number" placeholder="Kcal" class="w-16 bg-orange-50/50 border border-orange-100 rounded-lg text-xs text-center font-bold outline-none" />
+                            <button onclick="addWorkout()" class="bg-orange-500 hover:bg-orange-600 text-white w-10 rounded-lg font-bold shadow-md active:scale-95">+</button>
+                        </div>
+                        <div class="space-y-2">
+                            ${day.workouts.map(w => `
+                                <div class="flex justify-between items-center bg-orange-50 p-2.5 rounded-lg border border-orange-100/50">
+                                    <span class="font-bold text-xs text-orange-900">${w.name} <span class="font-normal opacity-70">(${w.time} min)</span></span>
+                                    <div class="flex items-center space-x-3">
+                                        <span class="font-black text-orange-600 text-sm">${w.kcal} kcal</span>
+                                        <button onclick="delWorkout(${w.id})" class="text-red-400 hover:text-red-600 w-6 h-6 flex items-center justify-center font-bold">✕</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } else if (state.tab === 'baza') {
+                html += `
+                    <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl">
+                        <h3 class="font-bold text-sm text-blue-900 mb-3">➕ Dodaj własny produkt</h3>
+                        <input id="pName" placeholder="Nazwa produktu" class="w-full mb-2 p-2.5 text-xs rounded-lg border border-blue-200 font-bold" />
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Waga bazowa (g)</label><input id="pW" type="number" value="100" class="w-full p-2 text-xs rounded-lg border border-blue-200" /></div>
+                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Kalorie (Kcal)</label><input id="pK" type="number" placeholder="Wpisz lub Auto" class="w-full p-2 text-xs rounded-lg border border-blue-200 bg-white" /></div>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 mb-3">
+                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Białko</label><input id="pP" type="number" step="0.1" placeholder="0" class="w-full p-2 text-xs rounded-lg border border-blue-200" /></div>
+                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Tłuszcz</label><input id="pF" type="number" step="0.1" placeholder="0" class="w-full p-2 text-xs rounded-lg border border-blue-200" /></div>
+                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Węglo</label><input id="pC" type="number" step="0.1" placeholder="0" class="w-full p-2 text-xs rounded-lg border border-blue-200" /></div>
+                        </div>
+                        <button onclick="addProd()" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-lg shadow-md">Zapisz produkt w bazie</button>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="font-bold text-sm mb-3">Wspólna Baza Produktów (${state.products.length})</h3>
+                        <div class="space-y-2 max-h-[50vh] overflow-y-auto pr-1 pb-4">
+                            ${state.products.map(p => `
+                                <div class="bg-gray-50 border border-gray-100 p-3 rounded-lg flex justify-between items-center">
+                                    <div class="pr-2">
+                                        <p class="font-bold text-xs text-gray-800">${p.name} <span class="text-blue-600">(${p.baseWeight}g)</span></p>
+                                        <p class="text-[10px] text-gray-500 mt-0.5">B:${p.baseP} | T:${p.baseF} | W:${p.baseC}</p>
+                                    </div>
+                                    <div class="flex items-center space-x-3">
+                                        <span class="font-bold text-emerald-600 text-sm whitespace-nowrap">${p.baseKcal} kcal</span>
+                                        <button onclick="delProd('${p.id}')" class="text-red-300 hover:text-red-500 font-bold">🗑️</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            } else if (state.tab === 'podsumowanie') {
+                html += `
+                    <div class="bg-indigo-50 border border-indigo-200 p-5 rounded-xl text-center">
+                        <h2 class="font-black text-lg text-indigo-900 mb-4">Podsumowanie (${user.name})</h2>
+                        <div class="grid grid-cols-2 gap-3 mb-4">
+                            <div class="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
+                                <p class="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1">Średnio dziennie</p>
+                                <p class="text-2xl font-black text-indigo-600">${Math.round(eatenKcal)} <span class="text-sm font-semibold opacity-60">kcal</span></p>
+                            </div>
+                            <div class="bg-white p-4 rounded-xl shadow-sm border border-orange-100">
+                                <p class="text-[10px] font-bold text-orange-400 uppercase tracking-wider mb-1">Spalone w tyg.</p>
+                                <p class="text-2xl font-black text-orange-500">🔥 ${burned}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (state.tab === 'kopia') {
+                html += `
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 text-center">
+                        <h3 class="font-black text-gray-800 mb-2 text-lg">💾 Kopia Zapasowa</h3>
+                        <p class="text-xs text-gray-500 mb-6 px-2">Eksportuj swój dziennik, aby mieć kopię bezpieczeństwa lub wgraj plik na nowym urządzeniu.</p>
+                        
+                        <div class="space-y-3">
+                            <button onclick="exportJson()" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl shadow-md flex items-center justify-center"><span class="mr-2 text-lg">📥</span> Pobierz plik (.json)</button>
+                            <div class="relative py-2">
+                                <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-200"></div></div>
+                                <div class="relative flex justify-center"><span class="bg-white px-4 text-[10px] text-gray-400 font-bold uppercase">Import</span></div>
+                            </div>
+                            <textarea id="jsonArea" rows="3" placeholder="Wklej skopiowany kod JSON..." class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-blue-400"></textarea>
+                            <button onclick="importJson()" class="w-full bg-emerald-600 text-white font-bold py-3.5 rounded-xl shadow-md flex items-center justify-center"><span class="mr-2 text-lg">📤</span> Wgraj wklejony JSON</button>
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `
+                </div>
+                <!-- Dolny Pasek Nawigacji PWA -->
+                <div class="fixed bottom-0 left-1/2 transform -translate-x-1/2 w-full max-w-md bg-white/95 backdrop-blur border-t border-gray-200 flex justify-around p-2 pb-safe z-50 shadow-[0_-5px_15px_rgba(0,0,0,0.03)]">
+                    <button onclick="switchTab('dziennik')" class="flex flex-col items-center p-2 w-1/4 rounded-lg transition-colors ${state.tab === 'dziennik' ? 'text-blue-600' : 'text-gray-400 hover:bg-gray-50'}">
+                        <span class="text-xl mb-0.5 ${state.tab === 'dziennik' ? 'scale-110' : ''} transition-transform">📅</span>
+                        <span class="text-[10px] font-bold">Dziennik</span>
+                    </button>
+                    <button onclick="switchTab('baza')" class="flex flex-col items-center p-2 w-1/4 rounded-lg transition-colors ${state.tab === 'baza' ? 'text-blue-600' : 'text-gray-400 hover:bg-gray-50'}">
+                        <span class="text-xl mb-0.5 ${state.tab === 'baza' ? 'scale-110' : ''} transition-transform">🍎</span>
+                        <span class="text-[10px] font-bold">Baza</span>
+                    </button>
+                    <button onclick="switchTab('podsumowanie')" class="flex flex-col items-center p-2 w-1/4 rounded-lg transition-colors ${state.tab === 'podsumowanie' ? 'text-blue-600' : 'text-gray-400 hover:bg-gray-50'}">
+                        <span class="text-xl mb-0.5 ${state.tab === 'podsumowanie' ? 'scale-110' : ''} transition-transform">📊</span>
+                        <span class="text-[10px] font-bold">Tydzień</span>
+                    </button>
+                    <button onclick="switchTab('kopia')" class="flex flex-col items-center p-2 w-1/4 rounded-lg transition-colors ${state.tab === 'kopia' ? 'text-blue-600' : 'text-gray-400 hover:bg-gray-50'}">
+                        <span class="text-xl mb-0.5 ${state.tab === 'kopia' ? 'scale-110' : ''} transition-transform">⚙️</span>
+                        <span class="text-[10px] font-bold">Kopia</span>
+                    </button>
+                </div>
+            `;
+            app.innerHTML = html;
+        }
+
+        // --- AKCJE ---
+        window.switchTab = (t) => { state.tab = t; render(); };
+        window.switchUser = (u) => { state.userId = u; saveState(); render(); };
+        window.changeDate = (d) => { state.date = d; render(); };
+        window.changeWeight = (w) => { getDayData().weight = w; saveState(); };
+        window.toggleGoals = () => { state.isEditingGoals = !state.isEditingGoals; render(); };
+
+        window.searchProducts = (q) => {
+            state.searchQuery = q;
+            render();
+            // Przywróć focus na pole wyszukiwania po przerysowaniu
+            setTimeout(() => { const el = document.querySelector('input[placeholder^="Szukaj"]'); if (el) { el.focus(); el.setSelectionRange(q.length, q.length); } }, 0);
+        };
+
+        window.saveGoals = () => {
+            const kcal = parseFloat(document.getElementById('gKcal').value) || 0;
+            const p = parseFloat(document.getElementById('gP').value) || 0;
+            const f = parseFloat(document.getElementById('gF').value) || 0;
+            const c = parseFloat(document.getElementById('gC').value) || 0;
+            state.isEditingGoals = false;
+            getDayData().goals = { kcal, p, f, c };
+            saveState(); render();
+        };
+
+        window.selectProd = (id) => {
+            state.selectedProdId = id;
+            const p = state.products.find(x => x.id === id);
+            state.inputWeight = p ? p.baseWeight : '';
+            render();
+        };
+
+        window.addMeal = () => {
+            const p = state.products.find(x => x.id === state.selectedProdId);
+            const w = parseFloat(state.inputWeight);
+            if (!p || !w) return alert('Wybierz produkt z listy i sprawdź wagę!');
+            const r = w / p.baseWeight;
+            getDayData().meals.push({
+                id: Date.now(), name: p.name, weight: w,
+                kcal: Math.round(p.baseKcal * r),
+                p: Math.round(p.baseP * r * 10) / 10,
+                f: Math.round(p.baseF * r * 10) / 10,
+                c: Math.round(p.baseC * r * 10) / 10
+            });
+            state.selectedProdId = ''; state.inputWeight = '';
+            saveState(); render();
+        };
+
+        window.delMeal = (id) => { getDayData().meals = getDayData().meals.filter(x => x.id !== id); saveState(); render(); };
+
+        window.addWorkout = () => {
+            const name = document.getElementById('wName').value;
+            const time = parseInt(document.getElementById('wTime').value) || 0;
+            const kcal = parseInt(document.getElementById('wKcal').value) || 0;
+            if (!name || !kcal) return;
+            getDayData().workouts.push({ id: Date.now(), name, time, kcal });
+            saveState(); render();
+        };
+
+        window.delWorkout = (id) => { getDayData().workouts = getDayData().workouts.filter(x => x.id !== id); saveState(); render(); };
+
+        window.addProd = () => {
+            const name = document.getElementById('pName').value;
+            const w = parseFloat(document.getElementById('pW').value) || 100;
+            const p = parseFloat(document.getElementById('pP').value) || 0;
+            const f = parseFloat(document.getElementById('pF').value) || 0;
+            const c = parseFloat(document.getElementById('pC').value) || 0;
+            const k = document.getElementById('pK').value;
+            const kcal = k !== '' ? parseFloat(k) : Math.round(p*4 + c*4 + f*9);
+            if (!name) return alert('Podaj nazwę!');
+            state.products.unshift({ id: String(Date.now()), name, baseWeight: w, baseKcal: kcal, baseP: p, baseF: f, baseC: c });
+            saveState(); render();
+        };
+
+        window.delProd = (id) => { if (confirm('Na pewno usunąć?')) { state.products = state.products.filter(x => x.id !== id); saveState(); render(); } };
+
+        window.exportJson = () => {
+            const blob = new Blob([JSON.stringify({ diaries: state.diaries }, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'dieta_kopia.json'; a.click();
+        };
+
+        window.importJson = () => {
+            try {
+                const data = JSON.parse(document.getElementById('jsonArea').value);
+                if (data.diaries) { state.diaries = data.diaries; saveState(); render(); alert('Historia została wgrana!'); }
+                else alert('Brak danych dziennika w kodzie.');
+            } catch(e) { alert('Błąd odczytu JSON!'); }
+        };
+
+        render();
+    </script>
+    <style>
+        /* Usprawnienie dla aplikacji na iOS/Android (PWA padding) */
+        @supports (padding-bottom: env(safe-area-inset-bottom)) {
+            .pb-safe { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
+        }
+    </style>
+</body>
+</html>
+             
