@@ -89,8 +89,10 @@
         ];
 
         function loadStorage(key, fallback) {
-            try { return localStorage.getItem(key) ? JSON.parse(localStorage.getItem(key)) : fallback; } 
-            catch (e) { return fallback; }
+            try { 
+                const item = localStorage.getItem(key);
+                return item ? JSON.parse(item) : fallback; 
+            } catch (e) { return fallback; }
         }
 
         const state = {
@@ -98,14 +100,12 @@
             users: loadStorage('diet_v10_users', loadStorage('diet_v9_users', [
                 { id: 'u1', name: 'Ja', startDate: new Date().toISOString().split('T')[0] }, 
                 { id: 'u2', name: 'Żona', startDate: new Date().toISOString().split('T')[0] }
-            ])),
+            ])) || [],
             userId: localStorage.getItem('diet_v10_curr_user') || localStorage.getItem('diet_v9_curr_user') || 'u1',
             products: [], 
-            workoutsDb: loadStorage('diet_v10_workouts_db', loadStorage('diet_v9_workouts_db', [])),
-            diaries: loadStorage('diet_v10_diaries', loadStorage('diet_v9_diaries', {})),
-            settings: loadStorage('diet_v10_settings', loadStorage('diet_v9_settings', { 
-                startOfWeek: 1, geminiApiKey: '', lastBackup: '', measurements: [] 
-            })),
+            workoutsDb: loadStorage('diet_v10_workouts_db', loadStorage('diet_v9_workouts_db', [])) || [],
+            diaries: loadStorage('diet_v10_diaries', loadStorage('diet_v9_diaries', {})) || {},
+            settings: loadStorage('diet_v10_settings', loadStorage('diet_v9_settings', {})) || {},
             date: new Date().toISOString().split('T')[0],
             isEditingGoals: false,
             importMode: 'full',
@@ -119,16 +119,17 @@
         };
 
         function initData() {
-            let saved = loadStorage('diet_v10_products', loadStorage('diet_v9_products', []));
-            const names = new Set(saved.map(p => p.name.trim().toLowerCase()));
+            let saved = loadStorage('diet_v10_products', loadStorage('diet_v9_products', [])) || [];
+            const names = new Set(saved.map(p => (p.name || '').trim().toLowerCase()));
             FULL_PRODUCTS.forEach(bp => {
                 if (!names.has(bp.name.trim().toLowerCase())) { saved.push(bp); names.add(bp.name.trim().toLowerCase()); }
             });
             state.products = saved;
 
-            if(state.settings.geminiApiKey === undefined) state.settings.geminiApiKey = '';
-            if(state.settings.lastBackup === undefined) state.settings.lastBackup = '';
-            if(!state.settings.measurements || state.settings.measurements.length === 0) {
+            if(!state.settings.startOfWeek) state.settings.startOfWeek = 1;
+            if(!state.settings.geminiApiKey) state.settings.geminiApiKey = '';
+            if(!state.settings.lastBackup) state.settings.lastBackup = '';
+            if(!state.settings.measurements || !Array.isArray(state.settings.measurements) || state.settings.measurements.length === 0) {
                 state.settings.measurements = [
                     { id: 'waist', name: 'Pas' },
                     { id: 'biceps', name: 'Biceps' },
@@ -137,8 +138,16 @@
                 ];
             }
             
+            if(!state.chatHistory || !Array.isArray(state.chatHistory)) state.chatHistory = [];
             if(state.chatHistory.length === 0) {
                 state.chatHistory.push({ role: 'model', text: 'Cześć! Jestem Twoim asystentem AI. Powiedz mi co zjadłeś, a oszacuję kalorie i pozwolę Ci to dodać!' });
+            }
+            
+            if(state.users.length === 0) {
+                state.users = [
+                    { id: 'u1', name: 'Ja', startDate: state.date }, 
+                    { id: 'u2', name: 'Żona', startDate: state.date }
+                ];
             }
         }
         initData();
@@ -167,8 +176,8 @@
         }
 
         function getDietDaysCounter() {
-            const user = state.users.find(u => u.id === state.userId);
-            const start = new Date(user.startDate);
+            const user = state.users.find(u => u.id === state.userId) || state.users[0];
+            const start = new Date(user.startDate || state.date);
             const current = new Date(state.date);
             const diff = Math.floor((current - start) / (1000 * 60 * 60 * 24));
             return diff >= 0 ? diff + 1 : 0;
@@ -213,13 +222,13 @@
                     ${last14.map((pt, i) => {
                         const x = padX + (i * stepX);
                         const y = h - padY - (((pt.val - minW) / range) * usableH);
-                        return \`<circle cx="\${x}" cy="\${y}" r="3" fill="#ffffff" stroke="#4f46e5" stroke-width="2" />
-                                \${i === 0 || i === last14.length - 1 ? \`<text x="\${x}" y="\${y - 8}" font-size="8" font-weight="bold" fill="#4f46e5" text-anchor="middle">\${pt.val}</text>\` : ''}\`;
+                        return `<circle cx="${x}" cy="${y}" r="3" fill="#ffffff" stroke="#4f46e5" stroke-width="2" />
+                                ${i === 0 || i === last14.length - 1 ? `<text x="${x}" y="${y - 8}" font-size="8" font-weight="bold" fill="#4f46e5" text-anchor="middle">${pt.val}</text>` : ''}`;
                     }).join('')}
                 </svg>
                 <div class="flex justify-between items-center mt-3 pt-2 border-t border-gray-100 px-1">
-                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Min (Cała dieta): <span class="text-blue-600 ml-1">\${minWGlobal} kg</span></span>
-                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Max: <span class="text-red-500 ml-1">\${maxWGlobal} kg</span></span>
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Min (Cała dieta): <span class="text-blue-600 ml-1">${minWGlobal} kg</span></span>
+                    <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Max: <span class="text-red-500 ml-1">${maxWGlobal} kg</span></span>
                 </div>
             `;
         }
@@ -235,7 +244,7 @@
         function render() {
             const app = document.getElementById('app');
             const day = getDayData();
-            const user = state.users.find(u => u.id === state.userId);
+            const user = state.users.find(u => u.id === state.userId) || state.users[0];
 
             let eatenKcal = 0, eatenP = 0, eatenF = 0, eatenC = 0;
             day.meals.forEach(m => { eatenKcal += m.kcal; eatenP += m.p; eatenF += m.f; eatenC += m.c; });
@@ -260,89 +269,88 @@
 
             const showReminder = checkBackupReminder();
 
-            let html = \`
-                \${showReminder ? \`<div class="bg-yellow-400 text-yellow-900 text-[10px] font-bold text-center py-1.5 px-4 shadow-sm z-50">⚠️ Jest niedziela po południu! Zrób tygodniową kopię zapasową w Ustawieniach.</div>\` : ''}
+            let html = `
+                ${showReminder ? `<div class="bg-yellow-400 text-yellow-900 text-[10px] font-bold text-center py-1.5 px-4 shadow-sm z-50">⚠️ Jest niedziela po południu! Zrób tygodniową kopię zapasową w Ustawieniach.</div>` : ''}
                 <div class="bg-blue-600 text-white p-4 shadow-md w-full">
                     <div class="flex justify-between items-center mb-3">
                         <h1 class="text-xl font-bold tracking-tight">Dziennik Diety</h1>
                         <div class="flex items-center space-x-1 bg-blue-800 px-2 py-1 rounded-full shadow-inner text-xs font-bold">
                             <span>Dzień:</span>
-                            <input type="number" value="\${getDietDaysCounter()}" onchange="setDayCounter(this.value)" class="w-10 bg-transparent text-white text-center outline-none border-b border-blue-400" />
+                            <input type="number" value="${getDietDaysCounter()}" onchange="setDayCounter(this.value)" class="w-10 bg-transparent text-white text-center outline-none border-b border-blue-400" />
                         </div>
                     </div>
                     <div class="flex items-center space-x-2 bg-blue-700 p-1.5 rounded-lg shadow-inner">
                         <span class="text-[10px] text-blue-200 pl-2 font-bold uppercase tracking-wider">Profil:</span>
                         <div class="flex space-x-1 flex-1">
-                            \${state.users.map(u => \`
-                                <button onclick="switchUser('\${u.id}')" class="flex-1 py-1.5 rounded-md text-xs font-bold transition-colors truncate \${state.userId === u.id ? 'bg-white text-blue-700 shadow' : 'text-white hover:bg-blue-500'}">
-                                    \${u.name}
+                            ${state.users.map(u => `
+                                <button onclick="switchUser('${u.id}')" class="flex-1 py-1.5 rounded-md text-xs font-bold transition-colors truncate ${state.userId === u.id ? 'bg-white text-blue-700 shadow' : 'text-white hover:bg-blue-500'}">
+                                    ${u.name}
                                 </button>
-                            \`).join('')}
+                            `).join('')}
                         </div>
                     </div>
                 </div>
                 <div class="p-3 w-full flex-1 overflow-x-hidden relative">
-            \`;
+            `;
 
             if (state.tab === 'dziennik') {
-                html += \`
+                html += `
                     <div class="flex space-x-2 mb-3">
                         <div class="flex-1 bg-white p-2.5 rounded-xl shadow-sm border border-gray-100 min-w-0">
                             <label class="text-[10px] font-bold text-gray-400 uppercase mb-0.5 block">Data</label>
-                            <input type="date" value="\${state.date}" onchange="changeDate(this.value)" class="w-full text-xs font-bold text-gray-700 bg-transparent outline-none" />
+                            <input type="date" value="${state.date}" onchange="changeDate(this.value)" class="w-full text-xs font-bold text-gray-700 bg-transparent outline-none" />
                         </div>
                         <div class="w-24 bg-white p-2.5 rounded-xl shadow-sm border border-gray-100 shrink-0">
                             <label class="text-[10px] font-bold text-gray-400 uppercase mb-0.5 block">Waga (kg)</label>
-                            <input type="number" step="0.1" value="\${day.weight}" onchange="changeWeight(this.value)" class="w-full text-xs font-bold text-gray-700 text-center bg-transparent outline-none" />
+                            <input type="number" step="0.1" value="${day.weight}" onchange="changeWeight(this.value)" class="w-full text-xs font-bold text-gray-700 text-center bg-transparent outline-none" />
                         </div>
                     </div>
 
                     <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl mb-3">
                         <div class="flex justify-between items-center mb-2">
-                            <span class="font-bold text-blue-900 text-xs">🎯 Cel (\${user.name}): \${day.goals.kcal} kcal</span>
+                            <span class="font-bold text-blue-900 text-xs">🎯 Cel (${user.name}): ${day.goals.kcal} kcal</span>
                             <button onclick="toggleGoals()" class="text-[10px] bg-blue-600 text-white px-2 py-1 rounded font-bold shadow-sm hover:bg-blue-700">
-                                \${state.isEditingGoals ? 'Zamknij' : 'Edytuj'}
+                                ${state.isEditingGoals ? 'Zamknij' : 'Edytuj'}
                             </button>
                         </div>
-                        \${state.isEditingGoals ? \`
+                        ${state.isEditingGoals ? `
                             <div class="grid grid-cols-2 gap-2 mb-2">
-                                <div><label class="text-[10px] font-bold text-blue-700">Kcal</label><input id="gKcal" type="number" value="\${day.goals.kcal}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
-                                <div><label class="text-[10px] font-bold text-blue-700">Białko (g)</label><input id="gP" type="number" value="\${day.goals.p}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
-                                <div><label class="text-[10px] font-bold text-blue-700">Tłuszcz (g)</label><input id="gF" type="number" value="\${day.goals.f}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
-                                <div><label class="text-[10px] font-bold text-blue-700">Węglo (g)</label><input id="gC" type="number" value="\${day.goals.c}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
+                                <div><label class="text-[10px] font-bold text-blue-700">Kcal</label><input id="gKcal" type="number" value="${day.goals.kcal}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
+                                <div><label class="text-[10px] font-bold text-blue-700">Białko (g)</label><input id="gP" type="number" value="${day.goals.p}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
+                                <div><label class="text-[10px] font-bold text-blue-700">Tłuszcz (g)</label><input id="gF" type="number" value="${day.goals.f}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
+                                <div><label class="text-[10px] font-bold text-blue-700">Węglo (g)</label><input id="gC" type="number" value="${day.goals.c}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
                             </div>
                             <button onclick="saveGoals()" class="w-full bg-blue-600 text-white py-1.5 rounded font-bold text-xs">Zapisz cel</button>
-                        \` : ''}
+                        ` : ''}
                     </div>
 
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4">
                         <div class="flex justify-between items-center mb-3">
                             <div class="text-center w-1/3">
                                 <p class="text-[9px] font-bold text-gray-400 uppercase">Zjedzono</p>
-                                <p class="text-lg font-black text-gray-800">\${Math.round(eatenKcal)}</p>
+                                <p class="text-lg font-black text-gray-800">${Math.round(eatenKcal)}</p>
                             </div>
                             <div class="text-center w-1/3 border-x border-gray-100">
                                 <p class="text-[9px] font-bold text-orange-400 uppercase">Spalone</p>
-                                <p class="text-lg font-black text-orange-500">-\${burned}</p>
+                                <p class="text-lg font-black text-orange-500">-${burned}</p>
                             </div>
                             <div class="text-center w-1/3">
                                 <p class="text-[9px] font-bold text-blue-400 uppercase">Kcal Netto</p>
-                                <p class="text-lg font-black text-blue-600">\${Math.round(nettoKcal)}</p>
+                                <p class="text-lg font-black text-blue-600">${Math.round(nettoKcal)}</p>
                             </div>
                         </div>
-                        <div class="\${bgClass} border rounded-lg p-2 flex justify-between items-center mb-3 transition-colors">
-                            <span class="text-[10px] font-bold text-gray-500 uppercase">\${statusLabel}</span>
-                            <span class="text-xl font-black \${statusColor}">\${Math.abs(Math.round(left))} kcal</span>
+                        <div class="${bgClass} border rounded-lg p-2 flex justify-between items-center mb-3 transition-colors">
+                            <span class="text-[10px] font-bold text-gray-500 uppercase">${statusLabel}</span>
+                            <span class="text-xl font-black ${statusColor}">${Math.abs(Math.round(left))} kcal</span>
                         </div>
                         <div class="grid grid-cols-3 gap-2 mb-3">
-                            <div class="bg-blue-50 text-blue-800 py-1 rounded text-center text-[10px] font-bold">B: \${Math.round(eatenP)}/\${day.goals.p}g</div>
-                            <div class="bg-amber-50 text-amber-800 py-1 rounded text-center text-[10px] font-bold">T: \${Math.round(eatenF)}/\${day.goals.f}g</div>
-                            <div class="bg-emerald-50 text-emerald-800 py-1 rounded text-center text-[10px] font-bold">W: \${Math.round(eatenC)}/\${day.goals.c}g</div>
+                            <div class="bg-blue-50 text-blue-800 py-1 rounded text-center text-[10px] font-bold">B: ${Math.round(eatenP)}/${day.goals.p}g</div>
+                            <div class="bg-amber-50 text-amber-800 py-1 rounded text-center text-[10px] font-bold">T: ${Math.round(eatenF)}/${day.goals.f}g</div>
+                            <div class="bg-emerald-50 text-emerald-800 py-1 rounded text-center text-[10px] font-bold">W: ${Math.round(eatenC)}/${day.goals.c}g</div>
                         </div>
                         
-                        <!-- Woda Tracker -->
                         <div class="flex justify-between items-center pt-3 border-t border-gray-100">
-                            <span class="text-[10px] font-bold text-blue-400 uppercase">Wypito: <span class="text-blue-600 text-sm ml-1">\${(parseFloat(day.water) || 0).toFixed(2)} L</span></span>
+                            <span class="text-[10px] font-bold text-blue-400 uppercase">Wypito: <span class="text-blue-600 text-sm ml-1">${(parseFloat(day.water) || 0).toFixed(2)} L</span></span>
                             <div class="flex space-x-1">
                                 <button onclick="addWater(0.25)" class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-2 py-1 rounded-lg text-[10px] font-bold transition-colors">+0.25L</button>
                                 <button onclick="addWater(0.5)" class="bg-blue-50 hover:bg-blue-100 text-blue-600 px-2 py-1 rounded-lg text-[10px] font-bold transition-colors">+0.5L</button>
@@ -356,35 +364,35 @@
                         <h3 class="font-bold text-sm text-gray-800 mb-2 flex items-center">🍽️ Posiłki</h3>
                         <div class="flex space-x-2 mb-3 relative">
                             <div class="relative flex-1 min-w-0">
-                                <input id="pSearchInp" placeholder="Wpisz (np. skyr)..." value="\${state.prodSearch}" oninput="searchProd(this.value)" autocomplete="off" class="w-full bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium px-3 py-2 outline-none focus:border-blue-400" />
-                                \${state.prodResults.length > 0 ? \`
+                                <input id="pSearchInp" placeholder="Wpisz (np. skyr)..." value="${state.prodSearch}" oninput="searchProd(this.value)" autocomplete="off" class="w-full bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium px-3 py-2 outline-none focus:border-blue-400" />
+                                ${state.prodResults.length > 0 ? `
                                     <div class="absolute top-full left-0 w-full mt-1 bg-white border border-gray-200 shadow-xl rounded-lg max-h-48 overflow-y-auto z-50">
-                                        \${state.prodResults.map(p => \`
-                                            <div onclick="selectProdDrop('\${p.id}')" class="p-2.5 border-b border-gray-50 text-xs cursor-pointer hover:bg-blue-50 active:bg-blue-100 transition-colors">
-                                                <span class="font-bold text-gray-800 block truncate">\${p.name}</span>
-                                                <span class="text-[9px] text-gray-500">\${p.baseWeight}g = \${p.baseKcal} kcal</span>
+                                        ${state.prodResults.map(p => `
+                                            <div onclick="selectProdDrop('${p.id}')" class="p-2.5 border-b border-gray-50 text-xs cursor-pointer hover:bg-blue-50 active:bg-blue-100 transition-colors">
+                                                <span class="font-bold text-gray-800 block truncate">${p.name}</span>
+                                                <span class="text-[9px] text-gray-500">${p.baseWeight}g = ${p.baseKcal} kcal</span>
                                             </div>
-                                        \`).join('')}
+                                        `).join('')}
                                     </div>
-                                \` : ''}
+                                ` : ''}
                             </div>
-                            <input id="inpW" type="number" placeholder="Waga(g)" value="\${state.inputWeight}" oninput="state.inputWeight=this.value" class="w-16 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-center outline-none shrink-0" />
+                            <input id="inpW" type="number" placeholder="Waga(g)" value="${state.inputWeight}" oninput="state.inputWeight=this.value" class="w-16 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-center outline-none shrink-0" />
                             <button onclick="addMeal()" class="bg-blue-600 text-white px-3 rounded-lg font-bold shadow-md active:scale-95 shrink-0">+</button>
                         </div>
                         <div class="space-y-2">
-                            \${day.meals.length === 0 ? '<p class="text-[10px] text-gray-400 text-center py-2">Brak posiłków</p>' : ''}
-                            \${day.meals.map(m => \`
+                            ${day.meals.length === 0 ? '<p class="text-[10px] text-gray-400 text-center py-2">Brak posiłków</p>' : ''}
+                            ${day.meals.map(m => `
                                 <div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-100">
                                     <div class="flex-1 pr-1 min-w-0">
-                                        <p class="font-bold text-xs text-gray-800 truncate">\${m.name}</p>
-                                        <p class="text-[9px] text-gray-500 mt-0.5">\${m.weight}g | B:\${m.p} T:\${m.f} W:\${m.c}</p>
+                                        <p class="font-bold text-xs text-gray-800 truncate">${m.name}</p>
+                                        <p class="text-[9px] text-gray-500 mt-0.5">${m.weight}g | B:${m.p} T:${m.f} W:${m.c}</p>
                                     </div>
                                     <div class="flex items-center space-x-2 shrink-0">
-                                        <span class="font-black text-gray-700 text-xs">\${m.kcal} <span class="font-normal text-[9px] text-gray-400">kcal</span></span>
-                                        <button onclick="delMeal(\${m.id})" class="text-red-400 font-bold px-2">✕</button>
+                                        <span class="font-black text-gray-700 text-xs">${m.kcal} <span class="font-normal text-[9px] text-gray-400">kcal</span></span>
+                                        <button onclick="delMeal(${m.id})" class="text-red-400 font-bold px-2">✕</button>
                                     </div>
                                 </div>
-                            \`).join('')}
+                            `).join('')}
                         </div>
                     </div>
 
@@ -392,40 +400,39 @@
                         <h3 class="font-bold text-sm text-orange-600 mb-2 flex items-center">🔥 Dodaj trening (Dzisiaj)</h3>
                         <div class="flex space-x-2 mb-3 relative">
                             <div class="relative flex-1 min-w-0">
-                                <input id="wNameInp" placeholder="Nazwa np. Bieganie" value="\${state.wSearch}" oninput="searchWorkout(this.value)" autocomplete="off" class="w-full bg-orange-50/50 border border-orange-100 rounded-lg text-xs px-2 py-2 outline-none focus:border-orange-300" />
-                                \${state.wResults.length > 0 ? \`
+                                <input id="wNameInp" placeholder="Nazwa np. Bieganie" value="${state.wSearch}" oninput="searchWorkout(this.value)" autocomplete="off" class="w-full bg-orange-50/50 border border-orange-100 rounded-lg text-xs px-2 py-2 outline-none focus:border-orange-300" />
+                                ${state.wResults.length > 0 ? `
                                     <div class="absolute top-full left-0 w-full mt-1 bg-white border border-orange-200 shadow-xl rounded-lg max-h-40 overflow-y-auto z-50">
-                                        \${state.wResults.map(w => \`
-                                            <div onclick="selectWorkoutDrop('\${w.name}')" class="p-2 border-b border-gray-50 text-xs cursor-pointer hover:bg-orange-50 active:bg-orange-100">
-                                                <span class="font-bold text-orange-900 block truncate">\${w.name}</span>
-                                                <span class="text-[9px] text-gray-500">\${w.time} min | \${w.kcal} kcal</span>
+                                        ${state.wResults.map(w => `
+                                            <div onclick="selectWorkoutDrop('${w.name}')" class="p-2 border-b border-gray-50 text-xs cursor-pointer hover:bg-orange-50 active:bg-orange-100">
+                                                <span class="font-bold text-orange-900 block truncate">${w.name}</span>
+                                                <span class="text-[9px] text-gray-500">${w.time} min | ${w.kcal} kcal</span>
                                             </div>
-                                        \`).join('')}
+                                        `).join('')}
                                     </div>
-                                \` : ''}
+                                ` : ''}
                             </div>
-                            <input id="wTime" type="number" placeholder="Min" value="\${state.wInputTime}" oninput="state.wInputTime=this.value" class="w-12 bg-orange-50/50 border border-orange-100 rounded-lg text-xs text-center font-bold outline-none shrink-0" />
-                            <input id="wKcal" type="number" placeholder="Kcal" value="\${state.wInputKcal}" oninput="state.wInputKcal=this.value" class="w-14 bg-orange-50/50 border border-orange-100 rounded-lg text-xs text-center font-bold outline-none shrink-0" />
+                            <input id="wTime" type="number" placeholder="Min" value="${state.wInputTime}" oninput="state.wInputTime=this.value" class="w-12 bg-orange-50/50 border border-orange-100 rounded-lg text-xs text-center font-bold outline-none shrink-0" />
+                            <input id="wKcal" type="number" placeholder="Kcal" value="${state.wInputKcal}" oninput="state.wInputKcal=this.value" class="w-14 bg-orange-50/50 border border-orange-100 rounded-lg text-xs text-center font-bold outline-none shrink-0" />
                             <button onclick="addWorkout()" class="bg-orange-500 text-white px-3 rounded-lg font-bold shadow-md shrink-0 active:scale-95">+</button>
                         </div>
                         <div class="space-y-2">
-                            \${day.workouts.map(w => \`
+                            ${day.workouts.map(w => `
                                 <div class="flex justify-between items-center bg-orange-50 p-2.5 rounded-lg border border-orange-100">
-                                    <span class="font-bold text-xs text-orange-900 truncate flex-1">\${w.name} <span class="font-normal opacity-70">(\${w.time} min)</span></span>
+                                    <span class="font-bold text-xs text-orange-900 truncate flex-1">${w.name} <span class="font-normal opacity-70">(${w.time} min)</span></span>
                                     <div class="flex items-center space-x-3 shrink-0">
-                                        <span class="font-black text-orange-600 text-sm">\${w.kcal} kcal</span>
-                                        <button onclick="delWorkout(\${w.id})" class="text-red-400 font-bold px-2">✕</button>
+                                        <span class="font-black text-orange-600 text-sm">${w.kcal} kcal</span>
+                                        <button onclick="delWorkout(${w.id})" class="text-red-400 font-bold px-2">✕</button>
                                     </div>
                                 </div>
-                            \`).join('')}
+                            `).join('')}
                         </div>
                     </div>
                     
-                    <!-- Przycisk Gemini Floating -->
                     <button onclick="toggleChat()" class="fab-gemini bg-blue-600 hover:bg-blue-700 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform active:scale-90">
                         <span class="text-2xl">✨</span>
                     </button>
-                \`;
+                `;
             } else if (state.tab === 'trening') {
                 const curr = new Date(state.date);
                 const dayOfWeek = curr.getDay();
@@ -450,39 +457,39 @@
                     }
                 });
 
-                html += \`
+                html += `
                     <div class="bg-orange-50 border border-orange-200 p-4 rounded-xl mb-4">
                         <h3 class="font-black text-lg text-orange-900 mb-1 text-center">📊 Statystyki Tygodnia</h3>
-                        <p class="text-xs text-orange-600 font-bold text-center mb-4 uppercase">\${weekDates[0]} — \${weekDates[6]}</p>
+                        <p class="text-xs text-orange-600 font-bold text-center mb-4 uppercase">${weekDates[0]} — ${weekDates[6]}</p>
                         
                         <div class="grid grid-cols-2 gap-2 mb-4">
                             <div class="bg-white p-3 rounded-xl shadow-sm border border-orange-100 text-center">
                                 <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">Łączny czas</p>
-                                <p class="text-2xl font-black text-orange-600">\${weekTime} <span class="text-xs font-semibold opacity-60">min</span></p>
+                                <p class="text-2xl font-black text-orange-600">${weekTime} <span class="text-xs font-semibold opacity-60">min</span></p>
                             </div>
                             <div class="bg-white p-3 rounded-xl shadow-sm border border-orange-100 text-center">
                                 <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">Spalono</p>
-                                <p class="text-2xl font-black text-orange-600">\${weekKcal} <span class="text-xs font-semibold opacity-60">kcal</span></p>
+                                <p class="text-2xl font-black text-orange-600">${weekKcal} <span class="text-xs font-semibold opacity-60">kcal</span></p>
                             </div>
                         </div>
                         
-                        \${Object.keys(types).length > 0 ? \`
+                        ${Object.keys(types).length > 0 ? `
                             <h4 class="text-xs font-black text-orange-800 uppercase mb-2 pl-1">Aktywności:</h4>
                             <div class="space-y-2">
-                                \${Object.keys(types).map(t => \`
+                                ${Object.keys(types).map(t => `
                                     <div class="bg-white p-3 rounded-xl border border-orange-100 flex justify-between items-center shadow-sm">
                                         <div class="min-w-0 pr-2">
-                                            <span class="font-bold text-sm text-gray-800 block truncate">\${t}</span>
-                                            <span class="text-[10px] text-gray-500 font-bold">Ilość treningów: \${types[t].count}</span>
+                                            <span class="font-bold text-sm text-gray-800 block truncate">${t}</span>
+                                            <span class="text-[10px] text-gray-500 font-bold">Ilość treningów: ${types[t].count}</span>
                                         </div>
                                         <div class="text-right shrink-0">
-                                            <span class="block text-orange-600 font-black text-sm">\${types[t].kcal} kcal</span>
-                                            <span class="text-[10px] text-gray-400 font-bold">\${types[t].time} min</span>
+                                            <span class="block text-orange-600 font-black text-sm">${types[t].kcal} kcal</span>
+                                            <span class="text-[10px] text-gray-400 font-bold">${types[t].time} min</span>
                                         </div>
                                     </div>
-                                \`).join('')}
+                                `).join('')}
                             </div>
-                        \` : '<p class="text-center text-xs text-gray-500 font-bold mt-4">Brak treningów w tym tygodniu.</p>'}
+                        ` : '<p class="text-center text-xs text-gray-500 font-bold mt-4">Brak treningów w tym tygodniu.</p>'}
                     </div>
 
                     <div class="bg-white border border-gray-100 p-4 rounded-xl shadow-sm mb-4">
@@ -491,58 +498,58 @@
                             <button onclick="promptAddMeasurement()" class="text-[10px] bg-gray-100 text-gray-600 px-3 py-1.5 rounded-lg font-bold hover:bg-gray-200 transition-colors">+ Dodaj własny</button>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
-                            \${state.settings.measurements.map(m => \`
+                            ${state.settings.measurements.map(m => `
                                 <div class="relative group">
-                                    <label class="text-[10px] font-bold text-gray-400 uppercase mb-1 block truncate pr-5">\${m.name}</label>
-                                    <input type="number" step="0.1" value="\${day.measurements[m.id] || ''}" onchange="updateMeasurement('\${m.id}', this.value)" placeholder="cm" class="w-full bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold p-2 outline-none text-center focus:border-blue-400" />
-                                    <button onclick="removeMeasurement('\${m.id}')" class="absolute top-0 right-0 mt-0.5 mr-1 text-red-300 hover:text-red-500 text-[10px] font-black">✕</button>
+                                    <label class="text-[10px] font-bold text-gray-400 uppercase mb-1 block truncate pr-5">${m.name}</label>
+                                    <input type="number" step="0.1" value="${day.measurements[m.id] || ''}" onchange="updateMeasurement('${m.id}', this.value)" placeholder="cm" class="w-full bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold p-2 outline-none text-center focus:border-blue-400" />
+                                    <button onclick="removeMeasurement('${m.id}')" class="absolute top-0 right-0 mt-0.5 mr-1 text-red-300 hover:text-red-500 text-[10px] font-black">✕</button>
                                 </div>
-                            \`).join('')}
+                            `).join('')}
                         </div>
-                        \${state.settings.measurements.length === 0 ? '<p class="text-xs text-gray-400 text-center">Brak zdefiniowanych pomiarów.</p>' : ''}
+                        ${state.settings.measurements.length === 0 ? '<p class="text-xs text-gray-400 text-center">Brak zdefiniowanych pomiarów.</p>' : ''}
                     </div>
-                \`;
+                `;
             } else if (state.tab === 'baza') {
                 const edProd = state.editProdId ? state.products.find(p => p.id === state.editProdId) : null;
                 
-                html += \`
+                html += `
                     <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-4" id="prodForm">
-                        <h3 class="font-bold text-sm text-blue-900 mb-3">\${edProd ? '✏️ Edytuj produkt' : '➕ Dodaj własny produkt'}</h3>
-                        <input id="pName" placeholder="Nazwa produktu" value="\${edProd ? edProd.name : ''}" class="w-full mb-2 p-2 text-xs rounded-lg border border-blue-200 font-bold outline-none" />
+                        <h3 class="font-bold text-sm text-blue-900 mb-3">${edProd ? '✏️ Edytuj produkt' : '➕ Dodaj własny produkt'}</h3>
+                        <input id="pName" placeholder="Nazwa produktu" value="${edProd ? edProd.name : ''}" class="w-full mb-2 p-2 text-xs rounded-lg border border-blue-200 font-bold outline-none" />
                         <div class="grid grid-cols-2 gap-2 mb-2">
-                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Waga bazowa (g)</label><input id="pW" type="number" value="\${edProd ? edProd.baseWeight : 100}" class="w-full p-2 text-xs rounded-lg border border-blue-200 outline-none" /></div>
-                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Kcal</label><input id="pK" type="number" value="\${edProd ? edProd.baseKcal : ''}" placeholder="Opcjonalne" class="w-full p-2 text-xs rounded-lg border border-blue-200 bg-white outline-none" /></div>
+                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Waga bazowa (g)</label><input id="pW" type="number" value="${edProd ? edProd.baseWeight : 100}" class="w-full p-2 text-xs rounded-lg border border-blue-200 outline-none" /></div>
+                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Kcal</label><input id="pK" type="number" value="${edProd ? edProd.baseKcal : ''}" placeholder="Opcjonalne" class="w-full p-2 text-xs rounded-lg border border-blue-200 bg-white outline-none" /></div>
                         </div>
                         <div class="grid grid-cols-3 gap-2 mb-3">
-                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Białko</label><input id="pP" type="number" step="0.1" value="\${edProd ? edProd.baseP : ''}" placeholder="0" class="w-full p-1.5 text-xs rounded-lg border border-blue-200 outline-none" /></div>
-                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Tłuszcz</label><input id="pF" type="number" step="0.1" value="\${edProd ? edProd.baseF : ''}" placeholder="0" class="w-full p-1.5 text-xs rounded-lg border border-blue-200 outline-none" /></div>
-                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Węglo</label><input id="pC" type="number" step="0.1" value="\${edProd ? edProd.baseC : ''}" placeholder="0" class="w-full p-1.5 text-xs rounded-lg border border-blue-200 outline-none" /></div>
+                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Białko</label><input id="pP" type="number" step="0.1" value="${edProd ? edProd.baseP : ''}" placeholder="0" class="w-full p-1.5 text-xs rounded-lg border border-blue-200 outline-none" /></div>
+                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Tłuszcz</label><input id="pF" type="number" step="0.1" value="${edProd ? edProd.baseF : ''}" placeholder="0" class="w-full p-1.5 text-xs rounded-lg border border-blue-200 outline-none" /></div>
+                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Węglo</label><input id="pC" type="number" step="0.1" value="${edProd ? edProd.baseC : ''}" placeholder="0" class="w-full p-1.5 text-xs rounded-lg border border-blue-200 outline-none" /></div>
                         </div>
                         <div class="flex space-x-2">
-                            <button onclick="addProd()" class="flex-1 bg-blue-600 text-white font-bold py-2 rounded-lg shadow-md text-xs active:scale-95">\${edProd ? 'Zapisz zmiany' : 'Zapisz w bazie'}</button>
-                            \${edProd ? \`<button onclick="cancelEditProd()" class="bg-gray-300 text-gray-700 font-bold px-4 py-2 rounded-lg shadow-md text-xs active:scale-95">Anuluj</button>\` : ''}
+                            <button onclick="addProd()" class="flex-1 bg-blue-600 text-white font-bold py-2 rounded-lg shadow-md text-xs active:scale-95">${edProd ? 'Zapisz zmiany' : 'Zapisz w bazie'}</button>
+                            ${edProd ? `<button onclick="cancelEditProd()" class="bg-gray-300 text-gray-700 font-bold px-4 py-2 rounded-lg shadow-md text-xs active:scale-95">Anuluj</button>` : ''}
                         </div>
                     </div>
 
                     <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100">
-                        <h3 class="font-bold text-sm mb-2">Baza Produktów (\${state.products.length})</h3>
+                        <h3 class="font-bold text-sm mb-2">Baza Produktów (${state.products.length})</h3>
                         <div class="space-y-2 max-h-[50vh] overflow-y-auto pr-1 pb-4">
-                            \${state.products.map(p => \`
+                            ${state.products.map(p => `
                                 <div class="bg-gray-50 border border-gray-100 p-2.5 rounded-lg flex justify-between items-center">
                                     <div class="pr-2 min-w-0">
-                                        <p class="font-bold text-xs text-gray-800 truncate">\${p.name} <span class="text-blue-600 font-normal">(\${p.baseWeight}g)</span></p>
-                                        <p class="text-[9px] text-gray-500 font-bold">B:\${p.baseP} | T:\${p.baseF} | W:\${p.baseC}</p>
+                                        <p class="font-bold text-xs text-gray-800 truncate">${p.name} <span class="text-blue-600 font-normal">(${p.baseWeight}g)</span></p>
+                                        <p class="text-[9px] text-gray-500 font-bold">B:${p.baseP} | T:${p.baseF} | W:${p.baseC}</p>
                                     </div>
                                     <div class="flex items-center space-x-3 shrink-0">
-                                        <span class="font-bold text-emerald-600 text-xs">\${p.baseKcal} kcal</span>
-                                        <button onclick="startEditProd('\${p.id}')" class="text-gray-400 hover:text-blue-500 font-bold">✏️</button>
-                                        <button onclick="delProd('\${p.id}')" class="text-red-300 hover:text-red-500 font-bold">🗑️</button>
+                                        <span class="font-bold text-emerald-600 text-xs">${p.baseKcal} kcal</span>
+                                        <button onclick="startEditProd('${p.id}')" class="text-gray-400 hover:text-blue-500 font-bold">✏️</button>
+                                        <button onclick="delProd('${p.id}')" class="text-red-300 hover:text-red-500 font-bold">🗑️</button>
                                     </div>
                                 </div>
-                            \`).join('')}
+                            `).join('')}
                         </div>
                     </div>
-                \`;
+                `;
             } else if (state.tab === 'podsumowanie') {
                 const curr = new Date(state.date);
                 const dayOfWeek = curr.getDay();
@@ -574,52 +581,52 @@
                 const wDiff = weightsForWeek.length >= 2 ? (weightsForWeek[weightsForWeek.length - 1] - weightsForWeek[0]) : 0;
                 const wDiffStr = (wDiff > 0 ? '+' : '') + wDiff.toFixed(1);
 
-                html += \`
+                html += `
                     <div class="bg-indigo-50 border border-indigo-200 p-5 rounded-xl text-center mb-4">
-                        <h2 class="font-black text-lg text-indigo-900 mb-1">Podsumowanie (\${user.name})</h2>
-                        <p class="text-[10px] text-indigo-500 font-bold uppercase mb-4">\${weekDates[0]} — \${weekDates[6]}</p>
+                        <h2 class="font-black text-lg text-indigo-900 mb-1">Podsumowanie (${user.name})</h2>
+                        <p class="text-[10px] text-indigo-500 font-bold uppercase mb-4">${weekDates[0]} — ${weekDates[6]}</p>
                         
                         <div class="grid grid-cols-2 gap-3 mb-4">
                             <div class="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
                                 <p class="text-[9px] font-bold text-indigo-400 uppercase mb-1">Średnio zjedzono</p>
-                                <p class="text-2xl font-black text-indigo-600">\${avgKcal} <span class="text-xs opacity-60">kcal</span></p>
+                                <p class="text-2xl font-black text-indigo-600">${avgKcal} <span class="text-xs opacity-60">kcal</span></p>
                             </div>
                             <div class="bg-white p-4 rounded-xl shadow-sm border border-orange-100">
                                 <p class="text-[9px] font-bold text-orange-400 uppercase mb-1">Spalone w tyg.</p>
-                                <p class="text-2xl font-black text-orange-500">🔥 \${tBurned}</p>
+                                <p class="text-2xl font-black text-orange-500">🔥 ${tBurned}</p>
                             </div>
                         </div>
                         <div class="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
                             <p class="text-[10px] font-bold text-gray-500 uppercase mb-1">Zmiana wagi (7 dni)</p>
-                            <p class="text-3xl font-black \${wDiff > 0 ? 'text-red-500' : 'text-emerald-500'}">\${wDiffStr} kg</p>
+                            <p class="text-3xl font-black ${wDiff > 0 ? 'text-red-500' : 'text-emerald-500'}">${wDiffStr} kg</p>
                         </div>
                     </div>
 
                     <!-- WYKRES WAGI -->
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
                         <h3 class="font-black text-sm text-gray-800 mb-3">📈 Wykres Wagi (Ostatnie 14 wpisów)</h3>
-                        \${renderWeightChart()}
+                        ${renderWeightChart()}
                     </div>
-                \`;
+                `;
             } else if (state.tab === 'kopia') {
-                html += \`
-                    \${state.statusMsg ? \`<div class="bg-emerald-100 border border-emerald-300 text-emerald-800 text-xs font-bold p-3 rounded-xl mb-4 text-center">\${state.statusMsg}</div>\` : ''}
+                html += `
+                    ${state.statusMsg ? `<div class="bg-emerald-100 border border-emerald-300 text-emerald-800 text-xs font-bold p-3 rounded-xl mb-4 text-center">${state.statusMsg}</div>` : ''}
                     
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4">
                         <h3 class="font-black text-gray-800 mb-3 text-sm">👤 Ustawienia Profili</h3>
                         <div class="space-y-3 mb-4">
-                            \${state.users.map((u, i) => \`
+                            ${state.users.map((u, i) => `
                                 <div>
-                                    <label class="text-[10px] font-bold text-gray-500 uppercase block mb-1">Imię Profilu \${i+1}</label>
-                                    <input type="text" value="\${u.name}" onchange="changeUserName('\${u.id}', this.value)" class="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold outline-none" />
+                                    <label class="text-[10px] font-bold text-gray-500 uppercase block mb-1">Imię Profilu ${i+1}</label>
+                                    <input type="text" value="${u.name}" onchange="changeUserName('${u.id}', this.value)" class="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold outline-none" />
                                 </div>
-                            \`).join('')}
+                            `).join('')}
                         </div>
                         <div>
                             <label class="text-[10px] font-bold text-gray-500 uppercase block mb-1">Pierwszy dzień tyg. statystyk</label>
                             <select onchange="changeStartOfWeek(this.value)" class="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold outline-none">
-                                <option value="1" \${state.settings.startOfWeek === 1 ? 'selected' : ''}>Poniedziałek</option>
-                                <option value="0" \${state.settings.startOfWeek === 0 ? 'selected' : ''}>Niedziela</option>
+                                <option value="1" ${state.settings.startOfWeek === 1 ? 'selected' : ''}>Poniedziałek</option>
+                                <option value="0" ${state.settings.startOfWeek === 0 ? 'selected' : ''}>Niedziela</option>
                             </select>
                         </div>
                     </div>
@@ -636,11 +643,11 @@
                             
                             <div class="text-left space-y-2 mb-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
                                 <label class="flex items-center space-x-2 text-[10px] font-bold text-gray-700">
-                                    <input type="radio" name="impMode" value="products" \${state.importMode === 'products' ? 'checked' : ''} onchange="state.importMode='products'" class="text-blue-600" />
+                                    <input type="radio" name="impMode" value="products" ${state.importMode === 'products' ? 'checked' : ''} onchange="state.importMode='products'" class="text-blue-600" />
                                     <span>Tylko dodaj nowe produkty</span>
                                 </label>
                                 <label class="flex items-center space-x-2 text-[10px] font-bold text-gray-700">
-                                    <input type="radio" name="impMode" value="full" \${state.importMode === 'full' ? 'checked' : ''} onchange="state.importMode='full'" class="text-blue-600" />
+                                    <input type="radio" name="impMode" value="full" ${state.importMode === 'full' ? 'checked' : ''} onchange="state.importMode='full'" class="text-blue-600" />
                                     <span>Pełna kopia (nadpisuje wszystko)</span>
                                 </label>
                             </div>
@@ -654,13 +661,13 @@
                     <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl shadow-sm border border-blue-200">
                         <h3 class="font-black text-blue-900 mb-2 text-sm flex items-center">✨ Asystent AI (Gemini)</h3>
                         <p class="text-[10px] text-blue-700 mb-3 font-medium">Wklej darmowy klucz z Google AI Studio, aby aktywować czat z asystentem, który automatycznie przeliczy Twoje posiłki.</p>
-                        <input type="password" value="\${state.settings.geminiApiKey}" oninput="changeGeminiKey(this.value)" placeholder="Wklej klucz API..." class="w-full p-2 bg-white border border-blue-200 rounded-lg text-xs outline-none focus:border-blue-400" />
+                        <input type="password" value="${state.settings.geminiApiKey}" oninput="changeGeminiKey(this.value)" placeholder="Wklej klucz API..." class="w-full p-2 bg-white border border-blue-200 rounded-lg text-xs outline-none focus:border-blue-400" />
                     </div>
-                \`;
+                `;
             }
 
             if (state.chatOpen) {
-                html += \`
+                html += `
                     <div class="fixed inset-0 bg-black/50 z-[100] flex flex-col justify-end">
                         <div class="bg-white w-full h-[85vh] rounded-t-3xl flex flex-col shadow-2xl overflow-hidden">
                             <div class="bg-blue-600 text-white p-4 flex justify-between items-center rounded-t-3xl">
@@ -669,22 +676,22 @@
                             </div>
                             
                             <div id="chatBox" class="flex-1 p-4 overflow-y-auto space-y-4 bg-gray-50">
-                                \${state.chatHistory.map(msg => \`
-                                    <div class="flex \${msg.role === 'user' ? 'justify-end' : 'justify-start'}">
-                                        <div class="max-w-[85%] rounded-2xl p-3 \${msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm text-sm'}">
-                                            \${msg.text}
-                                            \${msg.parsedFood ? \`
+                                ${state.chatHistory.map(msg => `
+                                    <div class="flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}">
+                                        <div class="max-w-[85%] rounded-2xl p-3 ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm text-sm'}">
+                                            ${msg.text}
+                                            ${msg.parsedFood ? `
                                                 <div class="mt-3 pt-3 border-t border-gray-100">
                                                     <p class="text-[10px] font-bold text-gray-400 uppercase mb-1">Znaleziono Posiłek:</p>
-                                                    <p class="font-bold text-blue-700 text-xs">\${msg.parsedFood.name} (\${msg.parsedFood.kcal} kcal)</p>
-                                                    <p class="text-[10px] text-gray-500">B:\${msg.parsedFood.p} T:\${msg.parsedFood.f} W:\${msg.parsedFood.c}</p>
-                                                    <button onclick="addGeminiMeal('\${encodeURIComponent(JSON.stringify(msg.parsedFood))}')" class="mt-2 w-full bg-blue-50 text-blue-600 border border-blue-200 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors">➕ Dodaj do dziennika</button>
+                                                    <p class="font-bold text-blue-700 text-xs">${msg.parsedFood.name} (${msg.parsedFood.kcal} kcal)</p>
+                                                    <p class="text-[10px] text-gray-500">B:${msg.parsedFood.p} T:${msg.parsedFood.f} W:${msg.parsedFood.c}</p>
+                                                    <button onclick="addGeminiMeal('${encodeURIComponent(JSON.stringify(msg.parsedFood))}')" class="mt-2 w-full bg-blue-50 text-blue-600 border border-blue-200 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors">➕ Dodaj do dziennika</button>
                                                 </div>
-                                            \` : ''}
+                                            ` : ''}
                                         </div>
                                     </div>
-                                \`).join('')}
-                                \${state.chatLoading ? \`<div class="flex justify-start"><div class="bg-white border border-gray-200 rounded-2xl p-3 rounded-tl-sm shadow-sm text-sm text-gray-400 animate-pulse">Gemini myśli...</div></div>\` : ''}
+                                `).join('')}
+                                ${state.chatLoading ? `<div class="flex justify-start"><div class="bg-white border border-gray-200 rounded-2xl p-3 rounded-tl-sm shadow-sm text-sm text-gray-400 animate-pulse">Gemini myśli...</div></div>` : ''}
                             </div>
                             
                             <div class="p-3 bg-white border-t border-gray-200 pb-safe">
@@ -695,29 +702,29 @@
                             </div>
                         </div>
                     </div>
-                \`;
+                `;
             }
 
-            html += \`
+            html += `
                 </div>
                 <div class="fixed bottom-0 left-1/2 transform -translate-x-1/2 w-full max-w-md bg-white/95 backdrop-blur border-t border-gray-200 grid grid-cols-5 p-1 pb-safe z-50">
-                    <button onclick="switchTab('dziennik')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 \${state.tab === 'dziennik' ? 'text-blue-600' : 'text-gray-400'}">
+                    <button onclick="switchTab('dziennik')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'dziennik' ? 'text-blue-600' : 'text-gray-400'}">
                         <span class="text-xl mb-0.5">📅</span><span class="text-[9px] font-bold truncate w-full text-center">Dziennik</span>
                     </button>
-                    <button onclick="switchTab('baza')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 \${state.tab === 'baza' ? 'text-blue-600' : 'text-gray-400'}">
+                    <button onclick="switchTab('baza')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'baza' ? 'text-blue-600' : 'text-gray-400'}">
                         <span class="text-xl mb-0.5">🍎</span><span class="text-[9px] font-bold truncate w-full text-center">Baza</span>
                     </button>
-                    <button onclick="switchTab('trening')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 \${state.tab === 'trening' ? 'text-blue-600' : 'text-gray-400'}">
+                    <button onclick="switchTab('trening')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'trening' ? 'text-blue-600' : 'text-gray-400'}">
                         <span class="text-xl mb-0.5">💪</span><span class="text-[9px] font-bold truncate w-full text-center">Ciało</span>
                     </button>
-                    <button onclick="switchTab('podsumowanie')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 \${state.tab === 'podsumowanie' ? 'text-blue-600' : 'text-gray-400'}">
+                    <button onclick="switchTab('podsumowanie')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'podsumowanie' ? 'text-blue-600' : 'text-gray-400'}">
                         <span class="text-xl mb-0.5">📊</span><span class="text-[9px] font-bold truncate w-full text-center">Tydzień</span>
                     </button>
-                    <button onclick="switchTab('kopia')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 \${state.tab === 'kopia' ? 'text-blue-600' : 'text-gray-400'}">
+                    <button onclick="switchTab('kopia')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'kopia' ? 'text-blue-600' : 'text-gray-400'}">
                         <span class="text-xl mb-0.5">⚙️</span><span class="text-[9px] font-bold truncate w-full text-center">Ustaw.</span>
                     </button>
                 </div>
-            \`;
+            `;
             app.innerHTML = html;
 
             if(state.chatOpen) {
