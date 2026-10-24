@@ -7,17 +7,21 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="manifest" href="manifest.json">
-    <title>Dziennik Diety Rodzinny</title>
+    <title>Dziennik Diety</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        html, body { overflow-x: hidden; width: 100%; }
+        body { -webkit-tap-highlight-color: transparent; }
         @supports (padding-bottom: env(safe-area-inset-bottom)) {
             .pb-safe { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
         }
-        body { -webkit-tap-highlight-color: transparent; }
+        /* Custom scrollbar dla list */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans pb-24 select-none">
-    <div id="app" class="max-w-md mx-auto min-h-screen bg-white shadow-xl relative"></div>
+    <div id="app" class="max-w-md w-full mx-auto min-h-screen bg-white shadow-xl relative overflow-hidden flex flex-col"></div>
 
     <script>
         if ('serviceWorker' in navigator) {
@@ -27,43 +31,39 @@
         const FULL_PRODUCTS = [
             { id: "hb1", name: "Fruvita Skyr naturalny (kubek 150g)", baseWeight: 150, baseKcal: 98, baseP: 18.0, baseF: 0.0, baseC: 6.2 },
             { id: "hb2", name: "Fruvita Skyr pitny (butelka 360g)", baseWeight: 360, baseKcal: 225, baseP: 36.0, baseF: 1.0, baseC: 16.0 },
-            { id: "hb3", name: "Fruvita Skyr owocowy - truskawka/jagoda (150g)", baseWeight: 150, baseKcal: 129, baseP: 14.4, baseF: 0.0, baseC: 18.0 },
-            { id: "hb4", name: "Go Active Protein Pudding (kubek 200g)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 11.0 },
-            { id: "hb5", name: "Go Active Protein Napój mleczny (butelka 350g)", baseWeight: 350, baseKcal: 215, baseP: 35.0, baseF: 0.7, baseC: 17.2 },
-            { id: "hb6", name: "Go Active Protein Kaszka (kubek 200g)", baseWeight: 200, baseKcal: 160, baseP: 15.0, baseF: 3.5, baseC: 17.0 },
-            { id: "hb7", name: "Go Active Protein Mousse - mus czekoladowy (200g)", baseWeight: 200, baseKcal: 158, baseP: 20.0, baseF: 3.0, baseC: 12.4 },
-            { id: "hb8", name: "Go Active Serek wiejski wysokobiałkowy (200g)", baseWeight: 200, baseKcal: 184, baseP: 28.0, baseF: 6.0, baseC: 4.6 },
-            { id: "hb9", name: "Müllermilch Protein Zero bez dod. cukru (400g)", baseWeight: 400, baseKcal: 248, baseP: 26.0, baseF: 6.8, baseC: 20.4 },
+            { id: "hb3", name: "Fruvita Skyr owocowy (150g)", baseWeight: 150, baseKcal: 129, baseP: 14.4, baseF: 0.0, baseC: 18.0 },
+            { id: "hb4", name: "Go Active Protein Pudding (200g)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 11.0 },
+            { id: "hb5", name: "Go Active Protein Napój (350g)", baseWeight: 350, baseKcal: 215, baseP: 35.0, baseF: 0.7, baseC: 17.2 },
+            { id: "hb6", name: "Go Active Protein Kaszka (200g)", baseWeight: 200, baseKcal: 160, baseP: 15.0, baseF: 3.5, baseC: 17.0 },
+            { id: "hb7", name: "Go Active Protein Mousse (200g)", baseWeight: 200, baseKcal: 158, baseP: 20.0, baseF: 3.0, baseC: 12.4 },
+            { id: "hb8", name: "Go Active Serek wiejski (200g)", baseWeight: 200, baseKcal: 184, baseP: 28.0, baseF: 6.0, baseC: 4.6 },
+            { id: "hb9", name: "Müllermilch Protein Zero (400g)", baseWeight: 400, baseKcal: 248, baseP: 26.0, baseF: 6.8, baseC: 20.4 },
             { id: "hb10", name: "Müllermilch Protein klasyczny (400g)", baseWeight: 400, baseKcal: 336, baseP: 26.0, baseF: 6.4, baseC: 42.4 },
-            { id: "hb11", name: "Piątnica Skyr naturalny (kubek 150g)", baseWeight: 150, baseKcal: 96, baseP: 18.0, baseF: 0.0, baseC: 6.0 },
-            { id: "hb12", name: "Piątnica Skyr naturalny (duży 450g)", baseWeight: 450, baseKcal: 288, baseP: 54.0, baseF: 0.0, baseC: 18.0 },
-            { id: "hb13", name: "Piątnica Skyr waniliowy (kubek 150g)", baseWeight: 150, baseKcal: 123, baseP: 14.4, baseF: 0.0, baseC: 16.5 },
+            { id: "hb11", name: "Piątnica Skyr naturalny (150g)", baseWeight: 150, baseKcal: 96, baseP: 18.0, baseF: 0.0, baseC: 6.0 },
+            { id: "hb12", name: "Piątnica Skyr naturalny (450g)", baseWeight: 450, baseKcal: 288, baseP: 54.0, baseF: 0.0, baseC: 18.0 },
+            { id: "hb13", name: "Piątnica Skyr waniliowy (150g)", baseWeight: 150, baseKcal: 123, baseP: 14.4, baseF: 0.0, baseC: 16.5 },
             { id: "hb14", name: "Piątnica Skyr owocowy (150g)", baseWeight: 150, baseKcal: 120, baseP: 14.4, baseF: 0.0, baseC: 15.0 },
-            { id: "hb15", name: "Piątnica Skyr pitny (butelka 330g)", baseWeight: 330, baseKcal: 257, baseP: 21.5, baseF: 5.0, baseC: 31.4 },
-            { id: "hb16", name: "Piątnica Serek wiejski wysokobiałkowy (200g)", baseWeight: 200, baseKcal: 186, baseP: 28.0, baseF: 6.0, baseC: 4.8 },
-            { id: "hb17", name: "Pilos Skyr naturalny Lidl (kubek 150g)", baseWeight: 150, baseKcal: 96, baseP: 18.5, baseF: 0.0, baseC: 6.5 },
-            { id: "hb18", name: "Pilos Skyr owocowy Lidl (kubek 150g)", baseWeight: 150, baseKcal: 84, baseP: 13.0, baseF: 0.0, baseC: 7.0 },
-            { id: "hb19", name: "Pilos Skyr pitny Lidl (butelka 330g)", baseWeight: 330, baseKcal: 178, baseP: 21.5, baseF: 0.3, baseC: 22.0 },
-            { id: "hb20", name: "Pilos High Protein Pudding Lidl (200g)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 10.4 },
+            { id: "hb15", name: "Piątnica Skyr pitny (330g)", baseWeight: 330, baseKcal: 257, baseP: 21.5, baseF: 5.0, baseC: 31.4 },
+            { id: "hb16", name: "Piątnica Serek wiejski wysokob. (200g)", baseWeight: 200, baseKcal: 186, baseP: 28.0, baseF: 6.0, baseC: 4.8 },
+            { id: "hb17", name: "Pilos Skyr naturalny (150g)", baseWeight: 150, baseKcal: 96, baseP: 18.5, baseF: 0.0, baseC: 6.5 },
+            { id: "hb18", name: "Pilos Skyr owocowy (150g)", baseWeight: 150, baseKcal: 84, baseP: 13.0, baseF: 0.0, baseC: 7.0 },
+            { id: "hb19", name: "Pilos Skyr pitny (330g)", baseWeight: 330, baseKcal: 178, baseP: 21.5, baseF: 0.3, baseC: 22.0 },
+            { id: "hb20", name: "Pilos High Protein Pudding (200g)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 10.4 },
             { id: "hb21", name: "Ehrmann High Protein Pudding (200g)", baseWeight: 200, baseKcal: 152, baseP: 20.0, baseF: 3.0, baseC: 11.0 },
             { id: "hb23", name: "Danone YoPRO jogurt gęsty (160g)", baseWeight: 160, baseKcal: 90, baseP: 15.0, baseF: 0.2, baseC: 7.0 },
             { id: "hb24", name: "Danone YoPRO napój pitny (270g)", baseWeight: 270, baseKcal: 162, baseP: 23.0, baseF: 1.4, baseC: 15.0 },
             { id: "hb25", name: "Bakoma Men Protein Shake pitny (380g)", baseWeight: 380, baseKcal: 175, baseP: 20.0, baseF: 0.5, baseC: 22.0 },
-            { id: "hb26", name: "Bakoma Men Protein jogurt gęsty (150g)", baseWeight: 150, baseKcal: 126, baseP: 12.0, baseF: 3.0, baseC: 13.5 },
-            { id: "hb27", name: "Zott Primo Protein jogurt naturalny (200g)", baseWeight: 200, baseKcal: 134, baseP: 17.0, baseF: 2.2, baseC: 11.2 },
-            { id: "hb28", name: "Maluta Skyr+ jogurt typu islandzkiego (150g)", baseWeight: 150, baseKcal: 78, baseP: 13.5, baseF: 0.0, baseC: 6.0 },
-            
+            { id: "hb26", name: "Bakoma Men Protein jogurt (150g)", baseWeight: 150, baseKcal: 126, baseP: 12.0, baseF: 3.0, baseC: 13.5 },
+            { id: "hb27", name: "Zott Primo Protein jogurt (200g)", baseWeight: 200, baseKcal: 134, baseP: 17.0, baseF: 2.2, baseC: 11.2 },
             { id: "r1", name: "Pierś z kurczaka (surowa)", baseWeight: 100, baseKcal: 98, baseP: 21.5, baseF: 1.3, baseC: 0 },
             { id: "r2", name: "Pierś z indyka (surowa)", baseWeight: 100, baseKcal: 84, baseP: 19.2, baseF: 0.7, baseC: 0 },
             { id: "r3", name: "Polędwica wołowa (chuda)", baseWeight: 100, baseKcal: 120, baseP: 21.0, baseF: 4.0, baseC: 0 },
             { id: "r4", name: "Schab wieprzowy (chudy)", baseWeight: 100, baseKcal: 128, baseP: 21.0, baseF: 4.5, baseC: 0 },
-            { id: "r7", name: "Mięso mielone wołowe (5% tłuszczu)", baseWeight: 100, baseKcal: 125, baseP: 21.0, baseF: 4.5, baseC: 0 },
+            { id: "r7", name: "Mięso mielone wołowe (5%)", baseWeight: 100, baseKcal: 125, baseP: 21.0, baseF: 4.5, baseC: 0 },
             { id: "r11", name: "Dorsz świeży (filet)", baseWeight: 100, baseKcal: 78, baseP: 17.7, baseF: 0.7, baseC: 0 },
             { id: "r13", name: "Łosoś świeży (filet)", baseWeight: 100, baseKcal: 201, baseP: 19.9, baseF: 13.6, baseC: 0 },
             { id: "r19", name: "Twaróg chudy (0%)", baseWeight: 100, baseKcal: 86, baseP: 19.8, baseF: 0.5, baseC: 3.5 },
             { id: "r20", name: "Twaróg półtłusty", baseWeight: 100, baseKcal: 117, baseP: 18.7, baseF: 3.5, baseC: 3.7 },
-            { id: "r21", name: "Serek wiejski lekki 3%", baseWeight: 200, baseKcal: 162, baseP: 22.0, baseF: 6.0, baseC: 4.8 },
-            { id: "r22", name: "Serek wiejski klasyczny", baseWeight: 200, baseKcal: 194, baseP: 22.0, baseF: 10.0, baseC: 4.0 },
             { id: "r23", name: "Jajko kurze (1 sztuka)", baseWeight: 55, baseKcal: 77, baseP: 6.9, baseF: 5.3, baseC: 0.3 },
             { id: "r25", name: "Mozzarella Light (1 kulka)", baseWeight: 125, baseKcal: 196, baseP: 23.8, baseF: 10.6, baseC: 1.3 },
             { id: "r36", name: "Odżywka białkowa WPC (1 miarka)", baseWeight: 30, baseKcal: 117, baseP: 23.4, baseF: 1.8, baseC: 1.8 },
@@ -75,16 +75,15 @@
             { id: "r55", name: "Tortilla pełnoziarnista (1 placek)", baseWeight: 62, baseKcal: 180, baseP: 5.6, baseF: 3.7, baseC: 30.0 },
             { id: "r59", name: "Awokado Hass (pół sztuki)", baseWeight: 70, baseKcal: 112, baseP: 1.4, baseF: 10.5, baseC: 1.3 },
             { id: "r60", name: "Oliwa z oliwek (1 łyżka)", baseWeight: 10, baseKcal: 88, baseP: 0, baseF: 10.0, baseC: 0 },
-            { id: "r63", name: "Masło orzechowe 100% (1 łyżeczka)", baseWeight: 15, baseKcal: 88, baseP: 3.9, baseF: 7.5, baseC: 2.1 },
+            { id: "r63", name: "Masło orzechowe (1 łyżeczka)", baseWeight: 15, baseKcal: 88, baseP: 3.9, baseF: 7.5, baseC: 2.1 },
             { id: "r86", name: "Jabłko (1 sztuka)", baseWeight: 150, baseKcal: 75, baseP: 0.6, baseF: 0.6, baseC: 15.2 },
             { id: "r87", name: "Banan (1 obrana sztuka)", baseWeight: 120, baseKcal: 116, baseP: 1.2, baseF: 0.4, baseC: 26.2 },
-            
             { id: "w1", name: "Wrap domowy (porcja)", baseWeight: 260, baseKcal: 339, baseP: 27.1, baseF: 9.0, baseC: 35.3 },
             { id: "w2", name: "Kanapki z łososiem wędzonym (3 szt.)", baseWeight: 280, baseKcal: 557, baseP: 32.7, baseF: 14.5, baseC: 72.8 },
             { id: "w3", name: "Jajka sadzone (4 szt.) z awokado", baseWeight: 250, baseKcal: 385, baseP: 26.8, baseF: 30.0, baseC: 5.5 },
             { id: "w4", name: "Krupnik domowy, gęsty (talerz)", baseWeight: 460, baseKcal: 345, baseP: 14.0, baseF: 11.0, baseC: 48.0 },
             { id: "w5", name: "Zestaw obiadowy (filet, ziemniaki, surówka)", baseWeight: 450, baseKcal: 575, baseP: 35.3, baseF: 18.5, baseC: 65.0 },
-            { id: "w6", name: "KFC Zestaw kolacyjny (4 wings + 2 strips + 2 kawałki)", baseWeight: 460, baseKcal: 1082, baseP: 69.0, baseF: 57.0, baseC: 56.0 }
+            { id: "w6", name: "KFC Zestaw kolacyjny (4 wings, 2 strips, 2 kaw.)", baseWeight: 460, baseKcal: 1082, baseP: 69.0, baseF: 57.0, baseC: 56.0 }
         ];
 
         function loadStorage(key, fallback) {
@@ -94,39 +93,33 @@
 
         const state = {
             tab: 'dziennik',
-            users: loadStorage('diet_v6_users', [{ id: 'u1', name: 'Ja' }, { id: 'u2', name: 'Żona' }]),
-            userId: localStorage.getItem('diet_v6_curr_user') || 'u1',
+            users: loadStorage('diet_v7_users', [{ id: 'u1', name: 'Ja' }, { id: 'u2', name: 'Żona' }]),
+            userId: localStorage.getItem('diet_v7_curr_user') || 'u1',
             products: [], 
-            diaries: loadStorage('diet_v6_diaries', {}),
-            settings: loadStorage('diet_v6_settings', { startOfWeek: 1 }),
+            diaries: loadStorage('diet_v7_diaries', {}),
+            settings: loadStorage('diet_v7_settings', { startOfWeek: 1, startDate: new Date().toISOString().split('T')[0] }),
             date: new Date().toISOString().split('T')[0],
             isEditingGoals: false,
-            searchQuery: '',
-            selectedProdId: '',
-            inputWeight: '',
             importMode: 'full',
             statusMsg: ''
         };
 
         function initProducts() {
-            let saved = loadStorage('diet_v6_products', null) || loadStorage('diet_v5_products', null) || [];
+            let saved = loadStorage('diet_v7_products', null) || loadStorage('diet_v6_products', null) || [];
             const names = new Set(saved.map(p => p.name.trim().toLowerCase()));
             FULL_PRODUCTS.forEach(bp => {
-                if (!names.has(bp.name.trim().toLowerCase())) {
-                    saved.push(bp);
-                    names.add(bp.name.trim().toLowerCase());
-                }
+                if (!names.has(bp.name.trim().toLowerCase())) { saved.push(bp); names.add(bp.name.trim().toLowerCase()); }
             });
             state.products = saved;
         }
         initProducts();
 
         function saveState() {
-            localStorage.setItem('diet_v6_users', JSON.stringify(state.users));
-            localStorage.setItem('diet_v6_curr_user', state.userId);
-            localStorage.setItem('diet_v6_products', JSON.stringify(state.products));
-            localStorage.setItem('diet_v6_diaries', JSON.stringify(state.diaries));
-            localStorage.setItem('diet_v6_settings', JSON.stringify(state.settings));
+            localStorage.setItem('diet_v7_users', JSON.stringify(state.users));
+            localStorage.setItem('diet_v7_curr_user', state.userId);
+            localStorage.setItem('diet_v7_products', JSON.stringify(state.products));
+            localStorage.setItem('diet_v7_diaries', JSON.stringify(state.diaries));
+            localStorage.setItem('diet_v7_settings', JSON.stringify(state.settings));
         }
 
         function getDayData() {
@@ -141,13 +134,10 @@
         }
 
         function getDietDaysCounter() {
-            const userDiary = state.diaries[state.userId] || {};
-            const dates = Object.keys(userDiary).sort();
-            if (dates.length === 0) return 1;
-            const first = new Date(dates[0]);
-            const today = new Date();
-            const diff = Math.ceil(Math.abs(today - first) / (1000 * 60 * 60 * 24));
-            return isNaN(diff) ? 1 : diff + 1;
+            const start = new Date(state.settings.startDate);
+            const current = new Date(state.date);
+            const diff = Math.floor((current - start) / (1000 * 60 * 60 * 24));
+            return diff >= 0 ? diff + 1 : 0;
         }
 
         function render() {
@@ -158,11 +148,14 @@
             let eatenKcal = 0, eatenP = 0, eatenF = 0, eatenC = 0;
             day.meals.forEach(m => { eatenKcal += m.kcal; eatenP += m.p; eatenF += m.f; eatenC += m.c; });
             const burned = day.workouts.reduce((s, w) => s + w.kcal, 0);
-            const left = day.goals.kcal - eatenKcal + burned;
+            
+            // Logika odliczania treningu: Netto = Zjedzone - Spalone
+            const nettoKcal = Math.max(0, eatenKcal - burned);
+            const left = day.goals.kcal - nettoKcal;
             const isSurplus = left < 0;
 
             let html = `
-                <div class="bg-blue-600 text-white p-4 shadow-md rounded-b-xl">
+                <div class="bg-blue-600 text-white p-4 shadow-md rounded-b-xl w-full">
                     <div class="flex justify-between items-center mb-3">
                         <h1 class="text-xl font-bold tracking-tight">Dziennik Diety</h1>
                         <span class="text-xs bg-blue-800 px-3 py-1 rounded-full font-bold shadow-inner">Dzień: ${getDietDaysCounter()}</span>
@@ -171,162 +164,225 @@
                         <span class="text-xs text-blue-200 pl-2 font-semibold uppercase tracking-wider">Profil:</span>
                         <div class="flex space-x-1 flex-1">
                             ${state.users.map(u => `
-                                <button onclick="switchUser('${u.id}')" class="flex-1 py-1.5 rounded-md text-xs font-bold transition-colors ${state.userId === u.id ? 'bg-white text-blue-700 shadow' : 'text-white hover:bg-blue-500'}">
-                                    👤 ${u.name}
+                                <button onclick="switchUser('${u.id}')" class="flex-1 py-1.5 rounded-md text-xs font-bold transition-colors truncate ${state.userId === u.id ? 'bg-white text-blue-700 shadow' : 'text-white hover:bg-blue-500'}">
+                                    ${u.name}
                                 </button>
                             `).join('')}
                         </div>
                     </div>
                 </div>
-                <div class="p-4 space-y-4">
+                <div class="p-3 w-full flex-1 overflow-x-hidden">
             `;
 
             if (state.tab === 'dziennik') {
-                const q = state.searchQuery.trim().toLowerCase();
-                const filteredProducts = q ? state.products.filter(p => p.name.toLowerCase().includes(q)) : state.products;
-
                 html += `
                     <!-- Data i Waga -->
-                    <div class="flex space-x-3">
-                        <div class="flex-1 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
-                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1 block">Data</label>
-                            <input type="date" value="${state.date}" onchange="changeDate(this.value)" class="w-full text-sm font-bold text-gray-700 bg-transparent outline-none" />
+                    <div class="flex space-x-2 mb-3">
+                        <div class="flex-1 bg-white p-2.5 rounded-xl shadow-sm border border-gray-100 min-w-0">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-0.5 block">Data</label>
+                            <input type="date" value="${state.date}" onchange="changeDate(this.value)" class="w-full text-xs font-bold text-gray-700 bg-transparent outline-none" />
                         </div>
-                        <div class="w-24 bg-white p-3 rounded-xl shadow-sm border border-gray-100">
-                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1 block">Waga (kg)</label>
-                            <input type="number" step="0.1" value="${day.weight}" onchange="changeWeight(this.value)" class="w-full text-sm font-bold text-gray-700 text-center bg-transparent outline-none" />
+                        <div class="w-24 bg-white p-2.5 rounded-xl shadow-sm border border-gray-100 shrink-0">
+                            <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-0.5 block">Waga (kg)</label>
+                            <input type="number" step="0.1" value="${day.weight}" onchange="changeWeight(this.value)" class="w-full text-xs font-bold text-gray-700 text-center bg-transparent outline-none" />
                         </div>
                     </div>
 
                     <!-- Cel Dnia -->
-                    <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl relative overflow-hidden">
-                        <div class="absolute top-0 right-0 w-16 h-16 bg-blue-100 rounded-bl-full -mr-8 -mt-8"></div>
-                        <div class="flex justify-between items-center relative z-10">
-                            <span class="font-bold text-blue-900 text-sm">🎯 Cel na dziś (${user.name})</span>
-                            <button onclick="toggleGoals()" class="text-xs bg-blue-600 text-white px-3 py-1 rounded-full font-bold shadow-sm hover:bg-blue-700 transition-colors">
-                                ${state.isEditingGoals ? 'Zamknij' : '⚙️ Zmień'}
+                    <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl mb-3">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold text-blue-900 text-xs">🎯 Cel (${user.name}): ${day.goals.kcal} kcal</span>
+                            <button onclick="toggleGoals()" class="text-[10px] bg-blue-600 text-white px-2 py-1 rounded font-bold shadow-sm hover:bg-blue-700">
+                                ${state.isEditingGoals ? 'Zamknij' : 'Edytuj'}
                             </button>
                         </div>
-                        ${!state.isEditingGoals ? `
-                            <div class="flex justify-between text-xs text-blue-800 mt-3 font-semibold relative z-10 bg-white/60 p-2 rounded-lg">
-                                <span class="text-sm"><b>${day.goals.kcal}</b> kcal</span>
-                                <span>B: <b>${day.goals.p}g</b></span>
-                                <span>T: <b>${day.goals.f}g</b></span>
-                                <span>W: <b>${day.goals.c}g</b></span>
-                            </div>
-                        ` : `
-                            <div class="mt-3 grid grid-cols-2 gap-2 relative z-10">
+                        ${state.isEditingGoals ? `
+                            <div class="grid grid-cols-2 gap-2 mb-2">
                                 <div><label class="text-[10px] font-bold text-blue-700">Kcal</label><input id="gKcal" type="number" value="${day.goals.kcal}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
                                 <div><label class="text-[10px] font-bold text-blue-700">Białko (g)</label><input id="gP" type="number" value="${day.goals.p}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
                                 <div><label class="text-[10px] font-bold text-blue-700">Tłuszcz (g)</label><input id="gF" type="number" value="${day.goals.f}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
                                 <div><label class="text-[10px] font-bold text-blue-700">Węglo (g)</label><input id="gC" type="number" value="${day.goals.c}" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>
-                                <button onclick="saveGoals()" class="col-span-2 mt-2 bg-blue-600 text-white py-2 rounded-lg font-bold text-xs shadow-md">Zapisz nowy cel</button>
                             </div>
-                        `}
+                            <button onclick="saveGoals()" class="w-full bg-blue-600 text-white py-1.5 rounded font-bold text-xs">Zapisz cel</button>
+                        ` : ''}
                     </div>
 
-                    <!-- Pasek Postępu -->
-                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-                        <div class="flex justify-between items-end mb-4">
-                            <div>
-                                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Zjedzono</p>
-                                <p class="text-3xl font-black text-gray-800">${Math.round(eatenKcal)} <span class="text-sm font-semibold text-gray-400">kcal</span></p>
+                    <!-- Pasek Postępu z uwzględnieniem treningu -->
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4">
+                        <div class="flex justify-between items-center mb-3">
+                            <div class="text-center w-1/3">
+                                <p class="text-[9px] font-bold text-gray-400 uppercase">Zjedzono</p>
+                                <p class="text-lg font-black text-gray-800">${Math.round(eatenKcal)}</p>
                             </div>
-                            <div class="text-right">
-                                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">${isSurplus ? 'Nadwyżka' : 'Pozostało'}</p>
-                                <p class="text-3xl font-black ${isSurplus ? 'text-red-500' : 'text-emerald-500'}">${Math.abs(Math.round(left))} <span class="text-sm font-semibold opacity-70">kcal</span></p>
+                            <div class="text-center w-1/3 border-x border-gray-100">
+                                <p class="text-[9px] font-bold text-orange-400 uppercase">Spalone</p>
+                                <p class="text-lg font-black text-orange-500">-${burned}</p>
                             </div>
+                            <div class="text-center w-1/3">
+                                <p class="text-[9px] font-bold text-blue-400 uppercase">Kcal Netto</p>
+                                <p class="text-lg font-black text-blue-600">${Math.round(nettoKcal)}</p>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-2 flex justify-between items-center mb-3">
+                            <span class="text-[10px] font-bold text-gray-500 uppercase">${isSurplus ? 'Nadwyżka' : 'Zostało na dziś'}</span>
+                            <span class="text-xl font-black ${isSurplus ? 'text-red-500' : 'text-emerald-500'}">${Math.abs(Math.round(left))} kcal</span>
                         </div>
                         <div class="grid grid-cols-3 gap-2">
-                            <div class="bg-blue-50 text-blue-800 py-1.5 rounded-lg text-center text-xs font-bold border border-blue-100">B: ${Math.round(eatenP)}<span class="opacity-50">/${day.goals.p}g</span></div>
-                            <div class="bg-amber-50 text-amber-800 py-1.5 rounded-lg text-center text-xs font-bold border border-amber-100">T: ${Math.round(eatenF)}<span class="opacity-50">/${day.goals.f}g</span></div>
-                            <div class="bg-emerald-50 text-emerald-800 py-1.5 rounded-lg text-center text-xs font-bold border border-emerald-100">W: ${Math.round(eatenC)}<span class="opacity-50">/${day.goals.c}g</span></div>
+                            <div class="bg-blue-50 text-blue-800 py-1 rounded text-center text-[10px] font-bold">B: ${Math.round(eatenP)}/${day.goals.p}g</div>
+                            <div class="bg-amber-50 text-amber-800 py-1 rounded text-center text-[10px] font-bold">T: ${Math.round(eatenF)}/${day.goals.f}g</div>
+                            <div class="bg-emerald-50 text-emerald-800 py-1 rounded text-center text-[10px] font-bold">W: ${Math.round(eatenC)}/${day.goals.c}g</div>
                         </div>
                     </div>
 
-                    <!-- Dodawanie Posiłku -->
+                    <!-- Dodawanie Posiłku (Autocomplete Datalist) -->
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                        <h3 class="font-bold text-sm text-gray-800 mb-3 flex items-center"><span class="mr-2">🍽️</span> Dodaj posiłek</h3>
-                        <div class="relative mb-3">
-                            <input type="text" placeholder="🔍 Szukaj (np. skyr, kurczak)..." value="${state.searchQuery}" oninput="searchProducts(this.value)" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-blue-500 outline-none" />
-                        </div>
-                        <div class="flex space-x-2">
-                            <select id="selProd" onchange="selectProd(this.value)" class="flex-1 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium px-2 py-2 outline-none">
-                                <option value="">Wybierz produkt z listy...</option>
-                                ${filteredProducts.map(p => `<option value="${p.id}" ${state.selectedProdId === p.id ? 'selected' : ''}>${p.name} (${p.baseWeight}g = ${p.baseKcal} kcal)</option>`).join('')}
-                            </select>
-                            <input id="inpW" type="number" placeholder="Waga(g)" value="${state.inputWeight}" oninput="state.inputWeight = this.value" class="w-20 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-center outline-none" />
-                            <button onclick="addMeal()" class="bg-blue-600 hover:bg-blue-700 text-white w-10 rounded-lg font-bold shadow-md transition-transform active:scale-95">+</button>
+                        <h3 class="font-bold text-sm text-gray-800 mb-2 flex items-center">🍽️ Posiłki</h3>
+                        
+                        <datalist id="prod-list">
+                            ${state.products.map(p => `<option value="${p.name}"></option>`).join('')}
+                        </datalist>
+
+                        <div class="flex space-x-2 mb-3">
+                            <input id="mealInput" list="prod-list" placeholder="Wpisz nazwę (np. skyr)..." onchange="handleMealSelect(this.value)" class="flex-1 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium px-3 py-2 outline-none min-w-0" />
+                            <input id="inpW" type="number" placeholder="Waga(g)" class="w-16 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-center outline-none shrink-0" />
+                            <button onclick="addMeal()" class="bg-blue-600 text-white px-3 rounded-lg font-bold shadow-md active:scale-95 shrink-0">+</button>
                         </div>
 
                         <!-- Lista posiłków -->
-                        <div class="mt-4 space-y-2">
-                            ${day.meals.map(m => `
-                                <div class="flex justify-between items-center bg-gray-50 p-2.5 rounded-lg border border-gray-100">
-                                    <div class="flex-1 pr-2">
-                                        <p class="font-bold text-sm text-gray-800 leading-tight">${m.name}</p>
-                                        <p class="text-[10px] text-gray-500 mt-0.5 font-medium">${m.weight}g | B:${m.p} T:${m.f} W:${m.c}</p>
-                                    </div>
-                                    <div class="flex items-center space-x-3">
-                                        <span class="font-black text-gray-700 text-sm">${m.kcal} <span class="text-[10px] font-normal text-gray-400">kcal</span></span>
-                                        <button onclick="delMeal(${m.id})" class="text-red-400 hover:text-red-600 bg-red-50 w-7 h-7 rounded-full flex items-center justify-center font-bold">✕</button>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-
-                    <!-- Treningi -->
-                    <div class="bg-white p-4 rounded-xl shadow-sm border border-orange-100">
-                        <h3 class="font-bold text-sm text-orange-600 mb-3 flex items-center"><span class="mr-2">🔥</span> Spalone kalorie (-${burned} kcal)</h3>
-                        <div class="flex space-x-2 mb-3">
-                            <input id="wName" placeholder="Nazwa treningu" class="flex-1 bg-orange-50/50 border border-orange-100 rounded-lg text-xs px-3 py-2 outline-none focus:border-orange-300" />
-                            <input id="wTime" type="number" placeholder="Min" class="w-16 bg-orange-50/50 border border-orange-100 rounded-lg text-xs text-center font-bold outline-none" />
-                            <input id="wKcal" type="number" placeholder="Kcal" class="w-16 bg-orange-50/50 border border-orange-100 rounded-lg text-xs text-center font-bold outline-none" />
-                            <button onclick="addWorkout()" class="bg-orange-500 hover:bg-orange-600 text-white w-10 rounded-lg font-bold shadow-md active:scale-95">+</button>
-                        </div>
                         <div class="space-y-2">
-                            ${day.workouts.map(w => `
-                                <div class="flex justify-between items-center bg-orange-50 p-2.5 rounded-lg border border-orange-100/50">
-                                    <span class="font-bold text-xs text-orange-900">${w.name} <span class="font-normal opacity-70">(${w.time} min)</span></span>
-                                    <div class="flex items-center space-x-3">
-                                        <span class="font-black text-orange-600 text-sm">${w.kcal} kcal</span>
-                                        <button onclick="delWorkout(${w.id})" class="text-red-400 hover:text-red-600 w-6 h-6 flex items-center justify-center font-bold">✕</button>
+                            ${day.meals.map(m => `
+                            
+                        <div class="flex space-x-2 mb-3">
+                            <input id="mealInput" list="prod-list" placeholder="Wpisz nazwę (np. skyr)..." onchange="handleMealSelect(this.value)" class="flex-1 bg-gray-50 border border-gray-200 rounded-lg text-xs font-medium px-3 py-2 outline-none min-w-0" />
+                            <input id="inpW" type="number" placeholder="Waga(g)" class="w-16 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-center outline-none shrink-0" />
+                            <button onclick="addMeal()" class="bg-blue-600 text-white px-3 rounded-lg font-bold shadow-md active:scale-95 shrink-0">+</button>
+                        </div>
+
+                        <!-- Lista posiłków -->
+                        <div class="space-y-2">
+                            ${day.meals.map(m => `
+                                <div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-100">
+                                    <div class="flex-1 pr-1 min-w-0">
+                                        <p class="font-bold text-xs text-gray-800 truncate">${m.name}</p>
+                                        <p class="text-[9px] text-gray-500 mt-0.5">${m.weight}g | B:${m.p} T:${m.f} W:${m.c}</p>
+                                    </div>
+                                    <div class="flex items-center space-x-2 shrink-0">
+                                        <span class="font-black text-gray-700 text-xs">${m.kcal} <span class="font-normal text-[9px] text-gray-400">kcal</span></span>
+                                        <button onclick="delMeal(${m.id})" class="text-red-400 font-bold px-2">✕</button>
                                     </div>
                                 </div>
                             `).join('')}
                         </div>
                     </div>
                 `;
+            } else if (state.tab === 'trening') {
+                // Generowanie widoku Treningu ze statystykami
+                const curr = new Date(state.date);
+                const dayOfWeek = curr.getDay();
+                const offset = state.settings.startOfWeek === 1 ? (dayOfWeek === 0 ? -6 : 1 - dayOfWeek) : -dayOfWeek;
+                const firstDay = new Date(curr.setDate(curr.getDate() + offset));
+                const weekDates = [];
+                for (let i = 0; i < 7; i++) {
+                    const next = new Date(firstDay);
+                    next.setDate(firstDay.getDate() + i);
+                    weekDates.push(next.toISOString().split('T')[0]);
+                }
+
+                let weekTime = 0;
+                let weekKcal = 0;
+                const types = {};
+
+                weekDates.forEach(d => {
+                    const dObj = state.diaries[state.userId]?.[d];
+                    if (dObj && dObj.workouts) {
+                        dObj.workouts.forEach(w => {
+                            weekTime += w.time;
+                            weekKcal += w.kcal;
+                            if(!types[w.name]) types[w.name] = { time: 0, kcal: 0 };
+                            types[w.name].time += w.time;
+                            types[w.name].kcal += w.kcal;
+                        });
+                    }
+                });
+
+                html += `
+                    <div class="bg-white p-4 rounded-xl shadow-sm border border-orange-100 mb-4">
+                        <h3 class="font-bold text-sm text-orange-600 mb-3 flex items-center">🔥 Dodaj trening (Dzisiaj)</h3>
+                        <div class="flex space-x-2 mb-3">
+                            <input id="wName" placeholder="Nazwa np. Bieganie" class="flex-1 bg-orange-50 border border-orange-100 rounded-lg text-xs px-2 py-2 outline-none min-w-0" />
+                            <input id="wTime" type="number" placeholder="Min" class="w-14 bg-orange-50 border border-orange-100 rounded-lg text-xs text-center font-bold outline-none shrink-0" />
+                            <input id="wKcal" type="number" placeholder="Kcal" class="w-16 bg-orange-50 border border-orange-100 rounded-lg text-xs text-center font-bold outline-none shrink-0" />
+                            <button onclick="addWorkout()" class="bg-orange-500 text-white px-3 rounded-lg font-bold shadow-md shrink-0">+</button>
+                        </div>
+                        <div class="space-y-2">
+                            ${day.workouts.length === 0 ? '<p class="text-xs text-gray-400 text-center py-2">Brak treningów w tym dniu</p>' : ''}
+                            ${day.workouts.map(w => `
+                                <div class="flex justify-between items-center bg-orange-50 p-2.5 rounded-lg border border-orange-100">
+                                    <span class="font-bold text-xs text-orange-900 truncate flex-1">${w.name} <span class="font-normal opacity-70">(${w.time} min)</span></span>
+                                    <div class="flex items-center space-x-3 shrink-0">
+                                        <span class="font-black text-orange-600 text-sm">${w.kcal} kcal</span>
+                                        <button onclick="delWorkout(${w.id})" class="text-red-400 font-bold px-2">✕</button>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="bg-orange-50 border border-orange-200 p-4 rounded-xl">
+                        <h3 class="font-bold text-sm text-orange-900 mb-3 text-center">📊 Statystyki Treningowe Tygodnia</h3>
+                        <div class="grid grid-cols-2 gap-2 mb-4">
+                            <div class="bg-white p-3 rounded-xl shadow-sm border border-orange-100 text-center">
+                                <p class="text-[10px] font-bold text-gray-400 uppercase">Czas w tyg.</p>
+                                <p class="text-xl font-black text-orange-600">${weekTime} <span class="text-xs font-semibold opacity-60">min</span></p>
+                            </div>
+                            <div class="bg-white p-3 rounded-xl shadow-sm border border-orange-100 text-center">
+                                <p class="text-[10px] font-bold text-gray-400 uppercase">Spalono w tyg.</p>
+                                <p class="text-xl font-black text-orange-600">${weekKcal} <span class="text-xs font-semibold opacity-60">kcal</span></p>
+                            </div>
+                        </div>
+                        
+                        ${Object.keys(types).length > 0 ? `
+                            <h4 class="text-[10px] font-bold text-orange-800 uppercase mb-2">Rodzaje aktywności:</h4>
+                            <div class="space-y-1.5">
+                                ${Object.keys(types).map(t => `
+                                    <div class="flex justify-between text-xs bg-white p-2 rounded-lg border border-orange-100">
+                                        <span class="font-bold text-gray-700 truncate mr-2">${t}</span>
+                                        <span class="text-orange-600 font-semibold shrink-0">${types[t].time}min / ${types[t].kcal}kcal</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
             } else if (state.tab === 'baza') {
                 html += `
-                    <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl">
+                    <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-4">
                         <h3 class="font-bold text-sm text-blue-900 mb-3">➕ Dodaj własny produkt</h3>
-                        <input id="pName" placeholder="Nazwa produktu" class="w-full mb-2 p-2.5 text-xs rounded-lg border border-blue-200 font-bold" />
+                        <input id="pName" placeholder="Nazwa produktu" class="w-full mb-2 p-2 text-xs rounded-lg border border-blue-200 font-bold" />
                         <div class="grid grid-cols-2 gap-2 mb-2">
                             <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Waga bazowa (g)</label><input id="pW" type="number" value="100" class="w-full p-2 text-xs rounded-lg border border-blue-200" /></div>
                             <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Kalorie (Kcal)</label><input id="pK" type="number" placeholder="Wpisz lub Auto" class="w-full p-2 text-xs rounded-lg border border-blue-200 bg-white" /></div>
                         </div>
                         <div class="grid grid-cols-3 gap-2 mb-3">
-                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Białko</label><input id="pP" type="number" step="0.1" placeholder="0" class="w-full p-2 text-xs rounded-lg border border-blue-200" /></div>
-                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Tłuszcz</label><input id="pF" type="number" step="0.1" placeholder="0" class="w-full p-2 text-xs rounded-lg border border-blue-200" /></div>
-                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Węglo</label><input id="pC" type="number" step="0.1" placeholder="0" class="w-full p-2 text-xs rounded-lg border border-blue-200" /></div>
+                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Białko</label><input id="pP" type="number" step="0.1" placeholder="0" class="w-full p-1.5 text-xs rounded-lg border border-blue-200" /></div>
+                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Tłuszcz</label><input id="pF" type="number" step="0.1" placeholder="0" class="w-full p-1.5 text-xs rounded-lg border border-blue-200" /></div>
+                            <div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Węglo</label><input id="pC" type="number" step="0.1" placeholder="0" class="w-full p-1.5 text-xs rounded-lg border border-blue-200" /></div>
                         </div>
-                        <button onclick="addProd()" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-lg shadow-md">Zapisz produkt w bazie</button>
+                        <button onclick="addProd()" class="w-full bg-blue-600 text-white font-bold py-2 rounded-lg shadow-md text-xs">Zapisz w bazie</button>
                     </div>
 
-                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                        <h3 class="font-bold text-sm mb-3">Wspólna Baza Produktów (${state.products.length})</h3>
+                    <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                        <h3 class="font-bold text-sm mb-2">Baza Produktów (${state.products.length})</h3>
                         <div class="space-y-2 max-h-[50vh] overflow-y-auto pr-1 pb-4">
                             ${state.products.map(p => `
-                                <div class="bg-gray-50 border border-gray-100 p-3 rounded-lg flex justify-between items-center">
-                                    <div class="pr-2">
-                                        <p class="font-bold text-xs text-gray-800">${p.name} <span class="text-blue-600">(${p.baseWeight}g)</span></p>
-                                        <p class="text-[10px] text-gray-500 mt-0.5">B:${p.baseP} | T:${p.baseF} | W:${p.baseC}</p>
+                                <div class="bg-gray-50 border border-gray-100 p-2.5 rounded-lg flex justify-between items-center">
+                                    <div class="pr-2 min-w-0">
+                                        <p class="font-bold text-xs text-gray-800 truncate">${p.name} <span class="text-blue-600 font-normal">(${p.baseWeight}g)</span></p>
+                                        <p class="text-[9px] text-gray-500">B:${p.baseP} | T:${p.baseF} | W:${p.baseC}</p>
                                     </div>
-                                    <div class="flex items-center space-x-3">
-                                        <span class="font-bold text-emerald-600 text-sm whitespace-nowrap">${p.baseKcal} kcal</span>
-                                        <button onclick="delProd('${p.id}')" class="text-red-300 hover:text-red-500 font-bold">🗑️</button>
+                                    <div class="flex items-center space-x-2 shrink-0">
+                                        <span class="font-bold text-emerald-600 text-xs">${p.baseKcal} kcal</span>
+                                        <button onclick="delProd('${p.id}')" class="text-red-300 font-bold px-2">🗑️</button>
                                     </div>
                                 </div>
                             `).join('')}
@@ -365,30 +421,22 @@
                 const wDiffStr = (wDiff > 0 ? '+' : '') + wDiff.toFixed(1);
 
                 html += `
-                    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center mb-4">
-                        <span class="font-bold text-xs text-gray-700">Początek tygodnia:</span>
-                        <select onchange="changeStartOfWeek(this.value)" class="bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold p-2 outline-none">
-                            <option value="1" ${state.settings.startOfWeek === 1 ? 'selected' : ''}>Poniedziałek</option>
-                            <option value="0" ${state.settings.startOfWeek === 0 ? 'selected' : ''}>Niedziela</option>
-                        </select>
-                    </div>
-
                     <div class="bg-indigo-50 border border-indigo-200 p-5 rounded-xl text-center">
                         <h2 class="font-black text-lg text-indigo-900 mb-1">Podsumowanie (${user.name})</h2>
-                        <p class="text-xs text-indigo-500 font-medium mb-4">${weekDates[0]} — ${weekDates[6]}</p>
+                        <p class="text-[10px] text-indigo-500 font-bold uppercase mb-4">${weekDates[0]} — ${weekDates[6]}</p>
                         
                         <div class="grid grid-cols-2 gap-3 mb-4">
                             <div class="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
-                                <p class="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1">Średnio zjedzono</p>
-                                <p class="text-2xl font-black text-indigo-600">${avgKcal} <span class="text-sm font-semibold opacity-60">kcal</span></p>
+                                <p class="text-[9px] font-bold text-indigo-400 uppercase mb-1">Średnio zjedzono</p>
+                                <p class="text-2xl font-black text-indigo-600">${avgKcal} <span class="text-xs opacity-60">kcal</span></p>
                             </div>
                             <div class="bg-white p-4 rounded-xl shadow-sm border border-orange-100">
-                                <p class="text-[10px] font-bold text-orange-400 uppercase tracking-wider mb-1">Spalone w tyg.</p>
+                                <p class="text-[9px] font-bold text-orange-400 uppercase mb-1">Spalone w tyg.</p>
                                 <p class="text-2xl font-black text-orange-500">🔥 ${tBurned}</p>
                             </div>
                         </div>
                         <div class="bg-white p-4 rounded-xl shadow-sm border border-indigo-100">
-                            <p class="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Zmiana wagi w tym tygodniu</p>
+                            <p class="text-[10px] font-bold text-gray-500 uppercase mb-1">Zmiana wagi w tym tygodniu</p>
                             <p class="text-3xl font-black ${wDiff > 0 ? 'text-red-500' : 'text-emerald-500'}">${wDiffStr} kg</p>
                         </div>
                     </div>
@@ -398,42 +446,53 @@
                     ${state.statusMsg ? `<div class="bg-emerald-100 border border-emerald-300 text-emerald-800 text-xs font-bold p-3 rounded-xl mb-4 text-center">${state.statusMsg}</div>` : ''}
                     
                     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4">
-                        <h3 class="font-black text-gray-800 mb-3 text-sm">👤 Ustawienia Profili</h3>
-                        <div class="space-y-3">
+                        <h3 class="font-black text-gray-800 mb-3 text-sm">⚙️ Ustawienia</h3>
+                        <div class="space-y-3 mb-4">
                             ${state.users.map((u, i) => `
                                 <div>
-                                    <label class="text-[10px] font-bold text-gray-500 uppercase">Imię Profilu ${i+1}</label>
-                                    <input type="text" value="${u.name}" onchange="changeUserName('${u.id}', this.value)" class="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold outline-none focus:border-blue-400" />
+                                    <label class="text-[10px] font-bold text-gray-500 uppercase block mb-1">Imię Profilu ${i+1}</label>
+                                    <input type="text" value="${u.name}" onchange="changeUserName('${u.id}', this.value)" class="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold outline-none" />
                                 </div>
                             `).join('')}
+                        </div>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500 uppercase block mb-1">Data rozpoczęcia diety</label>
+                                <input type="date" value="${state.settings.startDate}" onchange="changeStartDate(this.value)" class="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold outline-none" />
+                            </div>
+                            <div>
+                                <label class="text-[10px] font-bold text-gray-500 uppercase block mb-1">Pierwszy dzień tygodnia</label>
+                                <select onchange="changeStartOfWeek(this.value)" class="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold outline-none">
+                                    <option value="1" ${state.settings.startOfWeek === 1 ? 'selected' : ''}>Poniedziałek</option>
+                                    <option value="0" ${state.settings.startOfWeek === 0 ? 'selected' : ''}>Niedziela</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
 
                     <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 text-center">
-                        <h3 class="font-black text-gray-800 mb-2 text-sm">💾 Pełna Kopia Zapasowa (Produkty + Historia)</h3>
-                        <p class="text-xs text-gray-500 mb-4">Zapisz lub wgraj całą aplikację.</p>
-                        
-                        <div class="space-y-3">
-                            <button onclick="exportFullJson()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-md flex items-center justify-center">📥 Pobierz wszystko do pliku (.json)</button>
+                        <h3 class="font-black text-gray-800 mb-2 text-sm">💾 Kopia Zapasowa Danych</h3>
+                        <div class="space-y-3 mt-4">
+                            <button onclick="exportFullJson()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-md text-xs">📥 Pobierz wszystko do pliku (.json)</button>
                             
                             <div class="relative py-2">
                                 <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-200"></div></div>
-                                <div class="relative flex justify-center"><span class="bg-white px-4 text-[10px] text-gray-400 font-bold uppercase">Import Danych</span></div>
+                                <div class="relative flex justify-center"><span class="bg-white px-3 text-[9px] text-gray-400 font-bold uppercase">Import</span></div>
                             </div>
                             
-                            <div class="text-left space-y-2 mb-2 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                                <label class="flex items-center space-x-2 text-xs font-bold text-gray-700">
+                            <div class="text-left space-y-2 mb-2 bg-gray-50 p-2 rounded-lg border border-gray-200">
+                                <label class="flex items-center space-x-2 text-[10px] font-bold text-gray-700">
                                     <input type="radio" name="impMode" value="products" ${state.importMode === 'products' ? 'checked' : ''} onchange="state.importMode='products'" class="text-blue-600" />
-                                    <span>Tylko dodaj nowe produkty do bazy</span>
+                                    <span>Tylko dodaj nowe produkty</span>
                                 </label>
-                                <label class="flex items-center space-x-2 text-xs font-bold text-gray-700">
+                                <label class="flex items-center space-x-2 text-[10px] font-bold text-gray-700">
                                     <input type="radio" name="impMode" value="full" ${state.importMode === 'full' ? 'checked' : ''} onchange="state.importMode='full'" class="text-blue-600" />
-                                    <span>Pełna kopia (nadpisuje cały dziennik)</span>
+                                    <span>Pełna kopia (nadpisuje wszystko)</span>
                                 </label>
                             </div>
                             
-                            <textarea id="jsonArea" rows="3" placeholder="Wklej skopiowany kod JSON..." class="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none focus:border-blue-400"></textarea>
-                            <button onclick="importFullJson()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-md flex items-center justify-center">📤 Wgraj kod JSON</button>
+                            <textarea id="jsonArea" rows="3" placeholder="Wklej skopiowany kod JSON..." class="w-full p-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none"></textarea>
+                            <button onclick="importFullJson()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-md text-xs">📤 Wgraj kod JSON</button>
                         </div>
                     </div>
                 `;
@@ -441,18 +500,19 @@
 
             html += `
                 </div>
-                <div class="fixed bottom-0 left-1/2 transform -translate-x-1/2 w-full max-w-md bg-white/95 backdrop-blur border-t border-gray-200 flex justify-around p-2 pb-safe z-50">
-                    <button onclick="switchTab('dziennik')" class="flex flex-col items-center p-2 w-1/4 rounded-lg transition-colors ${state.tab === 'dziennik' ? 'text-blue-600' : 'text-gray-400'}">
-                        <span class="text-xl mb-0.5">📅</span><span class="text-[10px] font-bold">Dziennik</span>
+                <!-- Dolny Pasek Nawigacji (5 elementów) -->
+                <div class="fixed bottom-0 left-1/2 transform -translate-x-1/2 w-full max-w-md bg-white/95 backdrop-blur border-t border-gray-200 grid grid-cols-5 p-1 pb-safe z-50">
+                    <button onclick="switchTab('dziennik')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'dziennik' ? 'text-blue-600' : 'text-gray-400'}">
+                        <span class="text-xl mb-0.5">📅</span><span class="text-[9px] font-bold truncate w-full text-center">Dziennik</span>
                     </button>
-                    <button onclick="switchTab('baza')" class="flex flex-col items-center p-2 w-1/4 rounded-lg transition-colors ${state.tab === 'baza' ? 'text-blue-600' : 'text-gray-400'}">
-                        <span class="text-xl mb-0.5">🍎</span><span class="text-[10px] font-bold">Baza</span>
+                    <button onclick="switchTab('baza')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'baza' ? 'text-blue-600' : 'text-gray-400'}">
+                        <span class="text-xl mb-0.5">🍎</span><span class="text-[9px] font-bold truncate w-full text-center">Baza</span>
                     </button>
-                    <button onclick="switchTab('podsumowanie')" class="flex flex-col items-center p-2 w-1/4 rounded-lg transition-colors ${state.tab === 'podsumowanie' ? 'text-blue-600' : 'text-gray-400'}">
-                        <span class="text-xl mb-0.5">📊</span><span class="text-[10px] font-bold">Tydzień</span>
+                    <button onclick="switchTab('trening')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'podsumowanie' ? 'text-blue-600' : 'text-gray-400'}">
+                        <span class="text-xl mb-0.5">📊</span><span class="text-[9px] font-bold truncate w-full text-center">Tydzień</span>
                     </button>
-                    <button onclick="switchTab('kopia')" class="flex flex-col items-center p-2 w-1/4 rounded-lg transition-colors ${state.tab === 'kopia' ? 'text-blue-600' : 'text-gray-400'}">
-                        <span class="text-xl mb-0.5">⚙️</span><span class="text-[10px] font-bold">Ustawienia</span>
+                    <button onclick="switchTab('kopia')" class="flex flex-col items-center justify-center p-1.5 rounded-lg transition-colors min-w-0 ${state.tab === 'kopia' ? 'text-blue-600' : 'text-gray-400'}">
+                        <span class="text-xl mb-0.5">⚙️</span><span class="text-[9px] font-bold truncate w-full text-center">Kopia</span>
                     </button>
                 </div>
             `;
@@ -465,15 +525,21 @@
         window.changeWeight = (w) => { getDayData().weight = w; saveState(); };
         window.toggleGoals = () => { state.isEditingGoals = !state.isEditingGoals; render(); };
         window.changeStartOfWeek = (val) => { state.settings.startOfWeek = parseInt(val); saveState(); render(); };
+        window.changeStartDate = (val) => { state.settings.startDate = val; saveState(); render(); };
 
         window.changeUserName = (id, newName) => {
             const u = state.users.find(x => x.id === id);
             if (u && newName.trim()) { u.name = newName.trim(); saveState(); render(); }
         };
 
-        window.searchProducts = (q) => {
-            state.searchQuery = q; render();
-            setTimeout(() => { const el = document.querySelector('input[placeholder^="🔍"]'); if (el) { el.focus(); el.setSelectionRange(q.length, q.length); } }, 0);
+        // Obsługa wyboru z Datalist (Autocomplete)
+        window.handleMealSelect = (val) => {
+            const p = state.products.find(x => x.name === val);
+            if (p) {
+                state.inputWeight = p.baseWeight;
+                const el = document.getElementById('inpW');
+                if(el) el.value = p.baseWeight;
+            }
         };
 
         window.saveGoals = () => {
@@ -485,19 +551,14 @@
             saveState(); render();
         };
 
-        window.selectProd = (id) => {
-            state.selectedProdId = id;
-            const p = state.products.find(x => x.id === id);
-            state.inputWeight = p ? p.baseWeight : ''; render();
-        };
-
         window.addMeal = () => {
-            const p = state.products.find(x => x.id === state.selectedProdId);
-            const w = parseFloat(state.inputWeight);
-            if (!p || !w) return alert('Wybierz produkt i sprawdź wagę!');
+            const val = document.getElementById('mealInput').value;
+            const p = state.products.find(x => x.name === val);
+            const w = parseFloat(document.getElementById('inpW').value);
+            if (!p || !w) return alert('Wybierz produkt z podpowiedzi i podaj wagę!');
             const r = w / p.baseWeight;
             getDayData().meals.push({ id: Date.now(), name: p.name, weight: w, kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10, f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 });
-            state.selectedProdId = ''; state.inputWeight = '';
+            state.inputWeight = '';
             saveState(); render();
         };
 
@@ -529,35 +590,35 @@
         window.delProd = (id) => { if (confirm('Usunąć?')) { state.products = state.products.filter(x => x.id !== id); saveState(); render(); } };
 
         window.exportFullJson = () => {
-            const payload = { version: 6, users: state.users, settings: state.settings, products: state.products, diaries: state.diaries };
+            const payload = { version: 7, users: state.users, settings: state.settings, products: state.products, diaries: state.diaries };
             const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `dieta_full_${state.date}.json`; a.click();
-            state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `dieta_${state.date}.json`; a.click();
+            state.statusMsg = 'Pobrano plik!'; render();
         };
 
         window.importFullJson = () => {
             try {
                 const data = JSON.parse(document.getElementById('jsonArea').value);
                 if (!data.products && !data.diaries) return alert('Błędny kod JSON');
-                
                 if (state.importMode === 'products') {
                     const incoming = data.products || [];
                     const names = new Set(state.products.map(p => p.name.trim().toLowerCase()));
                     let added = 0;
                     incoming.forEach(p => { if (!names.has(p.name.trim().toLowerCase())) { state.products.push(p); added++; } });
-                    state.statusMsg = `Wgrano ${added} nowych produktów. Historia nie została zmieniona.`;
+                    state.statusMsg = `Wgrano ${added} nowych produktów.`;
                 } else {
-                    if (!confirm('UWAGA! To nadpisze całą obecną historię, ustawienia i produkty. Kontynuować?')) return;
+                    if (!confirm('Nadpisać całą historię?')) return;
                     if (data.products) state.products = data.products;
                     if (data.diaries) state.diaries = data.diaries;
                     if (data.users) state.users = data.users;
                     if (data.settings) state.settings = data.settings;
-                    state.statusMsg = 'Pełna kopia została przywrócona pomyślnie!';
+                    state.statusMsg = 'Kopia wgrana pomyślnie!';
                 }
                 saveState(); render();
-            } catch(e) { alert('Błąd odczytu JSON! Sprawdź czy skopiowałeś cały tekst.'); }
+            } catch(e) { alert('Błąd JSON!'); }
         };
 
         render();
     </script>
 </body>
+</html>
