@@ -107,7 +107,7 @@
             tab: 'dziennik',
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v36_theme') || 'classic',
+            theme: localStorage.getItem('diet_v37_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             products: [], workoutsDb: [], diaries: {}, settings: { startOfWeek: 1, measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ] },
             date: dzis, weekOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
@@ -149,7 +149,7 @@
                 }).catch(function(e){ console.log("Zapis do chmury nie powiódł się:", e); });
             }
             localStorage.setItem('diet_v15_curr_user', state.userId);
-            localStorage.setItem('diet_v36_theme', state.theme);
+            localStorage.setItem('diet_v37_theme', state.theme);
             localStorage.setItem('diet_gemini_key', state.geminiApiKey);
         };
 
@@ -188,13 +188,10 @@
             try {
                 var promptStr = 'Jesteś profesjonalnym dietetykiem. Użytkownik zjadł posiłek opisany jako: "' + query + '". Oszacuj wagę (w gramach), kalorie oraz makroskładniki (białko, tłuszcz, węglowodany) dla tego posiłku. Zwróć odpowiedź WYŁĄCZNIE w czystym formacie JSON bez żadnych znaczników markdown: {"name": "Krótka, ładna nazwa posiłku", "weight": 350, "kcal": 550, "p": 35.0, "f": 20.0, "c": 60.0}';
                 
-                // Użycie uniwersalnego endpointu v1 dla nowych kluczy AQ.
-                var res = await fetch('https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent', {
+                // Używamy modelu gemini-2.5-flash i powracamy do pewnego standardu przesyłania klucza.
+                var res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + state.geminiApiKey, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-goog-api-key': state.geminiApiKey
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: promptStr }] }] })
                 });
                 
@@ -244,12 +241,9 @@
             try {
                 var promptStr = 'Jesteś przyjaznym, motywującym osobistym trenerem i dietetykiem. Przeanalizuj dzisiejsze wyniki użytkownika ' + user.name + ': Cel kalorii: ' + day.goals.kcal + ' kcal. Zjedzono: ' + Math.round(eaten) + ' kcal (Białko: ' + Math.round(p) + 'g, Tłuszcz: ' + Math.round(f) + 'g, Węglowodany: ' + Math.round(c) + 'g). Spalono na treningu: ' + burned + ' kcal. Waga dzisiaj: ' + (day.weight ? day.weight + ' kg' : 'brak pomiaru') + '. Napisz krótki, zwięzły, pełen energii komentarz (2-3 zdania). Pochwal za dobre nawyki, odnieś się do treningu lub bilansu i daj jedną konstruktywną radę na resztę dnia lub jutro. Mów bezpośrednio do użytkownika w języku polskim.';
                 
-                var res = await fetch('[https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent](https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent)', {
+                var res = await fetch('[https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=](https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=)' + state.geminiApiKey, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-goog-api-key': state.geminiApiKey
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: [{ parts: [{ text: promptStr }] }] })
                 });
                 
@@ -822,7 +816,7 @@
 
                 html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
                     '<h3 class="font-black mb-2 text-sm text-center">🧠 Konfiguracja AI (Gemini)</h3>' +
-                    '<p class="text-[10px] text-gray-500 mb-3 text-center">Wklej swój klucz API pobrany z <a href="[https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)" target="_blank" class="text-blue-500 underline font-bold">Google AI Studio</a>.</p>' +
+                    '<p class="text-[10px] text-gray-500 mb-3 text-center">Wklej swój nowy darmowy klucz pobrany z <a href="[https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)" target="_blank" class="text-blue-500 underline font-bold">Google AI Studio</a>.</p>' +
                     '<input type="password" id="aiKeyInput" placeholder="AQ... lub AIzaSy..." value="' + state.geminiApiKey + '" class="w-full p-2.5 ' + th.inputBg + ' border rounded-lg text-xs font-medium outline-none mb-2 text-center" />' +
                     '<button onclick="saveGeminiKey(document.getElementById(\'aiKeyInput\').value)" class="w-full ' + th.btn + ' font-bold py-2.5 rounded-xl shadow-md text-xs">Zapisz klucz AI</button>' +
                     '</div>';
@@ -865,8 +859,8 @@
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v36 (Poprawiona ścieżka API v1 dla Gemini)</p>' +
-                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 19:55</p>' +
+                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v37 (Klucze AQ, Gemini 2.5 Flash włączone)</p>' +
+                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 20:10</p>' +
                     '</div>';
             }
 
@@ -1028,7 +1022,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 36, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 37, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
