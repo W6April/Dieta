@@ -107,7 +107,7 @@
             tab: 'dziennik',
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v34_theme') || 'classic',
+            theme: localStorage.getItem('diet_v35_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             products: [], workoutsDb: [], diaries: {}, settings: { startOfWeek: 1, measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ] },
             date: dzis, weekOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
@@ -115,7 +115,8 @@
             wSearch: '', wResults: [], wInputTime: '', wInputKcal: '', editProdId: null,
             isScanning: false, scannedProductData: null,
             aiModalOpen: false, aiQueryText: '', aiResultData: null, aiLoading: false,
-            aiAdviceText: '', aiAdviceLoading: false
+            aiAdviceText: '', aiAdviceLoading: false,
+            unknownProductModal: false, unknownName: '', unknownWeight: ''
         };
 
         function initLocalDefaults() {
@@ -148,7 +149,7 @@
                 }).catch(function(e){ console.log("Zapis do chmury nie powiódł się:", e); });
             }
             localStorage.setItem('diet_v15_curr_user', state.userId);
-            localStorage.setItem('diet_v34_theme', state.theme);
+            localStorage.setItem('diet_v35_theme', state.theme);
             localStorage.setItem('diet_gemini_key', state.geminiApiKey);
         };
 
@@ -532,7 +533,7 @@
                     '<button onclick="openAiModal()" class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-sm flex items-center space-x-1"><span>🤖 Zapytaj AI</span></button>' +
                     '</div>' +
                     '<div class="flex space-x-2 mb-3 relative"><div class="relative flex-1 min-w-0">' +
-                    '<input id="pSearchInp" placeholder="Wpisz (np. skyr)..." value="' + state.prodSearch + '" oninput="filterProductsDropdown(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs font-medium px-3 py-2 outline-none" />' +
+                    '<input id="pSearchInp" placeholder="Wpisz produkt..." value="' + state.prodSearch + '" oninput="filterProductsDropdown(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs font-medium px-3 py-2 outline-none" />' +
                     '<div id="prodDropdownList" class="absolute top-full left-0 w-full mt-1 ' + th.card + ' border shadow-xl rounded-lg max-h-48 overflow-y-auto z-50 hidden"></div>' +
                     '</div><input id="inpW" type="number" placeholder="Waga(g)" value="' + state.inputWeight + '" oninput="state.inputWeight=this.value" class="w-16 ' + th.inputBg + ' border rounded-lg text-xs font-bold text-center outline-none shrink-0" />' +
                     '<button onclick="addMeal()" class="' + th.btn + ' px-3.5 rounded-lg font-bold shadow-md shrink-0">+</button></div><div class="space-y-2">';
@@ -544,6 +545,24 @@
                         '<div class="flex items-center space-x-2 shrink-0"><span class="font-black text-xs">' + m.kcal + ' <span class="font-normal text-[9px] opacity-60">kcal</span></span><button onclick="delMeal(' + m.id + ')" class="text-rose-400 font-bold px-2">✕</button></div></div>';
                 });
                 html += '</div></div>';
+
+                // MODAL BRAKU PRODUKTU (SZYBKIE DODawanie Z DZIENNIKA)
+                if (state.unknownProductModal) {
+                    html += '<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">' +
+                        '<div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border text-gray-900">' +
+                        '<h3 class="font-black text-sm text-indigo-900 mb-1">🔍 Brak produktu w bazie</h3>' +
+                        '<p class="text-[10px] text-gray-500 mb-3">Produkt <b>„' + state.unknownName + '”</b> nie istnieje. Podaj jego skład (na <b>' + state.unknownWeight + 'g</b> lub całe opakowanie):</p>' +
+                        '<div class="space-y-2 text-xs mb-3">' +
+                        '<div><label class="font-bold text-[9px] text-gray-500 block">Kcal:</label><input id="unkKcal" type="number" placeholder="np. 350" class="w-full p-2 border rounded font-bold text-center outline-none bg-gray-50" /></div>' +
+                        '<div class="grid grid-cols-3 gap-2">' +
+                        '<div><label class="font-bold text-[9px] text-gray-500 block">Białko (g):</label><input id="unkP" type="number" step="0.1" placeholder="0" class="w-full p-2 border rounded font-bold text-center outline-none bg-gray-50" /></div>' +
+                        '<div><label class="font-bold text-[9px] text-gray-500 block">Tłuszcz (g):</label><input id="unkF" type="number" step="0.1" placeholder="0" class="w-full p-2 border rounded font-bold text-center outline-none bg-gray-50" /></div>' +
+                        '<div><label class="font-bold text-[9px] text-gray-500 block">Węglo (g):</label><input id="unkC" type="number" step="0.1" placeholder="0" class="w-full p-2 border rounded font-bold text-center outline-none bg-gray-50" /></div>' +
+                        '</div></div>' +
+                        '<button onclick="confirmAddUnknownProduct()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow mb-2">💾 Dodaj do bazy i dziennika</button>' +
+                        '<button onclick="state.unknownProductModal=false; render();" class="w-full bg-gray-200 text-gray-700 font-bold py-2 rounded-xl text-xs">Anuluj</button>' +
+                        '</div></div>';
+                }
 
                 if (state.aiModalOpen) {
                     html += '<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">' +
@@ -846,8 +865,8 @@
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v34 (Naprawione ręczne dodawanie produktów)</p>' +
-                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 18:45</p>' +
+                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v35 (Szybkie dodawanie z dziennika)</p>' +
+                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 19:10</p>' +
                     '</div>';
             }
 
@@ -875,13 +894,70 @@
         window.removeMeasurement = function(id) { if(confirm('Usunąć ten pomiar?')) { state.settings.measurements = state.settings.measurements.filter(function(m) { return m.id !== id; }); saveState(); render(); } };
         window.changeUserName = function(id, newName) { var u = state.users.find(function(x) { return x.id === id; }); if (u && newName.trim()) { u.name = newName.trim(); saveState(); render(); } };
 
+        // SZYBKIE DODAWANIE Z DZIENNIKA (JŚLI PRODUKTU NIE MA W BAZIE)
         window.addMeal = function() {
-            var p = state.products.find(function(x) { return x.id === state.selectedProdId; }) || state.products.find(function(x) { return x.name.toLowerCase() === state.prodSearch.trim().toLowerCase(); });
+            var query = state.prodSearch.trim();
             var w = parseFloat(state.inputWeight);
-            if (!p || !w) return alert('Wybierz produkt z podpowiedzi i podaj wagę!');
+            if (!query || !w) return alert('Wpisz nazwę posiłku i wagę!');
+
+            var p = state.products.find(function(x) { return x.id === state.selectedProdId; }) || 
+                    state.products.find(function(x) { return x.name.toLowerCase() === query.toLowerCase(); });
+
+            if (!p) {
+                // Jeśli produktu nie ma w bazie, otwórz modal z pytaniem o skład!
+                state.unknownProductModal = true;
+                state.unknownName = query;
+                state.unknownWeight = w;
+                render();
+                return;
+            }
+
             var r = w / p.baseWeight;
-            getDayData().meals.push({ id: Date.now(), name: p.name, weight: w, kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10, f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 });
-            state.prodSearch = ''; state.inputWeight = ''; state.selectedProdId = ''; saveState(); render();
+            getDayData().meals.push({ 
+                id: Date.now(), name: p.name, weight: w, 
+                kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10, 
+                f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 
+            });
+            state.prodSearch = ''; state.inputWeight = ''; state.selectedProdId = ''; 
+            saveState(); render();
+        };
+
+        window.confirmAddUnknownProduct = function() {
+            var name = state.unknownName;
+            var baseW = state.unknownWeight;
+            var kcal = parseFloat(document.getElementById('unkKcal').value) || 0;
+            var p = parseFloat(document.getElementById('unkP').value) || 0;
+            var f = parseFloat(document.getElementById('unkF').value) || 0;
+            var c = parseFloat(document.getElementById('unkC').value) || 0;
+
+            if (!kcal) return alert('Podaj przynajmniej kalorie!');
+
+            // Dodaj do bazy produktów na przyszłość
+            state.products.unshift({
+                id: String(Date.now()),
+                name: name,
+                baseWeight: baseW,
+                baseKcal: kcal,
+                baseP: p,
+                baseF: f,
+                baseC: c
+            });
+
+            // Dodaj od razu do dzisiejszego dziennika
+            getDayData().meals.push({
+                id: Date.now(),
+                name: name,
+                weight: baseW,
+                kcal: kcal,
+                p: p,
+                f: f,
+                c: c
+            });
+
+            state.unknownProductModal = false;
+            state.prodSearch = ''; state.inputWeight = ''; state.selectedProdId = '';
+            state.statusMsg = 'Dodano nowy produkt do bazy i dziennika!';
+            saveState(); render();
         };
 
         window.delMeal = function(id) { getDayData().meals = getDayData().meals.filter(function(x) { return x.id !== id; }); saveState(); render(); };
@@ -956,7 +1032,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 34, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 35, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
