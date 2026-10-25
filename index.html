@@ -11,6 +11,10 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- Google Generative AI (Gemini SDK) -->
+    <script type="importmap">
+      { "imports": { "@google/genai": "https://esm.run/@google/genai" } }
+    </script>
     <style>
         html, body { overflow-x: hidden; width: 100%; position: relative; }
         body { -webkit-tap-highlight-color: transparent; touch-action: pan-y; }
@@ -29,6 +33,13 @@
     <div id="app" class="max-w-md w-full mx-auto min-h-screen shadow-xl relative overflow-x-hidden flex flex-col transition-colors duration-300">
         <div class="p-6 text-center text-blue-600 mt-20 font-bold">Łączenie z chmurą...</div>
     </div>
+
+    <script type="module">
+        import { GoogleGenAI } from "@google/genai";
+        // Inicjalizacja Gemini SDK (bezpieczne użycie klucza wbudowanego w środowisko)
+        const ai = new GoogleGenAI({ apiKey: "AIzaSyBifFcGPOzV2KWlXmgzxz0-TbZXT4U_nF8" });
+        window.geminiClient = ai;
+    </script>
 
     <script>
         const firebaseConfig = {
@@ -107,12 +118,14 @@
             tab: 'dziennik',
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v25_theme') || 'classic',
+            theme: localStorage.getItem('diet_v26_theme') || 'classic',
             products: [], workoutsDb: [], diaries: {}, settings: { startOfWeek: 1, measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ] },
             date: dzis, weekOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
             wSearch: '', wResults: [], wInputTime: '', wInputKcal: '', editProdId: null,
-            isScanning: false, scannedProductData: null
+            isScanning: false, scannedProductData: null,
+            aiModalOpen: false, aiQueryText: '', aiResultData: null, aiLoading: false,
+            aiAdviceText: '', aiAdviceLoading: false
         };
 
         function initLocalDefaults() {
@@ -145,7 +158,7 @@
                 }).catch(function(e){ console.log("Zapis do chmury nie powiódł się:", e); });
             }
             localStorage.setItem('diet_v15_curr_user', state.userId);
-            localStorage.setItem('diet_v25_theme', state.theme);
+            localStorage.setItem('diet_v26_theme', state.theme);
         };
 
         window.setTheme = function(th) { state.theme = th; saveState(); render(); };
@@ -169,7 +182,124 @@
             }).catch(function(err) { alert('Błąd: ' + err.message); });
         };
 
-        // Skaner z automatycznym wykrywaniem wagi opakowania
+        // INTEGRACJA Z GEMINI: Wyszukiwanie tekstu (szacowanie posiłku)
+        window.openAiModal = function() {
+            state.aiModalOpen = true;
+            state.aiQueryText = '';
+            state.aiResultData = null;
+            render();
+        };
+
+        window.closeAiModal = function() {
+            state.aiModalOpen = false;
+            render();
+        };
+
+        window.askGeminiForMeal = async function() {
+            var query = state.aiQueryText.trim();
+            if (!query) return alert('Wpisz, co zjadłeś!');
+            if (!window.geminiClient) return alert('Brak połączenia z Gemini!');
+
+            state.aiLoading = true;
+            render();
+
+            try {
+                const response = await window.geminiClient.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: `Jesteś profesjonalnym dietetykiem. Użytkownik zjadł posiłek opisany jako: "${query}". 
+Oszacuj wagę (w gramach), kalorie oraz makroskładniki (białko, tłuszcz, węglowodany) dla tego posiłku.
+Zwróć odpowiedź WYŁĄCZNIE w czystym formacie JSON bez żadnych znaczników markdown (bez ```json ... ```), według poniższego wzoru:
+{
+  "name": "Krótka, ładna nazwa posiłku",
+  "weight": 350,
+  "kcal": 550,
+  "p": 35.0,
+  "f": 20.0,
+  "c": 60.0
+}`
+                });
+
+                var textResp = response.text().trim();
+                // Usuń ewentualne otoczki markdown jeśli model je dodał
+                textResp = textResp.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/, "");
+                var parsed = JSON.parse(textResp);
+
+                state.aiResultData = parsed;
+            } catch(err) {
+                alert('Błąd zapytania do Gemini: ' + err.message);
+            } finally {
+                state.aiLoading = false;
+                render();
+            }
+        };
+
+        window.addAiMealToDiary = function() {
+            if (!state.aiResultData) return;
+            var res = state.aiResultData;
+
+            getDayData().meals.push({
+                id: Date.now(),
+                name: res.name + ' (AI)',
+                weight: res.weight,
+                kcal: res.kcal,
+                p: res.p,
+                f: res.f,
+                c: res.c
+            });
+
+            // Dodaj też do bazy produktów na przyszłość
+            state.products.unshift({
+                id: String(Date.now()),
+                name: res.name + ' (AI)',
+                baseWeight: res.weight,
+                baseKcal: res.kcal,
+                baseP: res.p,
+                baseF: res.f,
+                baseC: res.c
+            });
+
+            state.statusMsg = 'Dodano posiłek szacowany przez AI!';
+            closeAiModal();
+            saveState();
+            render();
+        };
+
+        // INTEGRACJA Z GEMINI: Wieczorny komentarz i porada
+        window.getGeminiDailyAdvice = async function() {
+            if (!window.geminiClient) return alert('Brak połączenia z Gemini!');
+            var day = getDayData();
+            var user = state.users.find(function(u) { return u.id === state.userId; }) || state.users[0];
+
+            var eaten = 0, p = 0, f = 0, c = 0;
+            day.meals.forEach(function(m) { eaten += m.kcal; p += m.p; f += m.f; c += m.c; });
+            var burned = day.workouts.reduce(function(s, w) { return s + w.kcal; }, 0);
+            var net = eaten - burned;
+
+            state.aiAdviceLoading = true;
+            render();
+
+            try {
+                const response = await window.geminiClient.models.generateContent({
+                    model: 'gemini-2.5-flash',
+                    contents: `Jesteś przyjaznym, motywującym osobistym trenerem i dietetykiem. Przeanalizuj dzisiejsze wyniki użytkownika ${user.name}:
+- Cel kalorii: ${day.goals.kcal} kcal
+- Zjedzono: ${Math.round(eaten)} kcal (Białko: ${Math.round(p)}g, Tłuszcz: ${Math.round(f)}g, Węglowodany: ${Math.round(c)}g)
+- Spalono na treningu: ${burned} kcal
+- Waga dzisiaj: ${day.weight ? day.weight + ' kg' : 'brak pomiaru'}
+
+Napisz krótki, zwięzły, pełen energii komentarz (2-3 zdania). Pochwal za dobre nawyki, odnieś się do treningu lub bilansu i daj jedną konstruktywną radę na resztę dnia lub jutro. Mów bezpośrednio do użytkownika w języku polskim.`
+                });
+
+                state.aiAdviceText = response.text().trim();
+            } catch(err) {
+                state.aiAdviceText = 'Nie udało się pobrać porady od AI: ' + err.message;
+            } finally {
+                state.aiAdviceLoading = false;
+                render();
+            }
+        };
+
+        // Skaner
         window.fetchProductByBarcode = function(barcode) {
             if (!barcode || !barcode.trim()) return alert('Wpisz lub zeskanuj kod kreskowy!');
             var cleanCode = barcode.trim();
@@ -177,36 +307,30 @@
             state.scannedProductData = null;
             render();
 
-            fetch('https://world.openfoodfacts.org/api/v0/product/' + cleanCode + '.json')
+            fetch('[https://world.openfoodfacts.org/api/v0/product/](https://world.openfoodfacts.org/api/v0/product/)' + cleanCode + '.json')
                 .then(function(response) { return response.json(); })
                 .then(function(data) {
                     if (data.status === 1 && data.product) {
                         var p = data.product;
                         var name = (p.product_name_pl || p.product_name || 'Produkt z kodu') + (p.brands ? ' (' + p.brands + ')' : '');
                         var nut = p.nutriments || {};
-                        
-                        // Wartości na 100g z API
                         var kcal100 = nut['energy-kcal_100g'] || nut['energy-kcal'] || 0;
                         var prot100 = nut['proteins_100g'] || 0;
-                        var fat100 = nut['fat_100g'] || nut['fat'] || 0;
-                        var carb100 = nut['carbohydrates_100g'] || nut['carbohydrates'] || 0;
+                        var fat100 = nut['fat_100g'] || 0;
+                        var carb100 = nut['carbohydrates_100g'] || 0;
 
-                        // Próba odczytania wagi opakowania z Open Food Facts (np. "360g", "150 g")
                         var pkgWeight = 100;
                         var rawQty = p.quantity || p.product_quantity || '';
                         var match = String(rawQty).match(/(\d+)\s*g/i);
                         if (match && match[1]) {
                             pkgWeight = parseInt(match[1]);
                         } else if (kcal100 > 0) {
-                            // Jeśli API podało gotową kaloryczność na całe opakowanie, możemy ją wykryć
                             var kcalTotal = nut['energy-kcal'] || 0;
                             if (kcalTotal > 0 && kcalTotal !== kcal100) {
-                                // Wylicz przybliżoną wagę opakowania
                                 pkgWeight = Math.round((kcalTotal / kcal100) * 100);
                             }
                         }
 
-                        // Przeliczamy składniki na całe opakowanie (wartość na 100g * waga opakowania / 100)
                         var ratio = pkgWeight / 100;
                         var totalKcal = Math.round(kcal100 * ratio);
                         var totalProt = Math.round((prot100 * ratio) * 10) / 10;
@@ -214,13 +338,7 @@
                         var totalCarb = Math.round((carb100 * ratio) * 10) / 10;
 
                         state.scannedProductData = {
-                            name: name,
-                            baseWeight: pkgWeight,
-                            baseKcal: totalKcal,
-                            baseP: totalProt,
-                            baseF: totalFat,
-                            baseC: totalCarb,
-                            addWeight: pkgWeight
+                            name: name, baseWeight: pkgWeight, baseKcal: totalKcal, baseP: totalProt, baseF: totalFat, baseC: totalCarb, addWeight: pkgWeight
                         };
                         state.statusMsg = 'Zeskanowano pomyślnie!';
                         render();
@@ -245,22 +363,10 @@
             var existing = state.products.find(function(prod) { return prod.name.toLowerCase() === sp.name.toLowerCase(); });
 
             if (existing && updateIfExists) {
-                existing.baseWeight = customW;
-                existing.baseKcal = customKcal;
-                existing.baseP = customP;
-                existing.baseF = customF;
-                existing.baseC = customC;
+                existing.baseWeight = customW; existing.baseKcal = customKcal; existing.baseP = customP; existing.baseF = customF; existing.baseC = customC;
                 state.statusMsg = 'Zaktualizowano produkt w bazie!';
             } else if (!existing) {
-                state.products.unshift({
-                    id: String(Date.now()),
-                    name: sp.name,
-                    baseWeight: customW,
-                    baseKcal: customKcal,
-                    baseP: customP,
-                    baseF: customF,
-                    baseC: customC
-                });
+                state.products.unshift({ id: String(Date.now()), name: sp.name, baseWeight: customW, baseKcal: customKcal, baseP: customP, baseF: customF, baseC: customC });
                 state.statusMsg = 'Dodano produkt do bazy jako całe opakowanie!';
             }
             state.scannedProductData = null; saveState(); render();
@@ -280,16 +386,9 @@
 
             var existing = state.products.find(function(prod) { return prod.name.toLowerCase() === sp.name.toLowerCase(); });
             if (!existing) {
-                state.products.unshift({
-                    id: String(Date.now()), name: sp.name,
-                    baseWeight: customW, baseKcal: customKcal, baseP: customP, baseF: customF, baseC: customC
-                });
+                state.products.unshift({ id: String(Date.now()), name: sp.name, baseWeight: customW, baseKcal: customKcal, baseP: customP, baseF: customF, baseC: customC });
             } else {
-                existing.baseWeight = customW;
-                existing.baseKcal = customKcal;
-                existing.baseP = customP;
-                existing.baseF = customF;
-                existing.baseC = customC;
+                existing.baseWeight = customW; existing.baseKcal = customKcal; existing.baseP = customP; existing.baseF = customF; existing.baseC = customC;
             }
 
             getDayData().meals.push({
@@ -298,8 +397,7 @@
                 f: Math.round(customF * r * 10) / 10, c: Math.round(customC * r * 10) / 10
             });
 
-            state.scannedProductData = null;
-            state.statusMsg = 'Dodano posiłek do dziennika!';
+            state.scannedProductData = null; state.statusMsg = 'Dodano posiłek do dziennika!';
             saveState(); render();
         };
 
@@ -542,8 +640,12 @@
                     '<button onclick="addWater(0)" class="bg-rose-500/10 text-rose-500 px-2 py-1 rounded-lg text-[10px] font-bold ml-1">Reset</button>' +
                     '</div></div></div>';
 
+                // SEKCJA POSIŁKÓW Z PRZYCISKIEM GEMINI AI
                 html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
-                    '<h3 class="font-bold text-sm mb-2">🍽️ Posiłki</h3>' +
+                    '<div class="flex justify-between items-center mb-2">' +
+                    '<h3 class="font-bold text-sm">🍽️ Posiłki</h3>' +
+                    '<button onclick="openAiModal()" class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-sm flex items-center space-x-1"><span>🤖 Zapytaj AI</span></button>' +
+                    '</div>' +
                     '<div class="flex space-x-2 mb-3 relative"><div class="relative flex-1 min-w-0">' +
                     '<input id="pSearchInp" placeholder="Wpisz (np. skyr)..." value="' + state.prodSearch + '" oninput="filterProductsDropdown(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs font-medium px-3 py-2 outline-none" />' +
                     '<div id="prodDropdownList" class="absolute top-full left-0 w-full mt-1 ' + th.card + ' border shadow-xl rounded-lg max-h-48 overflow-y-auto z-50 hidden"></div>' +
@@ -557,6 +659,32 @@
                         '<div class="flex items-center space-x-2 shrink-0"><span class="font-black text-xs">' + m.kcal + ' <span class="font-normal text-[9px] opacity-60">kcal</span></span><button onclick="delMeal(' + m.id + ')" class="text-rose-400 font-bold px-2">✕</button></div></div>';
                 });
                 html += '</div></div>';
+
+                // MODAL WYSZUKIWANIA AI (GEMINI)
+                if (state.aiModalOpen) {
+                    html += '<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">' +
+                        '<div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-purple-100 text-gray-900">' +
+                        '<h3 class="font-black text-sm text-purple-900 mb-1 flex items-center space-x-1"><span>🤖 Asystent Dietetyczny AI</span></h3>' +
+                        '<p class="text-[10px] text-gray-500 mb-3">Wpisz co zjeść (np. "kotlet schabowy z ziemniakami i mizerią"), a Gemini oszacuje kalorie i makro.</p>' +
+                        '<textarea id="aiInputQuery" rows="3" placeholder="Opisz posiłek..." class="w-full p-2.5 bg-gray-50 border border-purple-200 rounded-xl text-xs outline-none mb-3 font-medium" oninput="state.aiQueryText=this.value">' + state.aiQueryText + '</textarea>';
+
+                    if (state.aiLoading) {
+                        html += '<div class="text-center py-4 text-xs font-bold text-purple-600 animate-pulse">Trwa szacowanie przez AI...</div>';
+                    } else if (state.aiResultData) {
+                        var res = state.aiResultData;
+                        html += '<div class="bg-purple-50 border border-purple-200 p-3 rounded-xl mb-3 text-xs">' +
+                            '<p class="font-black text-purple-900 mb-1">✅ ' + res.name + '</p>' +
+                            '<p class="text-gray-600 mb-2">Szacowana waga: <b>' + res.weight + 'g</b> | Kcal: <b>' + res.kcal + '</b></p>' +
+                            '<p class="text-[10px] text-purple-700">B: ' + res.p + 'g | T: ' + res.f + 'g | W: ' + res.c + 'g</p>' +
+                            '</div>' +
+                            '<button onclick="addAiMealToDiary()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow mb-2">🍽️ Dodaj do dzisiejszego dziennika</button>';
+                    } else {
+                        html += '<button onclick="askGeminiForMeal()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl text-xs shadow mb-2">✨ Oszacuj posiłek</button>';
+                    }
+
+                    html += '<button onclick="closeAiModal()" class="w-full bg-gray-200 text-gray-700 font-bold py-2 rounded-xl text-xs">Zamknij</button>' +
+                        '</div></div>';
+                }
 
                 html += '<div class="' + th.card + ' p-4 rounded-xl border">' +
                     '<h3 class="font-bold text-sm text-orange-500 mb-2">🔥 Dodaj trening (Dzisiaj)</h3>' +
@@ -657,7 +785,6 @@
                         '<p class="text-xs font-black text-indigo-900 mb-1">📦 ' + sp.name + '</p>' +
                         '<p class="text-[10px] text-gray-600 mb-3">Wykryta waga opakowania: <b>' + sp.baseWeight + 'g</b> | Wartości na całe opakowanie:</p>' +
                         
-                        // Edytowalne pola wagi i składników dla całego opakowania
                         '<div class="grid grid-cols-2 gap-2 mb-2 text-xs">' +
                         '<div><label class="font-bold text-[9px] text-gray-500 block">Waga opakowania (g):</label><input id="scannedPkgWeightInput" type="number" value="' + sp.baseWeight + '" class="w-full p-1 border rounded font-bold text-center" /></div>' +
                         '<div><label class="font-bold text-[9px] text-gray-500 block">Kcal (całość):</label><input id="scannedPkgKcalInput" type="number" value="' + sp.baseKcal + '" class="w-full p-1 border rounded font-bold text-center" /></div>' +
@@ -749,6 +876,22 @@
                     '<button onclick="changeWeekOffset(1)" class="' + th.inputBg + ' border px-3 py-1.5 rounded-lg text-xs font-black">Następny ▶</button>' +
                     '</div>';
 
+                // SEKCJA PORADY AI W ZAKŁADCE TYDZIEŃ / PODSUMOWANIE
+                html += '<div class="bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-4 rounded-xl shadow-md mb-4">' +
+                    '<div class="flex justify-between items-center mb-2">' +
+                    '<h3 class="font-black text-xs uppercase tracking-wide flex items-center space-x-1"><span>💬 AI Komentarz i Porada Dnia</span></h3>' +
+                    '<button onclick="getGeminiDailyAdvice()" class="bg-purple-600 hover:bg-purple-500 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold shadow">Analizuj dzień</button>' +
+                    '</div>';
+
+                if (state.aiAdviceLoading) {
+                    html += '<p class="text-xs text-purple-200 animate-pulse text-center py-2">Gemini analizuje Twój dzień...</p>';
+                } else if (state.aiAdviceText) {
+                    html += '<p class="text-xs text-purple-100 font-medium italic leading-relaxed">„' + state.aiAdviceText + '”</p>';
+                } else {
+                    html += '<p class="text-[10px] text-purple-300 text-center">Kliknij „Analizuj dzień”, aby otrzymać podsumowanie i wskazówki od AI.</p>';
+                }
+                html += '</div>';
+
                 html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
                     '<h3 class="font-black text-base mb-0.5 text-center">⚖️ Bilans Kaloryczny Tygodnia</h3>' +
                     '<p class="text-[10px] opacity-75 font-bold text-center mb-3 uppercase">' + weekDates2[0] + ' — ' + weekDates2[6] + ' (aktywnych: ' + validGoalDays + 'd)</p>' +
@@ -813,8 +956,8 @@
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v25 (Naprawiona edycja + Skaner wagi opakowania)</p>' +
-                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 14:05</p>' +
+                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v26 (Zintegrowane Gemini AI & Stabilny kod)</p>' +
+                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 14:45</p>' +
                     '</div>';
             }
 
@@ -907,7 +1050,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 25, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 26, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
