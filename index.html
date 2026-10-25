@@ -107,8 +107,9 @@
             tab: 'dziennik',
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v39_theme') || 'classic',
+            theme: localStorage.getItem('diet_v40_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
+            fastModel: localStorage.getItem('diet_gemini_fast_model') || '', // Pamięć podręczna szybkiego modelu
             products: [], workoutsDb: [], diaries: {}, settings: { startOfWeek: 1, measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ] },
             date: dzis, weekOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
@@ -149,69 +150,63 @@
                 }).catch(function(e){ console.log("Zapis do chmury nie powiódł się:", e); });
             }
             localStorage.setItem('diet_v15_curr_user', state.userId);
-            localStorage.setItem('diet_v39_theme', state.theme);
+            localStorage.setItem('diet_v40_theme', state.theme);
             localStorage.setItem('diet_gemini_key', state.geminiApiKey);
+            localStorage.setItem('diet_gemini_fast_model', state.fastModel);
         };
 
         window.setTheme = function(th) { state.theme = th; saveState(); render(); };
         
         window.saveGeminiKey = function(key) {
             state.geminiApiKey = key.trim();
+            state.fastModel = ''; // Resetujemy pamięć modelu przy zmianie klucza
             saveState();
             state.statusMsg = 'Zapisano klucz Gemini AI!';
             render();
         };
 
-        window.callGeminiSmart = async function(promptStr) {
-            var key = state.geminiApiKey.trim();
-            var modelsToTry = [
-                'gemini-2.5-flash',
-                'gemini-2.0-flash',
-                'gemini-2.5-pro',
-                'gemini-flash-latest'
-            ];
+        // TURBO SILNIK GEMINI (Zapamiętuje działający model i uderza bezpośrednio w 1 sekundę!)
+        window.tryGenerateWithModel = async function(modelPath, key, promptStr) {
+            var fullPath = modelPath.startsWith('models/') ? modelPath : ('models/' + modelPath);
+            var url = 'https://generativelanguage.googleapis.com/v1beta/' + fullPath + ':generateContent';
 
-            var lastError = '';
+            var res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+                body: JSON.stringify({ contents: [{ parts: [{ text: promptStr }] }] })
+            });
 
-            for (var i = 0; i < modelsToTry.length; i++) {
-                var modelName = modelsToTry[i];
-                try {
-                    var res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':generateContent', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'x-goog-api-key': key
-                        },
-                        body: JSON.stringify({ contents: [{ parts: [{ text: promptStr }] }] })
-                    });
-
-                    if (res.ok) {
-                        var data = await res.json();
-                        return data.candidates[0].content.parts[0].text.trim();
-                    } else {
-                        var errObj = await res.json().catch(function(){ return {}; });
-                        lastError = (errObj.error && errObj.error.message) ? errObj.error.message : ('Status ' + res.status);
-                        
-                        if (res.status === 401 || res.status === 403 || res.status === 400) {
-                            var resBearer = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':generateContent', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': 'Bearer ' + key
-                                },
-                                body: JSON.stringify({ contents: [{ parts: [{ text: promptStr }] }] })
-                            });
-                            if (resBearer.ok) {
-                                var dataB = await resBearer.json();
-                                return dataB.candidates[0].content.parts[0].text.trim();
-                            }
-                        }
-                    }
-                } catch(e) {
-                    lastError = e.message;
-                }
+            if (res.ok) {
+                var data = await res.json();
+                return data.candidates[0].content.parts[0].text.trim();
             }
 
+            if (res.status === 401 || res.status === 403) {
+                var resB = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: promptStr }] }] })
+                });
+                if (resB.ok) {
+                    var dataB = await resB.json();
+                    return dataB.candidates[0].content.parts[0].text.trim();
+                }
+            }
+            return null;
+        };
+
+        window.callGeminiSmart = async function(promptStr) {
+            var key = state.geminiApiKey.trim();
+
+            // 1. SZYBKA ŚCIEŻKA: Jeśli mamy już zapamiętany działający model, uderzamy prosto do niego (trwa to ~1 sek!)
+            if (state.fastModel) {
+                try {
+                    var fastResult = await tryGenerateWithModel(state.fastModel, key, promptStr);
+                    if (fastResult) return fastResult;
+                } catch(e) {}
+            }
+
+            // 2. WYSZUKIWANIE MODELU: Odpytujemy bezpośrednio serwer o listę dostępnych modeli na Twoim koncie
             try {
                 var listRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
                     method: 'GET',
@@ -219,27 +214,39 @@
                 });
                 if (listRes.ok) {
                     var listData = await listRes.json();
-                    var validModel = (listData.models || []).find(function(m) {
+                    var allModels = listData.models || [];
+                    // Szukamy najpierw szybkiego modelu "flash", a jeśli nie ma, bierzemy pierwszy dostępny model Gemini
+                    var bestModel = allModels.find(function(m) {
+                        return m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent') && m.name.includes('flash');
+                    }) || allModels.find(function(m) {
                         return m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent') && m.name.includes('gemini');
                     });
-                    if (validModel) {
-                        var dynamicRes = await fetch('https://generativelanguage.googleapis.com/v1beta/' + validModel.name + ':generateContent', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'x-goog-api-key': key
-                            },
-                            body: JSON.stringify({ contents: [{ parts: [{ text: promptStr }] }] })
-                        });
-                        if (dynamicRes.ok) {
-                            var dynData = await dynamicRes.json();
-                            return dynData.candidates[0].content.parts[0].text.trim();
+
+                    if (bestModel) {
+                        var dynResult = await tryGenerateWithModel(bestModel.name, key, promptStr);
+                        if (dynResult) {
+                            state.fastModel = bestModel.name;
+                            localStorage.setItem('diet_gemini_fast_model', state.fastModel);
+                            return dynResult;
                         }
                     }
                 }
             } catch(e) {}
 
-            throw new Error(lastError || 'Nie udało się połączyć z żadnym modelem Gemini.');
+            // 3. AWARYJNA LISTA (gdyby blokowało pobieranie listy)
+            var fallbackModels = ['models/gemini-2.5-flash', 'models/gemini-2.0-flash', 'models/gemini-1.5-flash-latest'];
+            for (var i = 0; i < fallbackModels.length; i++) {
+                try {
+                    var fbRes = await tryGenerateWithModel(fallbackModels[i], key, promptStr);
+                    if (fbRes) {
+                        state.fastModel = fallbackModels[i];
+                        localStorage.setItem('diet_gemini_fast_model', state.fastModel);
+                        return fbRes;
+                    }
+                } catch(e) {}
+            }
+
+            throw new Error('Sprawdź poprawność klucza API lub połączenie z internetem.');
         };
 
         window.testGeminiConnection = async function() {
@@ -250,12 +257,14 @@
             }
             if (!state.geminiApiKey) return alert('Najpierw wklej klucz w pole powyżej!');
             
-            state.statusMsg = 'Testuję połączenie z Google AI...';
+            state.statusMsg = 'Testuję szybkość połączenia z AI...';
             render();
             try {
+                var startTime = Date.now();
                 var reply = await callGeminiSmart('Odpowiedz jednym słowem: DZIAŁA');
-                state.statusMsg = '✅ Sukces! Odpowiedź AI: ' + reply;
-                alert('✅ Połączenie z AI działa idealnie! Odpowiedź serwera: ' + reply);
+                var timeTaken = ((Date.now() - startTime) / 1000).toFixed(1);
+                state.statusMsg = '✅ Sukces (' + timeTaken + 's)! Model: ' + (state.fastModel || 'Auto');
+                alert('✅ Błyskawiczne połączenie (' + timeTaken + ' sek.)!\nZapamiętany model: ' + (state.fastModel || 'Domyślny') + '\nOdpowiedź: ' + reply);
             } catch(err) {
                 state.statusMsg = '❌ Błąd: ' + err.message;
                 alert('❌ Błąd połączenia: ' + err.message);
@@ -862,13 +871,8 @@
                 var wDiff = weightsForWeek.length >= 2 ? (weightsForWeek[weightsForWeek.length - 1] - weightsForWeek[0]) : 0;
                 var wDiffStr = (wDiff > 0 ? '+' : '') + wDiff.toFixed(1);
 
-                html += '<div class="' + th.card + ' p-2.5 rounded-xl border flex items-center justify-between mb-3">' +
-                    '<button onclick="changeWeekOffset(-1)" class="' + th.inputBg + ' border px-3 py-1.5 rounded-lg text-xs font-black">◀ Poprzedni</button>' +
-                    '<button onclick="state.weekOffset=0; render();" class="text-[10px] font-black ' + th.accent + ' px-2 py-1 rounded uppercase">Obecny tydzień</button>' +
-                    '<button onclick="changeWeekOffset(1)" class="' + th.inputBg + ' border px-3 py-1.5 rounded-lg text-xs font-black">Następny ▶</button>' +
-                    '</div>';
-
-                html += '<div class="bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-4 rounded-xl shadow-md mb-4">' +
+                // OKNO AI PRZENIESIONE NA SAMĄ GÓRĘ (PONAD PRZEŁĄCZNIKI TYGODNI)
+                html += '<div class="bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-4 rounded-xl shadow-md mb-3">' +
                     '<div class="flex justify-between items-center mb-2">' +
                     '<h3 class="font-black text-xs uppercase tracking-wide flex items-center space-x-1"><span>💬 AI Komentarz i Porada Dnia</span></h3>' +
                     '<button onclick="getGeminiDailyAdvice()" class="bg-purple-600 hover:bg-purple-500 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold shadow">Analizuj dzień</button>' +
@@ -882,6 +886,12 @@
                     html += '<p class="text-[10px] text-purple-300 text-center">Kliknij „Analizuj dzień”, aby otrzymać podsumowanie i wskazówki od AI.</p>';
                 }
                 html += '</div>';
+
+                html += '<div class="' + th.card + ' p-2.5 rounded-xl border flex items-center justify-between mb-3">' +
+                    '<button onclick="changeWeekOffset(-1)" class="' + th.inputBg + ' border px-3 py-1.5 rounded-lg text-xs font-black">◀ Poprzedni</button>' +
+                    '<button onclick="state.weekOffset=0; render();" class="text-[10px] font-black ' + th.accent + ' px-2 py-1 rounded uppercase">Obecny tydzień</button>' +
+                    '<button onclick="changeWeekOffset(1)" class="' + th.inputBg + ' border px-3 py-1.5 rounded-lg text-xs font-black">Następny ▶</button>' +
+                    '</div>';
 
                 html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
                     '<h3 class="font-black text-base mb-0.5 text-center">⚖️ Bilans Kaloryczny Tygodnia</h3>' +
@@ -915,7 +925,7 @@
                     '<input type="password" id="aiKeyInput" placeholder="AQ... lub AIzaSy..." value="' + state.geminiApiKey + '" class="w-full p-2.5 ' + th.inputBg + ' border rounded-lg text-xs font-medium outline-none mb-2 text-center" />' +
                     '<div class="grid grid-cols-2 gap-2">' +
                     '<button onclick="saveGeminiKey(document.getElementById(\'aiKeyInput\').value)" class="w-full ' + th.btn + ' font-bold py-2.5 rounded-xl shadow-md text-xs">💾 Zapisz klucz</button>' +
-                    '<button onclick="testGeminiConnection()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl shadow-md text-xs">🔍 Testuj AI</button>' +
+                    '<button onclick="testGeminiConnection()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl shadow-md text-xs">⚡ Testuj szybkość</button>' +
                     '</div></div>';
 
                 html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
@@ -956,8 +966,8 @@
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v39 (Naprawa uruchamiania + Smart AI)</p>' +
-                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 20:30</p>' +
+                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v40 (Turbo AI + Nowy układ Tygodnia)</p>' +
+                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 20:40</p>' +
                     '</div>';
             }
 
@@ -1119,7 +1129,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 39, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 40, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
