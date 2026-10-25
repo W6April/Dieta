@@ -10,6 +10,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
         html, body { overflow-x: hidden; width: 100%; position: relative; }
         body { -webkit-tap-highlight-color: transparent; touch-action: pan-y; }
@@ -41,6 +42,15 @@
         } catch(e) {
             console.log("Błąd inicjalizacji Firebase:", e);
         }
+
+        // Definicje motywów graficznych
+        const THEMES = {
+            blue: { name: "Klasyczny Niebieski", header: "bg-blue-600", headerSub: "bg-blue-700", headerInput: "bg-blue-800 border-blue-400", tabActive: "text-blue-600", btn: "bg-blue-600 hover:bg-blue-700 text-white", cardBorder: "border-blue-100", accent: "text-blue-600" },
+            orange: { name: "Energetyczna Pomarańcza", header: "bg-orange-600", headerSub: "bg-orange-700", headerInput: "bg-orange-800 border-orange-400", tabActive: "text-orange-600", btn: "bg-orange-600 hover:bg-orange-700 text-white", cardBorder: "border-orange-100", accent: "text-orange-600" },
+            purple: { name: "Głęboki Fiolet", header: "bg-purple-600", headerSub: "bg-purple-700", headerInput: "bg-purple-800 border-purple-400", tabActive: "text-purple-600", btn: "bg-purple-600 hover:bg-purple-700 text-white", cardBorder: "border-purple-100", accent: "text-purple-600" },
+            green: { name: "Leśna Zieleń", header: "bg-emerald-600", headerSub: "bg-emerald-700", headerInput: "bg-emerald-800 border-emerald-400", tabActive: "text-emerald-600", btn: "bg-emerald-600 hover:bg-emerald-700 text-white", cardBorder: "border-emerald-100", accent: "text-emerald-600" },
+            dark: { name: "Elegancki Ciemny", header: "bg-slate-900", headerSub: "bg-slate-800", headerInput: "bg-slate-950 border-slate-600", tabActive: "text-slate-900", btn: "bg-slate-900 hover:bg-slate-800 text-white", cardBorder: "border-slate-200", accent: "text-slate-900" }
+        };
 
         const FULL_PRODUCTS = [
             { id: "hb1", name: "Fruvita Skyr naturalny (150g)", baseWeight: 150, baseKcal: 98, baseP: 18.0, baseF: 0.0, baseC: 6.2 },
@@ -88,12 +98,14 @@
             tab: 'dziennik',
             users: [{ id: 'u1', name: 'Ja', startDate: dzis }, { id: 'u2', name: 'Żona', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
+            theme: localStorage.getItem('diet_v18_theme') || 'blue', // Motyw graficzny
             products: [], workoutsDb: [], diaries: {}, settings: { startOfWeek: 1, measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ] },
             date: dzis,
-            weekOffset: 0, // NOWE: Przesunięcie tygodniowe w zakładce Trening/Tydzień
+            weekOffset: 0,
             isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
-            wSearch: '', wResults: [], wInputTime: '', wInputKcal: '', editProdId: null
+            wSearch: '', wResults: [], wInputTime: '', wInputKcal: '', editProdId: null,
+            isScanning: false
         };
 
         function initLocalDefaults() {
@@ -130,6 +142,13 @@
                 }).catch(function(e){ console.log("Zapis do chmury nie powiódł się:", e); });
             }
             localStorage.setItem('diet_v15_curr_user', state.userId);
+            localStorage.setItem('diet_v18_theme', state.theme);
+        };
+
+        window.setTheme = function(th) {
+            state.theme = th;
+            saveState();
+            render();
         };
 
         window.cloudUploadOnly = function() {
@@ -162,6 +181,86 @@
             }).catch(function(err) { alert('Błąd pobierania: ' + err.message); });
         };
 
+        window.fetchProductByBarcode = function(barcode) {
+            if (!barcode || !barcode.trim()) return alert('Wpisz lub zeskanuj kod kreskowy!');
+            var cleanCode = barcode.trim();
+            state.statusMsg = 'Szukam produktu w bazie Open Food Facts...';
+            render();
+
+            fetch('https://world.openfoodfacts.org/api/v0/product/' + cleanCode + '.json')
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (data.status === 1 && data.product) {
+                        var p = data.product;
+                        var name = (p.product_name_pl || p.product_name || 'Produkt z kodu') + (p.brands ? ' (' + p.brands + ')' : '');
+                        var nut = p.nutriments || {};
+                        
+                        var kcal = nut['energy-kcal_100g'] || nut['energy-kcal'] || 0;
+                        var prot = nut['proteins_100g'] || 0;
+                        var fat = nut['fat_100g'] || nut['fat'] || 0;
+                        var carb = nut['carbohydrates_100g'] || nut['carbohydrates'] || 0;
+
+                        document.getElementById('pName').value = name;
+                        document.getElementById('pW').value = 100;
+                        document.getElementById('pK').value = Math.round(kcal);
+                        document.getElementById('pP').value = Math.round(prot * 10) / 10;
+                        document.getElementById('pF').value = Math.round(fat * 10) / 10;
+                        document.getElementById('pC').value = Math.round(carb * 10) / 10;
+
+                        state.statusMsg = 'Znaleziono produkt! Sprawdź dane i zapisz.';
+                        render();
+                    } else {
+                        state.statusMsg = '';
+                        alert('Nie znaleziono produktu w darmowej bazie. Wpisz dane ręcznie.');
+                        render();
+                    }
+                })
+                .catch(function(err) {
+                    state.statusMsg = '';
+                    alert('Błąd połączenia z bazą produktów: ' + err.message);
+                    render();
+                });
+        };
+
+        var html5QrCode = null;
+        window.startBarcodeScanner = function() {
+            state.isScanning = true;
+            render();
+            setTimeout(function() {
+                html5QrCode = new Html5Qrcode("reader");
+                html5QrCode.start(
+                    { facingMode: "environment" },
+                    { fps: 10, qrbox: { width: 250, height: 150 } },
+                    function(decodedText, decodedResult) {
+                        stopBarcodeScanner();
+                        document.getElementById('barcodeInput').value = decodedText;
+                        fetchProductByBarcode(decodedText);
+                    },
+                    function(errorMessage) {}
+                ).catch(function(err) {
+                    state.isScanning = false;
+                    alert('Nie udało się uruchomić aparatu: ' + err);
+                    render();
+                });
+            }, 200);
+        };
+
+        window.stopBarcodeScanner = function() {
+            if (html5QrCode) {
+                html5QrCode.stop().then(function() {
+                    html5QrCode.clear();
+                    state.isScanning = false;
+                    render();
+                }).catch(function(err) {
+                    state.isScanning = false;
+                    render();
+                });
+            } else {
+                state.isScanning = false;
+                render();
+            }
+        };
+
         window.getDayData = function(customDate) {
             var targetDate = customDate || state.date;
             if (!state.diaries[state.userId]) state.diaries[state.userId] = {};
@@ -179,10 +278,23 @@
             return d;
         };
 
+        // Automatyczne znajdowanie dnia pierwszego wpisu użytkownika
         window.getDietDaysCounter = function() {
-            var user = state.users.find(function(u) { return u.id === state.userId; }) || state.users[0];
-            var diff = Math.floor((new Date(state.date) - new Date(user.startDate || state.date)) / (1000 * 60 * 60 * 24));
-            return diff >= 0 ? diff + 1 : 0;
+            var userDiary = state.diaries[state.userId] || {};
+            var allDates = Object.keys(userDiary).sort();
+            var firstActiveDate = null;
+            
+            for (var i = 0; i < allDates.length; i++) {
+                var d = userDiary[allDates[i]];
+                if ((d.meals && d.meals.length > 0) || (d.workouts && d.workouts.length > 0) || d.weight || (d.water && d.water > 0)) {
+                    firstActiveDate = allDates[i];
+                    break;
+                }
+            }
+            if (!firstActiveDate) firstActiveDate = state.date;
+
+            var diff = Math.floor((new Date(state.date) - new Date(firstActiveDate)) / (1000 * 60 * 60 * 24));
+            return diff >= 0 ? diff + 1 : 1;
         };
 
         window.changeDateOffset = function(days) {
@@ -255,6 +367,7 @@
             var app = document.getElementById('app');
             var day = getDayData();
             var user = state.users.find(function(u) { return u.id === state.userId; }) || state.users[0];
+            var th = THEMES[state.theme] || THEMES.blue;
 
             var eatenKcal = 0, eatenP = 0, eatenF = 0, eatenC = 0;
             day.meals.forEach(function(m) { eatenKcal += m.kcal; eatenP += m.p; eatenF += m.f; eatenC += m.c; });
@@ -267,18 +380,18 @@
             var statusColor = left < 0 ? 'text-red-500' : (eatenKcal > day.goals.kcal ? 'text-blue-500' : 'text-emerald-500');
             var bgClass = left < 0 ? 'bg-red-50 border-red-100' : (eatenKcal > day.goals.kcal ? 'bg-blue-50 border-blue-100' : 'bg-gray-50');
 
-            var html = '<div class="bg-blue-600 text-white p-4 shadow-md w-full">' +
+            var html = '<div class="' + th.header + ' text-white p-4 shadow-md w-full">' +
                 '<div class="flex justify-between items-center mb-3">' +
                 '<h1 class="text-xl font-bold tracking-tight">Dziennik Diety</h1>' +
-                '<div class="flex items-center space-x-1 bg-blue-800 px-2 py-1 rounded-full shadow-inner text-xs font-bold">' +
-                '<span>Dzień:</span><input type="number" value="' + getDietDaysCounter() + '" onchange="setDayCounter(this.value)" class="w-10 bg-transparent text-white text-center outline-none border-b border-blue-400" />' +
+                '<div class="flex items-center space-x-1 ' + th.headerSub + ' px-2 py-1 rounded-full shadow-inner text-xs font-bold">' +
+                '<span>Dzień:</span><span class="w-10 text-white text-center">' + getDietDaysCounter() + '</span>' +
                 '</div></div>' +
-                '<div class="flex items-center space-x-2 bg-blue-700 p-1.5 rounded-lg shadow-inner">' +
-                '<span class="text-[10px] text-blue-200 pl-2 font-bold uppercase">Profil:</span>' +
+                '<div class="flex items-center space-x-2 ' + th.headerSub + ' p-1.5 rounded-lg shadow-inner">' +
+                '<span class="text-[10px] text-gray-200 pl-2 font-bold uppercase">Profil:</span>' +
                 '<div class="flex space-x-1 flex-1">';
 
             state.users.forEach(function(u) {
-                var activeCls = (state.userId === u.id) ? 'bg-white text-blue-700 shadow' : 'text-white hover:bg-blue-500';
+                var activeCls = (state.userId === u.id) ? 'bg-white text-gray-900 shadow font-black' : 'text-white hover:bg-black/20';
                 html += '<button onclick="switchUser(\'' + u.id + '\')" class="flex-1 py-1.5 rounded-md text-xs font-bold transition-colors truncate ' + activeCls + '">' + u.name + '</button>';
             });
 
@@ -297,7 +410,7 @@
                 html += '<div class="bg-blue-50 border border-blue-200 p-3 rounded-xl mb-3">' +
                     '<div class="flex justify-between items-center mb-2">' +
                     '<span class="font-bold text-blue-900 text-xs">🎯 Cel (' + user.name + '): ' + day.goals.kcal + ' kcal</span>' +
-                    '<button onclick="toggleGoals()" class="text-[10px] bg-blue-600 text-white px-2 py-1 rounded font-bold shadow-sm">' + (state.isEditingGoals ? 'Zamknij' : 'Edytuj') + '</button></div>';
+                    '<button onclick="toggleGoals()" class="text-[10px] ' + th.btn + ' px-2 py-1 rounded font-bold shadow-sm">' + (state.isEditingGoals ? 'Zamknij' : 'Edytuj') + '</button></div>';
 
                 if (state.isEditingGoals) {
                     html += '<div class="grid grid-cols-2 gap-2 mb-2">' +
@@ -305,7 +418,7 @@
                         '<div><label class="text-[10px] font-bold text-blue-700">Białko (g)</label><input id="gP" type="number" value="' + day.goals.p + '" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>' +
                         '<div><label class="text-[10px] font-bold text-blue-700">Tłuszcz</label><input id="gF" type="number" value="' + day.goals.f + '" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>' +
                         '<div><label class="text-[10px] font-bold text-blue-700">Węglo</label><input id="gC" type="number" value="' + day.goals.c + '" class="w-full p-1.5 text-xs rounded border border-blue-200" /></div>' +
-                        '</div><button onclick="saveGoals()" class="w-full bg-blue-600 text-white py-1.5 rounded font-bold text-xs">Zapisz cel</button>';
+                        '</div><button onclick="saveGoals()" class="w-full ' + th.btn + ' py-1.5 rounded font-bold text-xs">Zapisz cel</button>';
                 }
                 html += '</div>';
 
@@ -313,7 +426,7 @@
                     '<div class="flex justify-between items-center mb-3">' +
                     '<div class="text-center w-1/3"><p class="text-[9px] font-bold text-gray-400 uppercase">Zjedzono</p><p class="text-lg font-black text-gray-800">' + Math.round(eatenKcal) + '</p></div>' +
                     '<div class="text-center w-1/3 border-x border-gray-100"><p class="text-[9px] font-bold text-orange-400 uppercase">Spalone</p><p class="text-lg font-black text-orange-500">-' + burned + '</p></div>' +
-                    '<div class="text-center w-1/3"><p class="text-[9px] font-bold text-blue-400 uppercase">Kcal Netto</p><p class="text-lg font-black text-blue-600">' + Math.round(nettoKcal) + '</p></div>' +
+                    '<div class="text-center w-1/3"><p class="text-[9px] font-bold text-blue-400 uppercase">Kcal Netto</p><p class="text-lg font-black ' + th.accent + '">' + Math.round(nettoKcal) + '</p></div>' +
                     '</div>' +
                     '<div class="' + bgClass + ' border rounded-lg p-2 flex justify-between items-center mb-3">' +
                     '<span class="text-[10px] font-bold text-gray-500 uppercase">' + statusLabel + '</span><span class="text-xl font-black ' + statusColor + '">' + Math.abs(Math.round(left)) + ' kcal</span></div>' +
@@ -322,11 +435,11 @@
                     '<div class="bg-amber-50 text-amber-800 py-1 rounded text-center text-[10px] font-bold">T: ' + Math.round(eatenF) + '/' + day.goals.f + 'g</div>' +
                     '<div class="bg-emerald-50 text-emerald-800 py-1 rounded text-center text-[10px] font-bold">W: ' + Math.round(eatenC) + '/' + day.goals.c + 'g</div></div>' +
                     '<div class="flex justify-between items-center pt-3 border-t border-gray-100">' +
-                    '<span class="text-[10px] font-bold text-blue-400 uppercase">Wypito: <span class="text-blue-600 text-sm ml-1">' + (parseFloat(day.water) || 0).toFixed(2) + ' L</span></span>' +
+                    '<span class="text-[10px] font-bold text-gray-400 uppercase">Wypito: <span class="' + th.accent + ' text-sm ml-1">' + (parseFloat(day.water) || 0).toFixed(2) + ' L</span></span>' +
                     '<div class="flex space-x-1">' +
-                    '<button onclick="addWater(0.25)" class="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-[10px] font-bold">+0.25L</button>' +
-                    '<button onclick="addWater(0.5)" class="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-[10px] font-bold">+0.5L</button>' +
-                    '<button onclick="addWater(1.0)" class="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-[10px] font-bold">+1L</button>' +
+                    '<button onclick="addWater(0.25)" class="bg-gray-100 ' + th.accent + ' px-2 py-1 rounded-lg text-[10px] font-bold">+0.25L</button>' +
+                    '<button onclick="addWater(0.5)" class="bg-gray-100 ' + th.accent + ' px-2 py-1 rounded-lg text-[10px] font-bold">+0.5L</button>' +
+                    '<button onclick="addWater(1.0)" class="bg-gray-100 ' + th.accent + ' px-2 py-1 rounded-lg text-[10px] font-bold">+1L</button>' +
                     '<button onclick="addWater(0)" class="bg-red-50 text-red-500 px-2 py-1 rounded-lg text-[10px] font-bold ml-1">Reset</button>' +
                     '</div></div></div>';
 
@@ -338,12 +451,12 @@
                 if (state.prodResults.length > 0) {
                     html += '<div class="absolute top-full left-0 w-full mt-1 bg-white border border-gray-200 shadow-xl rounded-lg max-h-48 overflow-y-auto z-50">';
                     state.prodResults.forEach(function(p) {
-                        html += '<div onclick="selectProdDrop(\'' + p.id + '\')" class="p-2.5 border-b border-gray-50 text-xs cursor-pointer hover:bg-blue-50"><span class="font-bold block truncate">' + p.name + '</span><span class="text-[9px] text-gray-500">' + p.baseWeight + 'g = ' + p.baseKcal + ' kcal</span></div>';
+                        html += '<div onclick="selectProdDrop(\'' + p.id + '\')" class="p-2.5 border-b border-gray-50 text-xs cursor-pointer hover:bg-gray-50"><span class="font-bold block truncate">' + p.name + '</span><span class="text-[9px] text-gray-500">' + p.baseWeight + 'g = ' + p.baseKcal + ' kcal</span></div>';
                     });
                     html += '</div>';
                 }
                 html += '</div><input id="inpW" type="number" placeholder="Waga(g)" value="' + state.inputWeight + '" oninput="state.inputWeight=this.value" class="w-16 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold text-center outline-none shrink-0" />' +
-                    '<button onclick="addMeal()" class="bg-blue-600 text-white px-3 rounded-lg font-bold shadow-md shrink-0">+</button></div><div class="space-y-2">';
+                    '<button onclick="addMeal()" class="' + th.btn + ' px-3 rounded-lg font-bold shadow-md shrink-0">+</button></div><div class="space-y-2">';
                 
                 if (day.meals.length === 0) html += '<p class="text-[10px] text-gray-400 text-center py-2">Brak posiłków</p>';
                 day.meals.forEach(function(m) {
@@ -379,12 +492,7 @@
             } else if (state.tab === 'trening') {
                 var weekDates = getWeekDates();
                 var weekTime = 0, weekKcal = 0, types = {};
-                
-                // Zmienne do bilansu tygodniowego kalorii względem zera / celu
-                var totalWeekEaten = 0;
-                var totalWeekBurned = 0;
-                var totalWeekTarget = 0;
-                var activeDaysCount = 0;
+                var totalWeekEaten = 0, totalWeekBurned = 0, totalWeekTarget = 0;
 
                 weekDates.forEach(function(d) {
                     var dObj = state.diaries[state.userId] ? state.diaries[state.userId][d] : null;
@@ -394,9 +502,6 @@
                         var e = (dObj.meals || []).reduce(function(s, m) { return s + m.kcal; }, 0);
                         var b = (dObj.workouts || []).reduce(function(s, w) { return s + w.kcal; }, 0);
                         
-                        if (e > 0 || b > 0 || dObj.weight) {
-                            activeDaysCount++;
-                        }
                         totalWeekEaten += e;
                         totalWeekBurned += b;
                         totalWeekTarget += dayGoal;
@@ -413,26 +518,23 @@
                     }
                 });
 
-                // Bilans kaloryczny netto względem celu:
-                // Cel całkowity - (Zjedzone - Spalone) = co zostało w bilansie tygodnia
                 var netWeekKcal = totalWeekEaten - totalWeekBurned;
-                var diffFromTarget = totalWeekTarget - netWeekKcal; // dodatnia = deficyt, ujemna = nadwyżka względem celu
+                var diffFromTarget = totalWeekTarget - netWeekKcal;
 
-                // PASEK NAWIGACJI TYGODNIOWEJ
                 html += '<div class="bg-white p-2.5 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between mb-4">' +
-                    '<button onclick="changeWeekOffset(-1)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-sm font-black">◀ Poprzedni tydzień</button>' +
-                    '<button onclick="state.weekOffset=0; render();" class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">Dzisiaj</button>' +
-                    '<button onclick="changeWeekOffset(1)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-sm font-black">Następny tydzień ▶</button>' +
+                    '<button onclick="changeWeekOffset(-1)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-sm font-black">◀ Poprzedni</button>' +
+                    '<button onclick="state.weekOffset=0; render();" class="text-[10px] font-bold ' + th.accent + ' bg-gray-50 px-2 py-1 rounded">Ten tydzień</button>' +
+                    '<button onclick="changeWeekOffset(1)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-sm font-black">Następny ▶</button>' +
                     '</div>';
 
-                // NOWA STATYSTYKA: BILANS KALORYCZNY TYGODNIA WGLĘDEM CELU
+                // PRZENIESIONY BILANS KALORYCZNY DO ZAKŁADKI TYDZIEŃ
                 html += '<div class="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-4">' +
                     '<h3 class="font-black text-sm text-blue-900 mb-1 text-center">🎯 Tygodniowy Bilans Kaloryczny</h3>' +
                     '<p class="text-[10px] text-blue-600 font-bold text-center mb-3 uppercase">' + weekDates[0] + ' — ' + weekDates[6] + '</p>' +
                     '<div class="grid grid-cols-3 gap-2 mb-3 text-center">' +
                     '<div class="bg-white p-2 rounded-lg border border-blue-100"><span class="text-[9px] font-bold text-gray-400 block uppercase">Zjedzono</span><span class="text-sm font-black text-gray-800">' + Math.round(totalWeekEaten) + '</span></div>' +
                     '<div class="bg-white p-2 rounded-lg border border-blue-100"><span class="text-[9px] font-bold text-orange-400 block uppercase">Spalone</span><span class="text-sm font-black text-orange-500">-' + totalWeekBurned + '</span></div>' +
-                    '<div class="bg-white p-2 rounded-lg border border-blue-100"><span class="text-[9px] font-bold text-blue-400 block uppercase">Netto</span><span class="text-sm font-black text-blue-600">' + Math.round(netWeekKcal) + '</span></div>' +
+                    '<div class="bg-white p-2 rounded-lg border border-blue-100"><span class="text-[9px] font-bold text-blue-400 block uppercase">Netto</span><span class="text-sm font-black ' + th.accent + '">' + Math.round(netWeekKcal) + '</span></div>' +
                     '</div>' +
                     '<div class="bg-white p-3 rounded-xl border border-blue-100 flex justify-between items-center shadow-inner">' +
                     '<span class="text-[10px] font-bold text-gray-500 uppercase">Bilans względem celu:</span>' +
@@ -440,7 +542,6 @@
                     (diffFromTarget >= 0 ? '+' + Math.round(diffFromTarget) + ' kcal (Deficyt)' : Math.round(diffFromTarget) + ' kcal (Nadwyżka)') + 
                     '</span></div></div>';
 
-                // STATYSTYKI TRENINGÓW
                 html += '<div class="bg-orange-50 border border-orange-200 p-4 rounded-xl mb-4">' +
                     '<h3 class="font-black text-lg text-orange-900 mb-1 text-center">📊 Statystyki Aktywności Tygodnia</h3>' +
                     '<div class="grid grid-cols-2 gap-2 mb-4 mt-3">' +
@@ -473,22 +574,40 @@
 
             } else if (state.tab === 'baza') {
                 var edProd = state.editProdId ? state.products.find(function(p) { return p.id === state.editProdId; }) : null;
+                
+                if (state.statusMsg) html += '<div class="bg-emerald-100 border border-emerald-300 text-emerald-800 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
+
+                html += '<div class="bg-indigo-50 border border-indigo-200 p-4 rounded-xl mb-4">' +
+                    '<h3 class="font-black text-indigo-900 mb-2 text-sm text-center">📷 Skaner / Kod Kreskowy</h3>' +
+                    '<div class="flex space-x-2 mb-2">' +
+                    '<input id="barcodeInput" placeholder="Wpisz kod EAN (np. 590...)" class="flex-1 p-2 bg-white border border-indigo-200 rounded-lg text-xs font-bold outline-none" />' +
+                    '<button onclick="fetchProductByBarcode(document.getElementById(\'barcodeInput\').value)" class="bg-indigo-600 text-white font-bold px-3 py-2 rounded-lg text-xs shadow">Szukaj</button>' +
+                    '</div>';
+
+                if (!state.isScanning) {
+                    html += '<button onclick="startBarcodeScanner()" class="w-full bg-indigo-700 text-white font-bold py-2.5 rounded-xl shadow text-xs">📷 Włącz aparat i skanuj kod</button>';
+                } else {
+                    html += '<div id="reader" class="w-full mb-2 overflow-hidden rounded-lg border border-indigo-300"></div>' +
+                            '<button onclick="stopBarcodeScanner()" class="w-full bg-red-500 text-white font-bold py-2 rounded-xl text-xs">❌ Zamknij aparat</button>';
+                }
+                html += '</div>';
+
                 html += '<div class="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-4" id="prodForm">' +
-                    '<h3 class="font-bold text-sm text-blue-900 mb-3">' + (edProd ? '✏️ Edytuj produkt' : '➕ Dodaj własny produkt') + '</h3>' +
+                    '<h3 class="font-bold text-sm text-blue-900 mb-3">' + (edProd ? '✏️ Edytuj produkt' : '➕ Dodaj własny produkt / z kodu') + '</h3>' +
                     '<input id="pName" placeholder="Nazwa produktu" value="' + (edProd ? edProd.name : '') + '" class="w-full mb-2 p-2 text-xs rounded-lg border border-blue-200 font-bold outline-none" />' +
                     '<div class="grid grid-cols-2 gap-2 mb-2">' +
                     '<div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Waga bazowa (g)</label><input id="pW" type="number" value="' + (edProd ? edProd.baseWeight : 100) + '" class="w-full p-2 text-xs rounded-lg border border-blue-200 outline-none" /></div>' +
-                    '<div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Kcal</label><input id="pK" type="number" value="' + (edProd ? edProd.baseKcal : '') + '" placeholder="Opcjonalne" class="w-full p-2 text-xs rounded-lg border border-blue-200 bg-white outline-none" /></div></div>' +
+                    '<div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Kcal (na 100g)</label><input id="pK" type="number" value="' + (edProd ? edProd.baseKcal : '') + '" placeholder="Kcal" class="w-full p-2 text-xs rounded-lg border border-blue-200 bg-white outline-none" /></div></div>' +
                     '<div class="grid grid-cols-3 gap-2 mb-3">' +
                     '<div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Białko</label><input id="pP" type="number" step="0.1" value="' + (edProd ? edProd.baseP : '') + '" placeholder="0" class="w-full p-1.5 text-xs rounded border border-blue-200 outline-none" /></div>' +
                     '<div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Tłuszcz</label><input id="pF" type="number" step="0.1" value="' + (edProd ? edProd.baseF : '') + '" placeholder="0" class="w-full p-1.5 text-xs rounded border border-blue-200 outline-none" /></div>' +
                     '<div><label class="text-[10px] font-bold text-blue-700 mb-1 block">Węglo</label><input id="pC" type="number" step="0.1" value="' + (edProd ? edProd.baseC : '') + '" placeholder="0" class="w-full p-1.5 text-xs rounded border border-blue-200 outline-none" /></div></div>' +
-                    '<div class="flex space-x-2"><button onclick="addProd()" class="flex-1 bg-blue-600 text-white font-bold py-2 rounded-lg shadow-md text-xs">' + (edProd ? 'Zapisz zmiany' : 'Zapisz w bazie') + '</button>' +
+                    '<div class="flex space-x-2"><button onclick="addProd()" class="flex-1 ' + th.btn + ' font-bold py-2 rounded-lg shadow-md text-xs">' + (edProd ? 'Zapisz zmiany' : 'Zapisz w bazie') + '</button>' +
                     (edProd ? '<button onclick="cancelEditProd()" class="bg-gray-300 text-gray-700 font-bold px-4 py-2 rounded-lg text-xs">Anuluj</button>' : '') + '</div></div>';
 
                 html += '<div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100"><h3 class="font-bold text-sm mb-2">Baza Produktów (' + state.products.length + ')</h3><div class="space-y-2 max-h-[50vh] overflow-y-auto pr-1 pb-4">';
                 state.products.forEach(function(p) {
-                    html += '<div class="bg-gray-50 border border-gray-100 p-2.5 rounded-lg flex justify-between items-center"><div class="pr-2 min-w-0"><p class="font-bold text-xs text-gray-800 truncate">' + p.name + ' <span class="text-blue-600 font-normal">(' + p.baseWeight + 'g)</span></p><p class="text-[9px] text-gray-500 font-bold">B:' + p.baseP + ' | T:' + p.baseF + ' | W:' + p.baseC + '</p></div><div class="flex items-center space-x-3 shrink-0"><span class="font-bold text-emerald-600 text-xs">' + p.baseKcal + ' kcal</span><button onclick="startEditProd(\'' + p.id + '\')" class="text-gray-400 font-bold">✏️</button><button onclick="delProd(\'' + p.id + '\')" class="text-red-300 font-bold">🗑️</button></div></div>';
+                    html += '<div class="bg-gray-50 border border-gray-100 p-2.5 rounded-lg flex justify-between items-center"><div class="pr-2 min-w-0"><p class="font-bold text-xs text-gray-800 truncate">' + p.name + ' <span class="' + th.accent + ' font-normal">(' + p.baseWeight + 'g)</span></p><p class="text-[9px] text-gray-500 font-bold">B:' + p.baseP + ' | T:' + p.baseF + ' | W:' + p.baseC + '</p></div><div class="flex items-center space-x-3 shrink-0"><span class="font-bold text-emerald-600 text-xs">' + p.baseKcal + ' kcal</span><button onclick="startEditProd(\'' + p.id + '\')" class="text-gray-400 font-bold">✏️</button><button onclick="delProd(\'' + p.id + '\')" class="text-red-300 font-bold">🗑️</button></div></div>';
                 });
                 html += '</div></div>';
 
@@ -520,11 +639,27 @@
             } else if (state.tab === 'kopia') {
                 if (state.statusMsg) html += '<div class="bg-emerald-100 border border-emerald-300 text-emerald-800 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
                 
+                // SEKCJA WYBORU MOTYWU GRAFICZNEGO
+                html += '<div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4">' +
+                    '<h3 class="font-black text-gray-800 mb-3 text-sm">🎨 Motyw Graficzny Aplikacji</h3>' +
+                    '<div class="grid grid-cols-1 gap-2">';
+                
+                Object.keys(THEMES).forEach(function(key) {
+                    var t = THEMES[key];
+                    var isSelected = state.theme === key;
+                    var borderCls = isSelected ? 'border-2 border-blue-600 bg-blue-50/50' : 'border border-gray-200 bg-gray-50';
+                    html += '<div onclick="setTheme(\'' + key + '\')" class="p-3 rounded-xl cursor-pointer flex justify-between items-center ' + borderCls + '">' +
+                        '<span class="text-xs font-bold text-gray-800">' + t.name + '</span>' +
+                        '<div class="w-5 h-5 rounded-full ' + t.header + ' flex items-center justify-center text-white text-[10px]">' + (isSelected ? '✓' : '') + '</div>' +
+                        '</div>';
+                });
+                html += '</div></div>';
+
                 html += '<div class="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-4">' +
                     '<h3 class="font-black text-blue-900 mb-2 text-sm text-center">☁️ Synchronizacja z Chmurą</h3>' +
                     '<div class="grid grid-cols-2 gap-2">' +
-                    '<button onclick="cloudUploadOnly()" class="bg-blue-600 text-white font-bold py-2.5 px-2 rounded-xl shadow-md text-xs">⬆️ Wyślij dane</button>' +
-                    '<button onclick="cloudDownloadOnly()" class="bg-emerald-600 text-white font-bold py-2.5 px-2 rounded-xl shadow-md text-xs">⬇️ Pobierz dane</button>' +
+                    '<button onclick="cloudUploadOnly()" class="' + th.btn + ' font-bold py-2.5 px-2 rounded-xl shadow-md text-xs">⬆️ Wyślij dane</button>' +
+                    '<button onclick="cloudDownloadOnly()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-2 rounded-xl shadow-md text-xs">⬇️ Pobierz dane</button>' +
                     '</div></div>';
 
                 html += '<div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4"><h3 class="font-black text-gray-800 mb-3 text-sm">👤 Ustawienia Profili</h3><div class="space-y-3 mb-4">';
@@ -534,17 +669,17 @@
                 html += '</div><div><label class="text-[10px] font-bold text-gray-500 uppercase block mb-1">Pierwszy dzień tyg. statystyk</label><select onchange="changeStartOfWeek(this.value)" class="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-bold outline-none"><option value="1" ' + (state.settings.startOfWeek === 1 ? 'selected' : '') + '>Poniedziałek</option><option value="0" ' + (state.settings.startOfWeek === 0 ? 'selected' : '') + '>Niedziela</option></select></div></div>';
 
                 html += '<div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 text-center mb-4"><h3 class="font-black text-gray-800 mb-2 text-sm">💾 Kopia Zapasowa Danych</h3><div class="space-y-3 mt-4">' +
-                    '<button onclick="exportFullJson()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow-md text-xs">📥 Pobierz wszystko do pliku (.json)</button>' +
+                    '<button onclick="exportFullJson()" class="w-full ' + th.btn + ' font-bold py-3 rounded-xl shadow-md text-xs">📥 Pobierz wszystko do pliku (.json)</button>' +
                     '<div class="text-left space-y-2 my-2 bg-gray-50 p-2 rounded-lg border border-gray-200">' +
                     '<label class="flex items-center space-x-2 text-[10px] font-bold text-gray-700"><input type="radio" name="impMode" value="products" ' + (state.importMode === 'products' ? 'checked' : '') + ' onchange="state.importMode=\'products\'" /><span>Tylko dodaj nowe produkty</span></label>' +
                     '<label class="flex items-center space-x-2 text-[10px] font-bold text-gray-700"><input type="radio" name="impMode" value="full" ' + (state.importMode === 'full' ? 'checked' : '') + ' onchange="state.importMode=\'full\'" /><span>Pełna kopia (nadpisuje wszystko)</span></label></div>' +
                     '<textarea id="jsonArea" rows="3" placeholder="Wklej skopiowany kod JSON..." class="w-full p-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none"></textarea>' +
-                    '<button onclick="importFullJson()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-md text-xs">📤 Wgraj kod JSON</button></div></div>';
+                    '<button onclick="importFullJson()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-md text-xs">📤 Wgraj kod JSON</button></div></div>';
 
                 html += '<div class="bg-gray-50 border border-gray-200 p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs text-gray-700 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold text-blue-600">Wersja: v16 (Statystyki tygodniowe)</p>' +
-                    '<p class="text-[10px] text-gray-500 mt-1">Ostatnia aktualizacja: 25.02.2026, 10:55</p>' +
+                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v18 (Motywy i Bilans Tygodnia)</p>' +
+                    '<p class="text-[10px] text-gray-500 mt-1">Ostatnia aktualizacja: 25.02.2026, 12:10</p>' +
                     '</div>';
             }
 
@@ -553,14 +688,19 @@
             var labels = ['Dziennik','Baza','Ciało','Tydzień','Ustaw.'];
             html += '</div><div class="fixed bottom-0 left-1/2 transform -translate-x-1/2 w-full max-w-md bg-white/95 backdrop-blur border-t border-gray-200 grid grid-cols-5 p-1 z-50">';
             tabs.forEach(function(t, idx) {
-                var col = state.tab === t ? 'text-blue-600' : 'text-gray-400';
+                var col = state.tab === t ? th.tabActive : 'text-gray-400';
                 html += '<button onclick="switchTab(\'' + t + '\')" class="flex flex-col items-center justify-center p-1.5 rounded-lg min-w-0 ' + col + '"><span class="text-xl mb-0.5">' + icons[idx] + '</span><span class="text-[9px] font-bold truncate w-full text-center">' + labels[idx] + '</span></button>';
             });
             html += '</div>';
             app.innerHTML = html;
         };
 
-        window.switchTab = function(t) { state.tab = t; state.statusMsg = ''; state.prodResults = []; state.wResults = []; render(); };
+        window.switchTab = function(t) { 
+            if (state.tab === 'baza' && t !== 'baza' && state.isScanning) {
+                stopBarcodeScanner();
+            }
+            state.tab = t; state.statusMsg = ''; state.prodResults = []; state.wResults = []; render(); 
+        };
         window.switchUser = function(u) { state.userId = u; saveState(); render(); };
         window.changeDate = function(d) { state.date = d; render(); };
         window.changeWeight = function(w) { getDayData().weight = w; saveState(); };
@@ -571,13 +711,6 @@
         window.promptAddMeasurement = function() { var name = prompt('Podaj nazwę nowego pomiaru (np. Łydka):'); if(name && name.trim()) { state.settings.measurements.push({ id: 'm_' + Date.now(), name: name.trim() }); saveState(); render(); } };
         window.removeMeasurement = function(id) { if(confirm('Usunąć ten pomiar?')) { state.settings.measurements = state.settings.measurements.filter(function(m) { return m.id !== id; }); saveState(); render(); } };
         window.changeUserName = function(id, newName) { var u = state.users.find(function(x) { return x.id === id; }); if (u && newName.trim()) { u.name = newName.trim(); saveState(); render(); } };
-        
-        window.setDayCounter = function(val) {
-            var days = parseInt(val); if(isNaN(days) || days <= 0) return;
-            var current = new Date(state.date); current.setDate(current.getDate() - (days - 1));
-            state.users.find(function(u) { return u.id === state.userId; }).startDate = current.toISOString().split('T')[0];
-            saveState(); render();
-        };
 
         window.searchProd = function(val) {
             state.prodSearch = val;
@@ -592,7 +725,7 @@
         };
 
         window.addMeal = function() {
-            var p = state.products.find(function(x) { return x.id === state.state?.selectedProdId || x.id === state.selectedProdId; }) || state.products.find(function(x) { return x.name.toLowerCase() === state.prodSearch.trim().toLowerCase(); });
+            var p = state.products.find(function(x) { return x.id === state.selectedProdId; }) || state.products.find(function(x) { return x.name.toLowerCase() === state.prodSearch.trim().toLowerCase(); });
             var w = parseFloat(state.inputWeight);
             if (!p || !w) return alert('Wybierz produkt z podpowiedzi i podaj wagę!');
             var r = w / p.baseWeight;
@@ -649,7 +782,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 16, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries };
+            var payload = { version: 18, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
@@ -669,6 +802,7 @@
                     if (data.users) state.users = data.users; 
                     if (data.settings) state.settings = data.settings; 
                     if (data.workoutsDb) state.workoutsDb = data.workoutsDb;
+                    if (data.theme) state.theme = data.theme;
                     state.statusMsg = 'Kopia wgrana pomyślnie!';
                 }
                 saveState(); 
