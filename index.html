@@ -107,7 +107,7 @@
             tab: 'dziennik',
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v22_theme') || 'classic',
+            theme: localStorage.getItem('diet_v23_theme') || 'classic',
             products: [], workoutsDb: [], diaries: {}, settings: { startOfWeek: 1, measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ] },
             date: dzis, weekOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
@@ -145,7 +145,7 @@
                 }).catch(function(e){ console.log("Zapis do chmury nie powiódł się:", e); });
             }
             localStorage.setItem('diet_v15_curr_user', state.userId);
-            localStorage.setItem('diet_v22_theme', state.theme);
+            localStorage.setItem('diet_v23_theme', state.theme);
         };
 
         window.setTheme = function(th) { state.theme = th; saveState(); render(); };
@@ -169,7 +169,6 @@
             }).catch(function(err) { alert('Błąd: ' + err.message); });
         };
 
-        // Skaner
         window.fetchProductByBarcode = function(barcode) {
             if (!barcode || !barcode.trim()) return alert('Wpisz lub zeskanuj kod kreskowy!');
             var cleanCode = barcode.trim();
@@ -238,7 +237,6 @@
             saveState(); render();
         };
 
-        // Obsługa przytrzymania produktu na liście bazy
         window.promptAddProductFromList = function(prodId) {
             var p = state.products.find(function(x) { return x.id === prodId; });
             if (!p) return;
@@ -369,10 +367,13 @@
             var eatenKcal = 0, eatenP = 0, eatenF = 0, eatenC = 0;
             day.meals.forEach(function(m) { eatenKcal += m.kcal; eatenP += m.p; eatenF += m.f; eatenC += m.c; });
             var burned = day.workouts.reduce(function(s, w) { return s + w.kcal; }, 0);
-            var nettoKcal = Math.max(0, eatenKcal - burned);
+            
+            // POPRAWIONY BILANS NETTO: Pozwalamy na wartości ujemne przy dużych treningach, a "zostało na dziś" rośnie o spalone kalorie
+            var nettoKcal = eatenKcal - burned;
             var left = day.goals.kcal - nettoKcal;
-            var statusLabel = left < 0 ? 'Nadwyżka' : (eatenKcal > day.goals.kcal ? 'Zostało z treningu' : 'Zostało na dziś');
-            var statusColor = left < 0 ? 'text-rose-500' : (eatenKcal > day.goals.kcal ? 'text-blue-500' : 'text-emerald-500');
+            
+            var statusLabel = left < 0 ? 'Przekroczono cel' : 'Zostało na dziś';
+            var statusColor = left < 0 ? 'text-rose-500' : 'text-emerald-500';
 
             var html = '<div class="' + th.header + ' p-4 shadow-md w-full">' +
                 '<div class="flex justify-between items-center mb-3">' +
@@ -420,7 +421,7 @@
                     '<div class="flex justify-between items-center mb-3">' +
                     '<div class="text-center w-1/3"><p class="text-[9px] font-bold opacity-60 uppercase">Zjedzono</p><p class="text-lg font-black">' + Math.round(eatenKcal) + '</p></div>' +
                     '<div class="text-center w-1/3 border-x border-gray-200/40"><p class="text-[9px] font-bold text-orange-500 uppercase">Spalone</p><p class="text-lg font-black text-orange-500">-' + burned + '</p></div>' +
-                    '<div class="text-center w-1/3"><p class="text-[9px] font-bold opacity-60 uppercase">Kcal Netto</p><p class="text-lg font-black ' + th.accent + '">' + Math.round(nettoKcal) + '</p></div>' +
+                    '<div class="text-center w-1/3"><p class="text-[9px] font-bold opacity-60 uppercase">Kcal Netto</p><p class="text-lg font-black ' + (nettoKcal < 0 ? 'text-orange-500' : th.accent) + '">' + Math.round(nettoKcal) + '</p></div>' +
                     '</div>' +
                     '<div class="' + th.inputBg + ' border rounded-lg p-2.5 flex justify-between items-center mb-3">' +
                     '<span class="text-[10px] font-bold opacity-75 uppercase">' + statusLabel + '</span><span class="text-xl font-black ' + statusColor + '">' + Math.abs(Math.round(left)) + ' kcal</span></div>' +
@@ -602,7 +603,6 @@
                 html += '<div class="' + th.card + ' p-3 rounded-xl border"><h3 class="font-bold text-sm mb-1">Baza Produktów (' + state.products.length + ')</h3><p class="text-[10px] opacity-60 mb-2">💡 Przytrzymaj palec na produkcie, aby dodać go do dzienniczka!</p><div class="space-y-2 max-h-[50vh] overflow-y-auto pr-1 pb-4">';
                 
                 state.products.forEach(function(p) {
-                    // Obsługa przytrzymania za pomocą zdarzeń dotykowych i myszy (long press)
                     html += '<div oncontextmenu="event.preventDefault(); promptAddProductFromList(\'' + p.id + '\');" ontouchstart="window.lpTimer=setTimeout(function(){ promptAddProductFromList(\'' + p.id + '\'); }, 600);" ontouchend="clearTimeout(window.lpTimer);" onmousedown="window.lpTimer=setTimeout(function(){ promptAddProductFromList(\'' + p.id + '\'); }, 600);" onmouseup="clearTimeout(window.lpTimer);" class="' + th.inputBg + ' border p-2.5 rounded-lg flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform">' +
                         '<div class="pr-2 min-w-0"><p class="font-bold text-xs truncate">' + p.name + ' <span class="' + th.accent + ' font-normal">(' + p.baseWeight + 'g)</span></p><p class="text-[9px] opacity-60 font-bold">B:' + p.baseP + ' | T:' + p.baseF + ' | W:' + p.baseC + '</p></div>' +
                         '<div class="flex items-center space-x-3 shrink-0"><span class="font-bold text-emerald-500 text-xs">' + p.baseKcal + ' kcal</span><button onclick="event.stopPropagation(); startEditProd(\'' + p.id + '\')" class="opacity-60 font-bold">✏️</button><button onclick="event.stopPropagation(); delProd(\'' + p.id + '\')" class="text-rose-400 font-bold">🗑️</button></div></div>';
@@ -712,8 +712,8 @@
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v22 (Szybkie dodawanie z listy bazy)</p>' +
-                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 13:30</p>' +
+                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v23 (Poprawiony bilans netto i szybki wybór z bazy)</p>' +
+                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 13:50</p>' +
                     '</div>';
             }
 
@@ -735,7 +735,7 @@
         window.changeWeight = function(w) { getDayData().weight = w; saveState(); };
         window.toggleGoals = function() { state.isEditingGoals = !state.isEditingGoals; render(); };
         window.changeStartOfWeek = function(val) { state.settings.startOfWeek = parseInt(val); saveState(); render(); };
-        window.addWater = function(amount) { if (amount === 0) getDayData().water = 0; else getDayData().water = (parseFloat(day.water) || 0) + amount; saveState(); render(); };
+        window.addWater = function(amount) { if (amount === 0) getDayData().water = 0; else getDayData().water = (parseFloat(getDayData().water) || 0) + amount; saveState(); render(); };
         window.updateMeasurement = function(id, val) { getDayData().measurements[id] = val; saveState(); };
         window.promptAddMeasurement = function() { var name = prompt('Podaj nazwę nowego pomiaru (np. Łydka):'); if(name && name.trim()) { state.settings.measurements.push({ id: 'm_' + Date.now(), name: name.trim() }); saveState(); render(); } };
         window.removeMeasurement = function(id) { if(confirm('Usunąć ten pomiar?')) { state.settings.measurements = state.settings.measurements.filter(function(m) { return m.id !== id; }); saveState(); render(); } };
@@ -811,7 +811,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 22, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 23, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
