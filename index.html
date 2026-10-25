@@ -107,7 +107,7 @@
             tab: 'dziennik',
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v41_theme') || 'classic',
+            theme: localStorage.getItem('diet_v42_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             fastModel: localStorage.getItem('diet_gemini_fast_model') || '',
             products: [], workoutsDb: [], diaries: {}, settings: { startOfWeek: 1, measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ] },
@@ -150,7 +150,7 @@
                 }).catch(function(e){ console.log("Zapis do chmury nie powiódł się:", e); });
             }
             localStorage.setItem('diet_v15_curr_user', state.userId);
-            localStorage.setItem('diet_v41_theme', state.theme);
+            localStorage.setItem('diet_v42_theme', state.theme);
             localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             localStorage.setItem('diet_gemini_fast_model', state.fastModel);
         };
@@ -165,7 +165,7 @@
             render();
         };
 
-        // NOWY SILNIK AI V41 (Obsługa nagłówka x-goog-api-key dla kluczy AQ. z dynamicznym odpytaniem endpointu)
+        // STABILNY SILNIK AI V42 (Używa stabilnej ścieżki /v1/ dla nowych kluczy AQ.)
         window.callGeminiSmart = async function(promptStr) {
             var key = state.geminiApiKey.trim();
             if (!key) throw new Error('Brak klucza API w ustawieniach!');
@@ -183,7 +183,8 @@
                 var m = modelsToTry[i];
                 var cleanModel = m.replace(/^models\//, '');
                 try {
-                    var res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + cleanModel + ':generateContent', {
+                    // Używamy stabilnego endpointu /v1/ zamiast /v1beta/
+                    var res = await fetch('https://generativelanguage.googleapis.com/v1/models/' + cleanModel + ':generateContent', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -217,7 +218,7 @@
             }
             if (!state.geminiApiKey) return alert('Wklej najpierw klucz w pole powyżej!');
             
-            state.statusMsg = 'Testuję nowe połączenie API...';
+            state.statusMsg = 'Testuję stabilne połączenie API...';
             render();
             try {
                 var reply = await callGeminiSmart('Odpowiedz jednym słowem: DZIAŁA');
@@ -829,7 +830,7 @@
                 var wDiff = weightsForWeek.length >= 2 ? (weightsForWeek[weightsForWeek.length - 1] - weightsForWeek[0]) : 0;
                 var wDiffStr = (wDiff > 0 ? '+' : '') + wDiff.toFixed(1);
 
-                // OKNO AI NA SAMYM GÓRZE (PRZENIESIONE PONAD WYBÓR TYGODNIA)
+                // OKNO AI NA SAMYM GÓRZE (PONAD PRZEŁĄCZNIKIEM TYGODNI)
                 html += '<div class="bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-4 rounded-xl shadow-md mb-3">' +
                     '<div class="flex justify-between items-center mb-2">' +
                     '<h3 class="font-black text-xs uppercase tracking-wide flex items-center space-x-1"><span>💬 AI Komentarz i Porada Dnia</span></h3>' +
@@ -924,8 +925,8 @@
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v41 (Poprawiona obsługa nowych kluczy AQ)</p>' +
-                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 20:50</p>' +
+                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v42 (Stabilna ścieżka /v1/ dla kluczy AQ)</p>' +
+                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 21:00</p>' +
                     '</div>';
             }
 
@@ -1087,7 +1088,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 41, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 42, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
