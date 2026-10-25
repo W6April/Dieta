@@ -107,7 +107,7 @@
             tab: 'dziennik',
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v38_theme') || 'classic',
+            theme: localStorage.getItem('diet_v39_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             products: [], workoutsDb: [], diaries: {}, settings: { startOfWeek: 1, measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ] },
             date: dzis, weekOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
@@ -149,7 +149,7 @@
                 }).catch(function(e){ console.log("Zapis do chmury nie powiódł się:", e); });
             }
             localStorage.setItem('diet_v15_curr_user', state.userId);
-            localStorage.setItem('diet_v38_theme', state.theme);
+            localStorage.setItem('diet_v39_theme', state.theme);
             localStorage.setItem('diet_gemini_key', state.geminiApiKey);
         };
 
@@ -162,7 +162,6 @@
             render();
         };
 
-        // INTELIGENTNY SILNIK GEMINI (Obsługuje klucze AQ., nagłówki x-goog-api-key oraz automatycznie wykrywa dostępny model!)
         window.callGeminiSmart = async function(promptStr) {
             var key = state.geminiApiKey.trim();
             var modelsToTry = [
@@ -174,7 +173,6 @@
 
             var lastError = '';
 
-            // 1. Próba uderzenia do najpopularniejszych modeli z kluczem w nagłówku (dla kluczy AQ.)
             for (var i = 0; i < modelsToTry.length; i++) {
                 var modelName = modelsToTry[i];
                 try {
@@ -193,8 +191,8 @@
                     } else {
                         var errObj = await res.json().catch(function(){ return {}; });
                         lastError = (errObj.error && errObj.error.message) ? errObj.error.message : ('Status ' + res.status);
-                        // Jeśli błąd dotyczy samego klucza/uprawnień (401/403), próbujemy jeszcze z nagłówkiem Bearer
-                        if (res.status === 401 || res.status === 403) {
+                        
+                        if (res.status === 401 || res.status === 403 || res.status === 400) {
                             var resBearer = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + modelName + ':generateContent', {
                                 method: 'POST',
                                 headers: {
@@ -214,7 +212,6 @@
                 }
             }
 
-            // 2. Jeśli żaden z powyższych modeli nie zadziałał, odpytujemy serwer Google o listę dostępnych modeli na koncie (ListModels)
             try {
                 var listRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
                     method: 'GET',
@@ -508,7 +505,8 @@
             var last14 = weights.slice(-14);
             if(last14.length < 2) return '<div class="text-xs opacity-60 text-center py-6 border border-dashed border-gray-300 rounded-xl">Dodaj wagę w minimum 2 dniach, aby zobaczyć wykres.</div>';
 
-            var minW = Math.min.apply(null, last14.map(function(w) { return w.val; })); var maxW = Math.max.apply(null, last14.map(function(w) { return w.val; })) : 0;
+            var minW = Math.min.apply(null, last14.map(function(w) { return w.val; })); 
+            var maxW = Math.max.apply(null, last14.map(function(w) { return w.val; }));
             var range = (maxW - minW) || 1; var w = 340, h = 100, padX = 20, padY = 20; var stepX = (w - padX * 2) / (last14.length - 1);
             var points = last14.map(function(pt, i) { return (padX + (i * stepX)) + ',' + (h - padY - (((pt.val - minW) / range) * (h - padY * 2))); }).join(' ');
 
@@ -958,8 +956,8 @@
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v38 (Smart AI: Nagłówek AQ + Gemini 2.5 + Auto-Model)</p>' +
-                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 20:20</p>' +
+                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v39 (Naprawa uruchamiania + Smart AI)</p>' +
+                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 20:30</p>' +
                     '</div>';
             }
 
@@ -1121,7 +1119,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 38, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 39, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
