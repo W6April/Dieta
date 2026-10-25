@@ -89,7 +89,9 @@
             users: [{ id: 'u1', name: 'Ja', startDate: dzis }, { id: 'u2', name: 'Żona', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
             products: [], workoutsDb: [], diaries: {}, settings: { startOfWeek: 1, measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ] },
-            date: dzis, isEditingGoals: false, importMode: 'full', statusMsg: '',
+            date: dzis,
+            weekOffset: 0, // NOWE: Przesunięcie tygodniowe w zakładce Trening/Tydzień
+            isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
             wSearch: '', wResults: [], wInputTime: '', wInputKcal: '', editProdId: null
         };
@@ -141,9 +143,7 @@
             }).then(function() {
                 state.statusMsg = 'Dane zostały pomyślnie wysłane do chmury!';
                 render();
-            }).catch(function(err) {
-                alert('Błąd wysyłania: ' + err.message);
-            });
+            }).catch(function(err) { alert('Błąd wysyłania: ' + err.message); });
         };
 
         window.cloudDownloadOnly = function() {
@@ -158,23 +158,20 @@
                     if (data.settings) state.settings = data.settings;
                     state.statusMsg = 'Dane zostały pobrane z chmury!';
                     render();
-                } else {
-                    alert('Brak danych w chmurze.');
-                }
-            }).catch(function(err) {
-                alert('Błąd pobierania: ' + err.message);
-            });
+                } else { alert('Brak danych w chmurze.'); }
+            }).catch(function(err) { alert('Błąd pobierania: ' + err.message); });
         };
 
-        window.getDayData = function() {
+        window.getDayData = function(customDate) {
+            var targetDate = customDate || state.date;
             if (!state.diaries[state.userId]) state.diaries[state.userId] = {};
-            if (!state.diaries[state.userId][state.date]) {
-                state.diaries[state.userId][state.date] = {
+            if (!state.diaries[state.userId][targetDate]) {
+                state.diaries[state.userId][targetDate] = {
                     goals: state.userId === 'u1' ? { kcal: 2500, p: 170, f: 70, c: 220 } : { kcal: 2000, p: 120, f: 60, c: 180 },
                     meals: [], workouts: [], weight: '', water: 0, measurements: {}
                 };
             }
-            var d = state.diaries[state.userId][state.date];
+            var d = state.diaries[state.userId][targetDate];
             if(d.water === undefined) d.water = 0;
             if(!d.measurements) d.measurements = {};
             if(!d.meals) d.meals = [];
@@ -193,6 +190,25 @@
             curr.setDate(curr.getDate() + days);
             state.date = curr.toISOString().split('T')[0];
             render();
+        };
+
+        window.changeWeekOffset = function(val) {
+            state.weekOffset += val;
+            render();
+        };
+
+        window.getWeekDates = function() {
+            var curr = new Date(state.date);
+            curr.setDate(curr.getDate() + (state.weekOffset * 7));
+            var offset = state.settings.startOfWeek === 1 ? (curr.getDay() === 0 ? -6 : 1 - curr.getDay()) : -curr.getDay();
+            var firstDay = new Date(curr.setDate(curr.getDate() + offset));
+            var weekDates = [];
+            for (var i = 0; i < 7; i++) { 
+                var n = new Date(firstDay); 
+                n.setDate(firstDay.getDate() + i); 
+                weekDates.push(n.toISOString().split('T')[0]); 
+            }
+            return weekDates;
         };
 
         window.renderWeightChart = function() {
@@ -361,27 +377,73 @@
                 html += '</div></div>';
 
             } else if (state.tab === 'trening') {
-                var curr = new Date(state.date);
-                var offset = state.settings.startOfWeek === 1 ? (curr.getDay() === 0 ? -6 : 1 - curr.getDay()) : -curr.getDay();
-                var firstDay = new Date(curr.setDate(curr.getDate() + offset));
-                var weekDates = [];
-                for (var i = 0; i < 7; i++) { var n = new Date(firstDay); n.setDate(firstDay.getDate() + i); weekDates.push(n.toISOString().split('T')[0]); }
-
+                var weekDates = getWeekDates();
                 var weekTime = 0, weekKcal = 0, types = {};
+                
+                // Zmienne do bilansu tygodniowego kalorii względem zera / celu
+                var totalWeekEaten = 0;
+                var totalWeekBurned = 0;
+                var totalWeekTarget = 0;
+                var activeDaysCount = 0;
+
                 weekDates.forEach(function(d) {
-                    if (state.diaries[state.userId] && state.diaries[state.userId][d] && state.diaries[state.userId][d].workouts) {
-                        state.diaries[state.userId][d].workouts.forEach(function(w) {
-                            weekTime += w.time; weekKcal += w.kcal;
-                            if(!types[w.name]) types[w.name] = { time: 0, kcal: 0, count: 0 };
-                            types[w.name].time += w.time; types[w.name].kcal += w.kcal; types[w.name].count += 1;
-                        });
+                    var dObj = state.diaries[state.userId] ? state.diaries[state.userId][d] : null;
+                    var dayGoal = (dObj && dObj.goals && dObj.goals.kcal) ? dObj.goals.kcal : (user.id === 'u1' ? 2500 : 2000);
+                    
+                    if (dObj) {
+                        var e = (dObj.meals || []).reduce(function(s, m) { return s + m.kcal; }, 0);
+                        var b = (dObj.workouts || []).reduce(function(s, w) { return s + w.kcal; }, 0);
+                        
+                        if (e > 0 || b > 0 || dObj.weight) {
+                            activeDaysCount++;
+                        }
+                        totalWeekEaten += e;
+                        totalWeekBurned += b;
+                        totalWeekTarget += dayGoal;
+
+                        if (dObj.workouts) {
+                            dObj.workouts.forEach(function(w) {
+                                weekTime += w.time; weekKcal += w.kcal;
+                                if(!types[w.name]) types[w.name] = { time: 0, kcal: 0, count: 0 };
+                                types[w.name].time += w.time; types[w.name].kcal += w.kcal; types[w.name].count += 1;
+                            });
+                        }
+                    } else {
+                        totalWeekTarget += dayGoal;
                     }
                 });
 
+                // Bilans kaloryczny netto względem celu:
+                // Cel całkowity - (Zjedzone - Spalone) = co zostało w bilansie tygodnia
+                var netWeekKcal = totalWeekEaten - totalWeekBurned;
+                var diffFromTarget = totalWeekTarget - netWeekKcal; // dodatnia = deficyt, ujemna = nadwyżka względem celu
+
+                // PASEK NAWIGACJI TYGODNIOWEJ
+                html += '<div class="bg-white p-2.5 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between mb-4">' +
+                    '<button onclick="changeWeekOffset(-1)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-sm font-black">◀ Poprzedni tydzień</button>' +
+                    '<button onclick="state.weekOffset=0; render();" class="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">Dzisiaj</button>' +
+                    '<button onclick="changeWeekOffset(1)" class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg text-sm font-black">Następny tydzień ▶</button>' +
+                    '</div>';
+
+                // NOWA STATYSTYKA: BILANS KALORYCZNY TYGODNIA WGLĘDEM CELU
+                html += '<div class="bg-blue-50 border border-blue-200 p-4 rounded-xl mb-4">' +
+                    '<h3 class="font-black text-sm text-blue-900 mb-1 text-center">🎯 Tygodniowy Bilans Kaloryczny</h3>' +
+                    '<p class="text-[10px] text-blue-600 font-bold text-center mb-3 uppercase">' + weekDates[0] + ' — ' + weekDates[6] + '</p>' +
+                    '<div class="grid grid-cols-3 gap-2 mb-3 text-center">' +
+                    '<div class="bg-white p-2 rounded-lg border border-blue-100"><span class="text-[9px] font-bold text-gray-400 block uppercase">Zjedzono</span><span class="text-sm font-black text-gray-800">' + Math.round(totalWeekEaten) + '</span></div>' +
+                    '<div class="bg-white p-2 rounded-lg border border-blue-100"><span class="text-[9px] font-bold text-orange-400 block uppercase">Spalone</span><span class="text-sm font-black text-orange-500">-' + totalWeekBurned + '</span></div>' +
+                    '<div class="bg-white p-2 rounded-lg border border-blue-100"><span class="text-[9px] font-bold text-blue-400 block uppercase">Netto</span><span class="text-sm font-black text-blue-600">' + Math.round(netWeekKcal) + '</span></div>' +
+                    '</div>' +
+                    '<div class="bg-white p-3 rounded-xl border border-blue-100 flex justify-between items-center shadow-inner">' +
+                    '<span class="text-[10px] font-bold text-gray-500 uppercase">Bilans względem celu:</span>' +
+                    '<span class="text-xs font-black ' + (diffFromTarget >= 0 ? 'text-emerald-600' : 'text-red-500') + '">' + 
+                    (diffFromTarget >= 0 ? '+' + Math.round(diffFromTarget) + ' kcal (Deficyt)' : Math.round(diffFromTarget) + ' kcal (Nadwyżka)') + 
+                    '</span></div></div>';
+
+                // STATYSTYKI TRENINGÓW
                 html += '<div class="bg-orange-50 border border-orange-200 p-4 rounded-xl mb-4">' +
-                    '<h3 class="font-black text-lg text-orange-900 mb-1 text-center">📊 Statystyki Tygodnia</h3>' +
-                    '<p class="text-xs text-orange-600 font-bold text-center mb-4 uppercase">' + weekDates[0] + ' — ' + weekDates[6] + '</p>' +
-                    '<div class="grid grid-cols-2 gap-2 mb-4">' +
+                    '<h3 class="font-black text-lg text-orange-900 mb-1 text-center">📊 Statystyki Aktywności Tygodnia</h3>' +
+                    '<div class="grid grid-cols-2 gap-2 mb-4 mt-3">' +
                     '<div class="bg-white p-3 rounded-xl shadow-sm border border-orange-100 text-center"><p class="text-[10px] font-bold text-gray-400 uppercase mb-1">Łączny czas</p><p class="text-2xl font-black text-orange-600">' + weekTime + ' <span class="text-xs opacity-60">min</span></p></div>' +
                     '<div class="bg-white p-3 rounded-xl shadow-sm border border-orange-100 text-center"><p class="text-[10px] font-bold text-gray-400 uppercase mb-1">Spalono</p><p class="text-2xl font-black text-orange-600">' + weekKcal + ' <span class="text-xs opacity-60">kcal</span></p></div></div>';
 
@@ -431,12 +493,7 @@
                 html += '</div></div>';
 
             } else if (state.tab === 'podsumowanie') {
-                var curr2 = new Date(state.date);
-                var offset2 = state.settings.startOfWeek === 1 ? (curr2.getDay() === 0 ? -6 : 1 - curr2.getDay()) : -curr2.getDay();
-                var firstDay2 = new Date(curr2.setDate(curr2.getDate() + offset2));
-                var weekDates2 = [];
-                for (var j = 0; j < 7; j++) { var n2 = new Date(firstDay2); n2.setDate(firstDay2.getDate() + j); weekDates2.push(n2.toISOString().split('T')[0]); }
-
+                var weekDates2 = getWeekDates();
                 var tKcal = 0, tBurned = 0, dCount = 0, weightsForWeek = [];
                 weekDates2.forEach(function(d) {
                     var dObj = state.diaries[state.userId] ? state.diaries[state.userId][d] : null;
@@ -484,11 +541,10 @@
                     '<textarea id="jsonArea" rows="3" placeholder="Wklej skopiowany kod JSON..." class="w-full p-2 bg-gray-50 border border-gray-200 rounded-xl text-xs outline-none"></textarea>' +
                     '<button onclick="importFullJson()" class="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl shadow-md text-xs">📤 Wgraj kod JSON</button></div></div>';
 
-                // SEKCJA WERSJI I DATY AKTUALIZACJI NA DOLE OSTATNIEJ ZAKŁADKI
                 html += '<div class="bg-gray-50 border border-gray-200 p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs text-gray-700 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold text-blue-600">Wersja: v15 (Chmura Firestore)</p>' +
-                    '<p class="text-[10px] text-gray-500 mt-1">Ostatnia aktualizacja: 25.02.2026, 08:30</p>' +
+                    '<p class="text-xs font-bold text-blue-600">Wersja: v16 (Statystyki tygodniowe)</p>' +
+                    '<p class="text-[10px] text-gray-500 mt-1">Ostatnia aktualizacja: 25.02.2026, 10:55</p>' +
                     '</div>';
             }
 
@@ -536,7 +592,7 @@
         };
 
         window.addMeal = function() {
-            var p = state.products.find(function(x) { return x.id === state.selectedProdId; }) || state.products.find(function(x) { return x.name.toLowerCase() === state.prodSearch.trim().toLowerCase(); });
+            var p = state.products.find(function(x) { return x.id === state.state?.selectedProdId || x.id === state.selectedProdId; }) || state.products.find(function(x) { return x.name.toLowerCase() === state.prodSearch.trim().toLowerCase(); });
             var w = parseFloat(state.inputWeight);
             if (!p || !w) return alert('Wybierz produkt z podpowiedzi i podaj wagę!');
             var r = w / p.baseWeight;
@@ -593,7 +649,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 15, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries };
+            var payload = { version: 16, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
