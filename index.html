@@ -8,7 +8,6 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Dziennik Diety</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Biblioteka Firebase do obsługi chmury -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <style>
@@ -26,7 +25,6 @@
     </div>
 
     <script>
-        // Twoja skonfigurowana chmura Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyBifFcGPOzV2KWlXmgzxz0-TbZXT4U_nF8",
             authDomain: "dietaapril.firebaseapp.com",
@@ -105,14 +103,13 @@
         }
         initLocalDefaults();
 
-        // Synchronizacja z chmurą w czasie rzeczywistym
         if (typeof db !== 'undefined') {
             db.collection("dieta").doc("dane_wspolne").onSnapshot(function(doc) {
                 if (doc.exists) {
                     var data = doc.data();
-                    if (data.products) { state.products = data.products; initLocalDefaults(); }
+                    if (data.products && data.products.length > 0) { state.products = data.products; initLocalDefaults(); }
                     if (data.workoutsDb) state.workoutsDb = data.workoutsDb;
-                    if (data.diaries) state.diaries = data.diaries;
+                    if (data.diaries && Object.keys(data.diaries).length > 0) state.diaries = data.diaries;
                     if (data.users) state.users = data.users;
                     if (data.settings) state.settings = data.settings;
                     render();
@@ -131,6 +128,36 @@
                 }).catch(function(e){ console.log("Zapis do chmury nie powiódł się:", e); });
             }
             localStorage.setItem('diet_v15_curr_user', state.userId);
+        };
+
+        // NOWA FUNKCJA: Ręczna synchronizacja na żądanie
+        window.forceSyncNow = function() {
+            if (typeof db === 'undefined') return alert('Brak połączenia z Firebase!');
+            
+            // 1. Wypchnij stan do chmury
+            db.collection("dieta").doc("dane_wspolne").set({
+                products: state.products,
+                workoutsDb: state.workoutsDb,
+                diaries: state.diaries,
+                users: state.users,
+                settings: state.settings
+            }).then(function() {
+                // 2. Pobierz na siłę z chmury
+                return db.collection("dieta").doc("dane_wspolne").get();
+            }).then(function(doc) {
+                if (doc.exists) {
+                    var data = doc.data();
+                    if (data.products && data.products.length > 0) { state.products = data.products; initLocalDefaults(); }
+                    if (data.workoutsDb) state.workoutsDb = data.workoutsDb;
+                    if (data.diaries && Object.keys(data.diaries).length > 0) state.diaries = data.diaries;
+                    if (data.users) state.users = data.users;
+                    if (data.settings) state.settings = data.settings;
+                }
+                state.statusMsg = 'Synchronizacja powiodła się! Dane pobrane z chmury.';
+                render();
+            }).catch(function(err) {
+                alert('Błąd synchronizacji: ' + err.message);
+            });
         };
 
         window.getDayData = function() {
@@ -429,6 +456,14 @@
 
             } else if (state.tab === 'kopia') {
                 if (state.statusMsg) html += '<div class="bg-emerald-100 border border-emerald-300 text-emerald-800 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
+                
+                // NOWY PRZYCISK FIZYCZNEJ SYNCHRONIZACJI W USTAWIENIACH
+                html += '<div class="bg-blue-50 border border-blue-200 p-5 rounded-xl text-center mb-4">' +
+                    '<h3 class="font-black text-blue-900 mb-1 text-sm">☁️ Ręczna Synchronizacja</h3>' +
+                    '<p class="text-[10px] text-blue-600 mb-3">Kliknij, aby wymusić przesłanie i pobranie danych z chmury.</p>' +
+                    '<button onclick="forceSyncNow()" class="w-full bg-blue-600 text-white font-black py-3 rounded-xl shadow-md text-xs uppercase tracking-wide">🔄 Synchronizuj teraz</button>' +
+                    '</div>';
+
                 html += '<div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4"><h3 class="font-black text-gray-800 mb-3 text-sm">👤 Ustawienia Profili</h3><div class="space-y-3 mb-4">';
                 state.users.forEach(function(u, i) {
                     html += '<div><label class="text-[10px] font-bold text-gray-500 uppercase block mb-1">Imię Profilu ' + (i+1) + '</label><input type="text" value="' + u.name + '" onchange="changeUserName(\'' + u.id + '\', this.value)" class="w-full p-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold outline-none" /></div>';
@@ -560,11 +595,15 @@
                     state.statusMsg = 'Wgrano ' + added + ' nowych produktów.';
                 } else {
                     if (!confirm('Nadpisać całą historię?')) return;
-                    if (data.products) state.products = data.products; if (data.diaries) state.diaries = data.diaries;
-                    if (data.users) state.users = data.users; if (data.settings) state.settings = data.settings; if (data.workoutsDb) state.workoutsDb = data.workoutsDb;
+                    if (data.products) state.products = data.products; 
+                    if (data.diaries) state.diaries = data.diaries;
+                    if (data.users) state.users = data.users; 
+                    if (data.settings) state.settings = data.settings; 
+                    if (data.workoutsDb) state.workoutsDb = data.workoutsDb;
                     state.statusMsg = 'Kopia wgrana pomyślnie!';
                 }
-                saveState(); render();
+                saveState(); 
+                render();
             } catch(e) { alert('Błąd odczytu JSON!'); }
         };
 
