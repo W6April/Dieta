@@ -100,7 +100,7 @@
             tab: 'dziennik',
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v20_theme') || 'classic',
+            theme: localStorage.getItem('diet_v21_theme') || 'classic',
             products: [], workoutsDb: [], diaries: {}, settings: { startOfWeek: 1, measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ] },
             date: dzis, weekOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
@@ -138,7 +138,7 @@
                 }).catch(function(e){ console.log("Zapis do chmury nie powiódł się:", e); });
             }
             localStorage.setItem('diet_v15_curr_user', state.userId);
-            localStorage.setItem('diet_v20_theme', state.theme);
+            localStorage.setItem('diet_v21_theme', state.theme);
         };
 
         window.setTheme = function(th) { state.theme = th; saveState(); render(); };
@@ -162,7 +162,7 @@
             }).catch(function(err) { alert('Błąd: ' + err.message); });
         };
 
-        // NOWY INTELIGENTNY SKANER KODÓW KRESKOWYCH Z WERYFIKACJĄ BAZY
+        // SKANER Z OPCJĄ BEZPOŚREDNIEGO DODANIA DO DZIENNIKA
         window.fetchProductByBarcode = function(barcode) {
             if (!barcode || !barcode.trim()) return alert('Wpisz lub zeskanuj kod kreskowy!');
             var cleanCode = barcode.trim();
@@ -182,19 +182,8 @@
                         var fat = Math.round((nut['fat_100g'] || nut['fat'] || 0) * 10) / 10;
                         var carb = Math.round((nut['carbohydrates_100g'] || nut['carbohydrates'] || 0) * 10) / 10;
 
-                        state.scannedProductData = { name: name, baseWeight: 100, baseKcal: kcal, baseP: prot, baseF: fat, baseC: carb };
-                        
-                        // Sprawdź czy produkt już jest w bazie
-                        var existing = state.products.find(function(prod) { return prod.name.toLowerCase() === name.toLowerCase(); });
-                        if (existing) {
-                            if (existing.baseKcal === kcal && existing.baseP === prot) {
-                                state.statusMsg = '✅ Produkt "' + name + '" jest już w Twojej bazie!';
-                            } else {
-                                state.statusMsg = '⚠️ Produkt "' + name + '" już istnieje, ale wartości w internecie różnią się od Twoich!';
-                            }
-                        } else {
-                            state.statusMsg = '🔍 Znaleziono nowy produkt w bazie Open Food Facts.';
-                        }
+                        state.scannedProductData = { name: name, baseWeight: 100, baseKcal: kcal, baseP: prot, baseF: fat, baseC: carb, addWeight: 100 };
+                        state.statusMsg = 'Zeskanowano pomyślnie!';
                         render();
                     } else {
                         state.statusMsg = '';
@@ -214,24 +203,43 @@
             var sp = state.scannedProductData;
             var existing = state.products.find(function(prod) { return prod.name.toLowerCase() === sp.name.toLowerCase(); });
 
-            if (existing && !updateIfExists) {
-                alert('Produkt już znajduje się w bazie!');
-                state.scannedProductData = null;
-                render();
-                return;
-            }
-
             if (existing && updateIfExists) {
-                existing.baseKcal = sp.baseKcal;
-                existing.baseP = sp.baseP;
-                existing.baseF = sp.baseF;
-                existing.baseC = sp.baseC;
+                existing.baseKcal = sp.baseKcal; existing.baseP = sp.baseP; existing.baseF = sp.baseF; existing.baseC = sp.baseC;
                 state.statusMsg = 'Zaktualizowano składniki produktu w bazie!';
-            } else {
+            } else if (!existing) {
                 state.products.unshift({ id: String(Date.now()), name: sp.name, baseWeight: 100, baseKcal: sp.baseKcal, baseP: sp.baseP, baseF: sp.baseF, baseC: sp.baseC });
                 state.statusMsg = 'Dodano nowy produkt do bazy!';
             }
             state.scannedProductData = null;
+            saveState(); render();
+        };
+
+        // Bezpośrednie dodanie do dzisiejszego dzienniczka z okienka skanera
+        window.addScannedDirectlyToDiary = function(inputWId) {
+            if (!state.scannedProductData) return;
+            var sp = state.scannedProductData;
+            var w = parseFloat(document.getElementById(inputWId).value) || 100;
+            var r = w / 100;
+
+            // Zapisz też w bazie, jeśli jeszcze go tam nie ma
+            var existing = state.products.find(function(prod) { return prod.name.toLowerCase() === sp.name.toLowerCase(); });
+            if (!existing) {
+                state.products.unshift({ id: String(Date.now()), name: sp.name, baseWeight: 100, baseKcal: sp.baseKcal, baseP: sp.baseP, baseF: sp.baseF, baseC: sp.baseC });
+            }
+
+            // Dodaj do posiłków na dzień dzisiejszy (state.date)
+            getDayData().meals.push({
+                id: Date.now(),
+                name: sp.name,
+                weight: w,
+                kcal: Math.round(sp.baseKcal * r),
+                p: Math.round(sp.baseP * r * 10) / 10,
+                f: Math.round(sp.baseF * r * 10) / 10,
+                c: Math.round(sp.baseC * r * 10) / 10
+            });
+
+            state.scannedProductData = null;
+            state.statusMsg = 'Dodano posiłek do dziennika! Sprawdź w zakładce Dziennik.';
             saveState();
             render();
         };
@@ -528,7 +536,7 @@
                 
                 if (state.statusMsg) html += '<div class="bg-indigo-500/20 border border-indigo-500/40 text-indigo-700 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
 
-                // INTELIGENTNY SKANER Z WERYFIKACJĄ BAZY I WYŚWIETLANIEM W OKIENKU
+                // INTELIGENTNY SKANER Z OPCJĄ BEZPOŚREDNIEGO DODANIA DO DZIENNIKA
                 html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
                     '<h3 class="font-black mb-2 text-sm text-center">📷 Skaner Produktów</h3>' +
                     '<div class="flex space-x-2 mb-2">' +
@@ -543,35 +551,38 @@
                             '<button onclick="stopBarcodeScanner()" class="w-full bg-rose-500 text-white font-bold py-2 rounded-xl text-xs">❌ Zamknij aparat</button>';
                 }
 
-                // WYNIK ZESKANOWANEGO PRODUKTU Z ZAPYTANIAMI
                 if (state.scannedProductData) {
                     var sp = state.scannedProductData;
                     var existing = state.products.find(function(prod) { return prod.name.toLowerCase() === sp.name.toLowerCase(); });
                     
-                    html += '<div class="mt-3 p-3 bg-white border-2 border-indigo-300 rounded-xl shadow-md text-gray-900">' +
+                    html += '<div class="mt-3 p-3.5 bg-white border-2 border-indigo-300 rounded-xl shadow-md text-gray-900">' +
                         '<p class="text-xs font-black text-indigo-900 mb-1">📦 ' + sp.name + '</p>' +
-                        '<p class="text-[10px] text-gray-600 mb-2">Kalorie: <b>' + sp.baseKcal + ' kcal</b> | B: ' + sp.baseP + 'g | T: ' + sp.baseF + 'g | W: ' + sp.baseC + 'g (na 100g)</p>';
+                        '<p class="text-[10px] text-gray-600 mb-3">Kalorie: <b>' + sp.baseKcal + ' kcal</b> | B: ' + sp.baseP + 'g | T: ' + sp.baseF + 'g | W: ' + sp.baseC + 'g (na 100g)</p>' +
+                        '<div class="mb-3 flex items-center space-x-2 bg-gray-50 p-2 rounded-lg border">' +
+                        '<label class="text-[10px] font-bold text-gray-700">Waga zjedzona (g):</label>' +
+                        '<input id="scannedWeightInput" type="number" value="' + sp.addWeight + '" class="w-20 p-1 bg-white border rounded text-xs font-bold text-center outline-none" />' +
+                        '</div>';
 
                     if (existing) {
                         var isDifferent = (existing.baseKcal !== sp.baseKcal || existing.baseP !== sp.baseP);
                         if (isDifferent) {
-                            html += '<p class="text-[10px] text-orange-600 font-bold mb-2">⚠️ Produkt już jest w bazie, ale wartości w internecie są inne!</p>' +
-                                    '<div class="flex space-x-2">' +
-                                    '<button onclick="confirmAddScannedProduct(true)" class="flex-1 bg-orange-600 text-white font-bold py-1.5 rounded text-[10px]">🔄 Zaktualizuj składniki</button>' +
-                                    '<button onclick="state.scannedProductData=null; render();" class="bg-gray-300 text-gray-700 px-3 py-1.5 rounded text-[10px]">Anuluj</button>' +
+                            html += '<p class="text-[10px] text-orange-600 font-bold mb-2">⚠️ Produkt już jest w bazie, ale składniki w internecie się różnią!</p>' +
+                                    '<div class="grid grid-cols-2 gap-2 mb-2">' +
+                                    '<button onclick="addScannedDirectlyToDiary(\'scannedWeightInput\')" class="bg-indigo-600 text-white font-bold py-1.5 rounded text-[10px]">🍽️ Dodaj do dziennika</button>' +
+                                    '<button onclick="confirmAddScannedProduct(true)" class="bg-orange-600 text-white font-bold py-1.5 rounded text-[10px]">🔄 Aktualizuj w bazie</button>' +
                                     '</div>';
                         } else {
-                            html += '<p class="text-[10px] text-emerald-600 font-bold mb-2">✅ Ten produkt jest już w Twojej bazie!</p>' +
-                                    '<button onclick="state.scannedProductData=null; render();" class="w-full bg-gray-200 text-gray-700 py-1.5 rounded text-[10px] font-bold">Zamknij</button>';
+                            html += '<p class="text-[10px] text-emerald-600 font-bold mb-2">✅ Produkt jest w Twojej bazie!</p>' +
+                                    '<button onclick="addScannedDirectlyToDiary(\'scannedWeightInput\')" class="w-full bg-indigo-600 text-white font-bold py-2 rounded text-xs shadow mb-2">🍽️ Dodaj do dzisiejszego dziennika</button>';
                         }
                     } else {
-                        html += '<p class="text-[10px] text-blue-600 font-bold mb-2">Nowy produkt – chcesz dodać do bazy?</p>' +
-                                '<div class="flex space-x-2">' +
-                                '<button onclick="confirmAddScannedProduct(false)" class="flex-1 bg-emerald-600 text-white font-bold py-1.5 rounded text-[10px]">➕ Dodaj do bazy</button>' +
-                                '<button onclick="state.scannedProductData=null; render();" class="bg-gray-300 text-gray-700 px-3 py-1.5 rounded text-[10px]">Anuluj</button>' +
+                        html += '<div class="grid grid-cols-2 gap-2 mb-2">' +
+                                '<button onclick="addScannedDirectlyToDiary(\'scannedWeightInput\')" class="bg-indigo-600 text-white font-bold py-1.5 rounded text-[10px]">🍽️ Do dziennika (+ Baza)</button>' +
+                                '<button onclick="confirmAddScannedProduct(false)" class="bg-emerald-600 text-white font-bold py-1.5 rounded text-[10px]">➕ Tylko do bazy</button>' +
                                 '</div>';
                     }
-                    html += '</div>';
+                    html += '<button onclick="state.scannedProductData=null; render();" class="w-full bg-gray-300 text-gray-700 py-1 rounded text-[10px] font-bold mt-1">Anuluj</button>' +
+                            '</div>';
                 }
                 html += '</div>';
 
@@ -697,8 +708,8 @@
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v20 (Pełna baza + Inteligentny Skaner)</p>' +
-                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 12:45</p>' +
+                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v21 (Skaner z bezpośrednim dodawaniem)</p>' +
+                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 13:00</p>' +
                     '</div>';
             }
 
@@ -720,7 +731,7 @@
         window.changeWeight = function(w) { getDayData().weight = w; saveState(); };
         window.toggleGoals = function() { state.isEditingGoals = !state.isEditingGoals; render(); };
         window.changeStartOfWeek = function(val) { state.settings.startOfWeek = parseInt(val); saveState(); render(); };
-        window.addWater = function(amount) { if (amount === 0) getDayData().water = 0; else getDayData().water = (parseFloat(getDayData().water) || 0) + amount; saveState(); render(); };
+        window.addWater = function(amount) { if (amount === 0) getDayData().water = 0; else getDayData().water = (parseFloat(day.water) || 0) + amount; saveState(); render(); };
         window.updateMeasurement = function(id, val) { getDayData().measurements[id] = val; saveState(); };
         window.promptAddMeasurement = function() { var name = prompt('Podaj nazwę nowego pomiaru (np. Łydka):'); if(name && name.trim()) { state.settings.measurements.push({ id: 'm_' + Date.now(), name: name.trim() }); saveState(); render(); } };
         window.removeMeasurement = function(id) { if(confirm('Usunąć ten pomiar?')) { state.settings.measurements = state.settings.measurements.filter(function(m) { return m.id !== id; }); saveState(); render(); } };
@@ -796,7 +807,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 20, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 21, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
