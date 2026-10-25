@@ -92,7 +92,14 @@
             { id: "w3", name: "Jajka sadzone z awokado (porcja)", baseWeight: 250, baseKcal: 385, baseP: 26.8, baseF: 30, baseC: 5.5 },
             { id: "w4", name: "Krupnik domowy (talerz)", baseWeight: 460, baseKcal: 345, baseP: 14, baseF: 11, baseC: 48 },
             { id: "w5", name: "Zestaw obiadowy (kurczak/ziemniaki)", baseWeight: 450, baseKcal: 575, baseP: 35.3, baseF: 18.5, baseC: 65 },
-            { id: "w6", name: "KFC Zestaw (4 wings, 2 strips, 2 kaw.)", baseWeight: 460, baseKcal: 1082, baseP: 69, baseF: 57, baseC: 56 }
+            { id: "w6", name: "KFC Zestaw (4 wings, 2 strips, 2 kaw.)", baseWeight: 460, baseKcal: 1082, baseP: 69, baseF: 57, baseC: 56 },
+            { id: "c1", name: "Kanapki z łososiem wędzonym i serkiem (chleb niski IG)", baseWeight: 190, baseKcal: 380, baseP: 24.0, baseF: 10.0, baseC: 48.0 },
+            { id: "c2", name: "Domowa zupa pomidorowa z makaronem i marchewką", baseWeight: 500, baseKcal: 280, baseP: 9.0, baseF: 6.0, baseC: 47.0 },
+            { id: "c3", name: "Lunch box gyros", baseWeight: 270, baseKcal: 450, baseP: 32.0, baseF: 18.0, baseC: 40.0 },
+            { id: "c4", name: "Tort urodzinowy (kawałek)", baseWeight: 150, baseKcal: 417, baseP: 5.8, baseF: 31.6, baseC: 27.4 },
+            { id: "c5", name: "Go Active Protein Kaszka (200g)", baseWeight: 200, baseKcal: 170, baseP: 8.0, baseF: 4.0, baseC: 18.0 },
+            { id: "c6", name: "Kiełbaski z czosnkiem niedźwiedzim", baseWeight: 130, baseKcal: 325, baseP: 22.0, baseF: 26.0, baseC: 1.5 },
+            { id: "c7", name: "4 jajka sadzone + 1/2 awokado na tłuszczu", baseWeight: 290, baseKcal: 385, baseP: 25.5, baseF: 30.0, baseC: 6.5 }
         ];
 
         var dzis = new Date().toISOString().split('T')[0];
@@ -100,7 +107,7 @@
             tab: 'dziennik',
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v21_theme') || 'classic',
+            theme: localStorage.getItem('diet_v22_theme') || 'classic',
             products: [], workoutsDb: [], diaries: {}, settings: { startOfWeek: 1, measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ] },
             date: dzis, weekOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
@@ -138,7 +145,7 @@
                 }).catch(function(e){ console.log("Zapis do chmury nie powiódł się:", e); });
             }
             localStorage.setItem('diet_v15_curr_user', state.userId);
-            localStorage.setItem('diet_v21_theme', state.theme);
+            localStorage.setItem('diet_v22_theme', state.theme);
         };
 
         window.setTheme = function(th) { state.theme = th; saveState(); render(); };
@@ -162,7 +169,7 @@
             }).catch(function(err) { alert('Błąd: ' + err.message); });
         };
 
-        // SKANER Z OPCJĄ BEZPOŚREDNIEGO DODANIA DO DZIENNIKA
+        // Skaner
         window.fetchProductByBarcode = function(barcode) {
             if (!barcode || !barcode.trim()) return alert('Wpisz lub zeskanuj kod kreskowy!');
             var cleanCode = barcode.trim();
@@ -191,11 +198,7 @@
                         render();
                     }
                 })
-                .catch(function(err) {
-                    state.statusMsg = '';
-                    alert('Błąd sieci: ' + err.message);
-                    render();
-                });
+                .catch(function(err) { state.statusMsg = ''; alert('Błąd sieci: ' + err.message); render(); });
         };
 
         window.confirmAddScannedProduct = function(updateIfExists) {
@@ -210,63 +213,65 @@
                 state.products.unshift({ id: String(Date.now()), name: sp.name, baseWeight: 100, baseKcal: sp.baseKcal, baseP: sp.baseP, baseF: sp.baseF, baseC: sp.baseC });
                 state.statusMsg = 'Dodano nowy produkt do bazy!';
             }
-            state.scannedProductData = null;
-            saveState(); render();
+            state.scannedProductData = null; saveState(); render();
         };
 
-        // Bezpośrednie dodanie do dzisiejszego dzienniczka z okienka skanera
         window.addScannedDirectlyToDiary = function(inputWId) {
             if (!state.scannedProductData) return;
             var sp = state.scannedProductData;
             var w = parseFloat(document.getElementById(inputWId).value) || 100;
             var r = w / 100;
 
-            // Zapisz też w bazie, jeśli jeszcze go tam nie ma
             var existing = state.products.find(function(prod) { return prod.name.toLowerCase() === sp.name.toLowerCase(); });
             if (!existing) {
                 state.products.unshift({ id: String(Date.now()), name: sp.name, baseWeight: 100, baseKcal: sp.baseKcal, baseP: sp.baseP, baseF: sp.baseF, baseC: sp.baseC });
             }
 
-            // Dodaj do posiłków na dzień dzisiejszy (state.date)
             getDayData().meals.push({
-                id: Date.now(),
-                name: sp.name,
-                weight: w,
-                kcal: Math.round(sp.baseKcal * r),
-                p: Math.round(sp.baseP * r * 10) / 10,
-                f: Math.round(sp.baseF * r * 10) / 10,
-                c: Math.round(sp.baseC * r * 10) / 10
+                id: Date.now(), name: sp.name, weight: w,
+                kcal: Math.round(sp.baseKcal * r), p: Math.round(sp.baseP * r * 10) / 10,
+                f: Math.round(sp.baseF * r * 10) / 10, c: Math.round(sp.baseC * r * 10) / 10
             });
 
             state.scannedProductData = null;
-            state.statusMsg = 'Dodano posiłek do dziennika! Sprawdź w zakładce Dziennik.';
-            saveState();
-            render();
+            state.statusMsg = 'Dodano posiłek do dziennika!';
+            saveState(); render();
+        };
+
+        // Obsługa przytrzymania produktu na liście bazy
+        window.promptAddProductFromList = function(prodId) {
+            var p = state.products.find(function(x) { return x.id === prodId; });
+            if (!p) return;
+            var w = prompt('Dodać "' + p.name + '" do dzisiejszego dzienniczka?\nPodaj wagę (g):', p.baseWeight || 100);
+            if (w === null) return;
+            var weightVal = parseFloat(w);
+            if (isNaN(weightVal) || weightVal <= 0) return alert('Podaj prawidłową wagę!');
+
+            var r = weightVal / p.baseWeight;
+            getDayData().meals.push({
+                id: Date.now(), name: p.name, weight: weightVal,
+                kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10,
+                f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10
+            });
+            state.statusMsg = 'Dodano "' + p.name + '" (' + weightVal + 'g) do dzisiejszego dziennika!';
+            saveState(); render();
         };
 
         var html5QrCode = null;
         window.startBarcodeScanner = function() {
-            state.isScanning = true;
-            render();
+            state.isScanning = true; render();
             setTimeout(function() {
                 html5QrCode = new Html5Qrcode("reader");
-                html5QrCode.start(
-                    { facingMode: "environment" },
-                    { fps: 10, qrbox: { width: 250, height: 150 } },
-                    function(decodedText, decodedResult) {
-                        stopBarcodeScanner();
-                        document.getElementById('barcodeInput').value = decodedText;
-                        fetchProductByBarcode(decodedText);
-                    },
-                    function(errorMessage) {}
+                html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 150 } },
+                    function(decodedText) { stopBarcodeScanner(); document.getElementById('barcodeInput').value = decodedText; fetchProductByBarcode(decodedText); },
+                    function() {}
                 ).catch(function(err) { state.isScanning = false; alert('Błąd aparatu: ' + err); render(); });
             }, 200);
         };
 
         window.stopBarcodeScanner = function() {
-            if (html5QrCode) {
-                html5QrCode.stop().then(function() { html5QrCode.clear(); state.isScanning = false; render(); }).catch(function() { state.isScanning = false; render(); });
-            } else { state.isScanning = false; render(); }
+            if (html5QrCode) { html5QrCode.stop().then(function() { html5QrCode.clear(); state.isScanning = false; render(); }).catch(function() { state.isScanning = false; render(); }); }
+            else { state.isScanning = false; render(); }
         };
 
         window.getDayData = function(customDate) {
@@ -309,11 +314,7 @@
             return null;
         };
 
-        window.changeDateOffset = function(days) {
-            var curr = new Date(state.date); curr.setDate(curr.getDate() + days);
-            state.date = curr.toISOString().split('T')[0]; render();
-        };
-
+        window.changeDateOffset = function(days) { var curr = new Date(state.date); curr.setDate(curr.getDate() + days); state.date = curr.toISOString().split('T')[0]; render(); };
         window.changeWeekOffset = function(val) { state.weekOffset += val; render(); };
 
         window.getWeekDates = function() {
@@ -536,7 +537,6 @@
                 
                 if (state.statusMsg) html += '<div class="bg-indigo-500/20 border border-indigo-500/40 text-indigo-700 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
 
-                // INTELIGENTNY SKANER Z OPCJĄ BEZPOŚREDNIEGO DODANIA DO DZIENNIKA
                 html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
                     '<h3 class="font-black mb-2 text-sm text-center">📷 Skaner Produktów</h3>' +
                     '<div class="flex space-x-2 mb-2">' +
@@ -599,9 +599,13 @@
                     '<div class="flex space-x-2"><button onclick="addProd()" class="flex-1 ' + th.btn + ' font-bold py-2 rounded-lg shadow-md text-xs">' + (edProd ? 'Zapisz zmiany' : 'Zapisz w bazie') + '</button>' +
                     (edProd ? '<button onclick="cancelEditProd()" class="bg-gray-300 text-gray-700 font-bold px-4 py-2 rounded-lg text-xs">Anuluj</button>' : '') + '</div></div>';
 
-                html += '<div class="' + th.card + ' p-3 rounded-xl border"><h3 class="font-bold text-sm mb-2">Baza Produktów (' + state.products.length + ')</h3><div class="space-y-2 max-h-[50vh] overflow-y-auto pr-1 pb-4">';
+                html += '<div class="' + th.card + ' p-3 rounded-xl border"><h3 class="font-bold text-sm mb-1">Baza Produktów (' + state.products.length + ')</h3><p class="text-[10px] opacity-60 mb-2">💡 Przytrzymaj palec na produkcie, aby dodać go do dzienniczka!</p><div class="space-y-2 max-h-[50vh] overflow-y-auto pr-1 pb-4">';
+                
                 state.products.forEach(function(p) {
-                    html += '<div class="' + th.inputBg + ' border p-2.5 rounded-lg flex justify-between items-center"><div class="pr-2 min-w-0"><p class="font-bold text-xs truncate">' + p.name + ' <span class="' + th.accent + ' font-normal">(' + p.baseWeight + 'g)</span></p><p class="text-[9px] opacity-60 font-bold">B:' + p.baseP + ' | T:' + p.baseF + ' | W:' + p.baseC + '</p></div><div class="flex items-center space-x-3 shrink-0"><span class="font-bold text-emerald-500 text-xs">' + p.baseKcal + ' kcal</span><button onclick="startEditProd(\'' + p.id + '\')" class="opacity-60 font-bold">✏️</button><button onclick="delProd(\'' + p.id + '\')" class="text-rose-400 font-bold">🗑️</button></div></div>';
+                    // Obsługa przytrzymania za pomocą zdarzeń dotykowych i myszy (long press)
+                    html += '<div oncontextmenu="event.preventDefault(); promptAddProductFromList(\'' + p.id + '\');" ontouchstart="window.lpTimer=setTimeout(function(){ promptAddProductFromList(\'' + p.id + '\'); }, 600);" ontouchend="clearTimeout(window.lpTimer);" onmousedown="window.lpTimer=setTimeout(function(){ promptAddProductFromList(\'' + p.id + '\'); }, 600);" onmouseup="clearTimeout(window.lpTimer);" class="' + th.inputBg + ' border p-2.5 rounded-lg flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform">' +
+                        '<div class="pr-2 min-w-0"><p class="font-bold text-xs truncate">' + p.name + ' <span class="' + th.accent + ' font-normal">(' + p.baseWeight + 'g)</span></p><p class="text-[9px] opacity-60 font-bold">B:' + p.baseP + ' | T:' + p.baseF + ' | W:' + p.baseC + '</p></div>' +
+                        '<div class="flex items-center space-x-3 shrink-0"><span class="font-bold text-emerald-500 text-xs">' + p.baseKcal + ' kcal</span><button onclick="event.stopPropagation(); startEditProd(\'' + p.id + '\')" class="opacity-60 font-bold">✏️</button><button onclick="event.stopPropagation(); delProd(\'' + p.id + '\')" class="text-rose-400 font-bold">🗑️</button></div></div>';
                 });
                 html += '</div></div>';
 
@@ -708,8 +712,8 @@
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v21 (Skaner z bezpośrednim dodawaniem)</p>' +
-                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 13:00</p>' +
+                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v22 (Szybkie dodawanie z listy bazy)</p>' +
+                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 13:30</p>' +
                     '</div>';
             }
 
@@ -807,7 +811,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 21, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 22, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
