@@ -107,7 +107,7 @@
             tab: 'dziennik',
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v32_theme') || 'classic',
+            theme: localStorage.getItem('diet_v34_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             products: [], workoutsDb: [], diaries: {}, settings: { startOfWeek: 1, measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ] },
             date: dzis, weekOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
@@ -148,7 +148,7 @@
                 }).catch(function(e){ console.log("Zapis do chmury nie powiódł się:", e); });
             }
             localStorage.setItem('diet_v15_curr_user', state.userId);
-            localStorage.setItem('diet_v32_theme', state.theme);
+            localStorage.setItem('diet_v34_theme', state.theme);
             localStorage.setItem('diet_gemini_key', state.geminiApiKey);
         };
 
@@ -187,7 +187,6 @@
             try {
                 var promptStr = 'Jesteś profesjonalnym dietetykiem. Użytkownik zjadł posiłek opisany jako: "' + query + '". Oszacuj wagę (w gramach), kalorie oraz makroskładniki (białko, tłuszcz, węglowodany) dla tego posiłku. Zwróć odpowiedź WYŁĄCZNIE w czystym formacie JSON bez żadnych znaczników markdown: {"name": "Krótka, ładna nazwa posiłku", "weight": 350, "kcal": 550, "p": 35.0, "f": 20.0, "c": 60.0}';
                 
-                // V32: Wysyłanie klucza przez nagłówek "x-goog-api-key" (Naprawia problem z nowymi kluczami AQ.)
                 var res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent', {
                     method: 'POST',
                     headers: {
@@ -199,7 +198,7 @@
                 
                 if (!res.ok) {
                     var errData = await res.json().catch(function(){ return {}; });
-                    var errMsg = (errData.error && errData.error.message) ? errData.error.message : 'Brak szczegółów';
+                    var errMsg = (errData.error && errData.error.message) ? errData.error.message : 'Błąd API';
                     throw new Error('Odrzucono przez Google: ' + errMsg);
                 }
                 
@@ -254,7 +253,7 @@
                 
                 if (!res.ok) {
                     var errData = await res.json().catch(function(){ return {}; });
-                    var errMsg = (errData.error && errData.error.message) ? errData.error.message : 'Brak szczegółów';
+                    var errMsg = (errData.error && errData.error.message) ? errData.error.message : 'Błąd API';
                     throw new Error('Odrzucono przez Google: ' + errMsg);
                 }
                 
@@ -268,7 +267,6 @@
             }
         };
 
-        // Reszta aplikacji pozostaje bez zmian
         window.fetchProductByBarcode = function(barcode) {
             if (!barcode || !barcode.trim()) return alert('Wpisz lub zeskanuj kod kreskowy!');
             var cleanCode = barcode.trim();
@@ -805,7 +803,7 @@
 
                 html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
                     '<h3 class="font-black mb-2 text-sm text-center">🧠 Konfiguracja AI (Gemini)</h3>' +
-                    '<p class="text-[10px] text-gray-500 mb-3 text-center">Wklej swój nowy darmowy klucz pobrany z <a href="[https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)" target="_blank" class="text-blue-500 underline font-bold">Google AI Studio</a>.</p>' +
+                    '<p class="text-[10px] text-gray-500 mb-3 text-center">Wklej swój klucz API pobrany z <a href="[https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)" target="_blank" class="text-blue-500 underline font-bold">Google AI Studio</a>.</p>' +
                     '<input type="password" id="aiKeyInput" placeholder="AQ... lub AIzaSy..." value="' + state.geminiApiKey + '" class="w-full p-2.5 ' + th.inputBg + ' border rounded-lg text-xs font-medium outline-none mb-2 text-center" />' +
                     '<button onclick="saveGeminiKey(document.getElementById(\'aiKeyInput\').value)" class="w-full ' + th.btn + ' font-bold py-2.5 rounded-xl shadow-md text-xs">Zapisz klucz AI</button>' +
                     '</div>';
@@ -848,8 +846,8 @@
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v32 (Poprawka wysyłania nagłówków dla nowych kluczy AQ)</p>' +
-                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 17:50</p>' +
+                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v34 (Naprawione ręczne dodawanie produktów)</p>' +
+                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 18:45</p>' +
                     '</div>';
             }
 
@@ -877,7 +875,128 @@
         window.removeMeasurement = function(id) { if(confirm('Usunąć ten pomiar?')) { state.settings.measurements = state.settings.measurements.filter(function(m) { return m.id !== id; }); saveState(); render(); } };
         window.changeUserName = function(id, newName) { var u = state.users.find(function(x) { return x.id === id; }); if (u && newName.trim()) { u.name = newName.trim(); saveState(); render(); } };
 
-        // Reszta pozostaje bez zmian...
+        window.addMeal = function() {
+            var p = state.products.find(function(x) { return x.id === state.selectedProdId; }) || state.products.find(function(x) { return x.name.toLowerCase() === state.prodSearch.trim().toLowerCase(); });
+            var w = parseFloat(state.inputWeight);
+            if (!p || !w) return alert('Wybierz produkt z podpowiedzi i podaj wagę!');
+            var r = w / p.baseWeight;
+            getDayData().meals.push({ id: Date.now(), name: p.name, weight: w, kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10, f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 });
+            state.prodSearch = ''; state.inputWeight = ''; state.selectedProdId = ''; saveState(); render();
+        };
+
+        window.delMeal = function(id) { getDayData().meals = getDayData().meals.filter(function(x) { return x.id !== id; }); saveState(); render(); };
+
+        window.searchWorkout = function(val) {
+            state.wSearch = val;
+            if (val.trim().length > 0) state.wResults = state.workoutsDb.filter(function(w) { return w.name.toLowerCase().includes(val.trim().toLowerCase()); }).slice(0, 5);
+            else state.wResults = [];
+            render(); setTimeout(function() { var el = document.getElementById('wNameInp'); if (el) { el.focus(); el.setSelectionRange(val.length, val.length); } }, 0);
+        };
+
+        window.selectWorkoutDrop = function(name) {
+            var w = state.workoutsDb.find(function(x) { return x.name === name; });
+            if (w) { state.wSearch = w.name; state.wInputTime = w.time; state.wInputKcal = w.kcal; state.wResults = []; render(); }
+        };
+
+        window.addWorkout = function() {
+            var name = state.wSearch.trim(), time = parseInt(state.wInputTime) || 0, kcal = parseInt(state.wInputKcal) || 0;
+            if (!name || !kcal) return alert('Podaj nazwę i spalone kalorie!');
+            if (!state.workoutsDb.find(function(w) { return w.name.toLowerCase() === name.toLowerCase(); })) state.workoutsDb.push({ name: name, time: time, kcal: kcal });
+            getDayData().workouts.push({ id: Date.now(), name: name, time: time, kcal: kcal });
+            state.wSearch = ''; state.wInputTime = ''; state.wInputKcal = ''; state.wResults = []; saveState(); render();
+        };
+
+        window.delWorkout = function(id) { getDayData().workouts = getDayData().workouts.filter(function(x) { return x.id !== id; }); saveState(); render(); };
+        
+        window.saveGoals = function() {
+            state.isEditingGoals = false; 
+            getDayData().goals = { kcal: parseFloat(document.getElementById('gKcal').value) || 0, p: parseFloat(document.getElementById('gP').value) || 0, f: parseFloat(document.getElementById('gF').value) || 0, c: parseFloat(document.getElementById('gC').value) || 0 }; 
+            saveState(); render();
+        };
+
+        window.startEditProd = function(id) { 
+            state.editProdId = id; 
+            render(); 
+            setTimeout(function() { 
+                var el = document.getElementById('prodForm'); 
+                if(el) el.scrollIntoView({behavior: 'smooth'}); 
+            }, 100); 
+        };
+        window.cancelEditProd = function() { state.editProdId = null; render(); };
+
+        window.addProd = function() {
+            var nameElem = document.getElementById('pName');
+            var wElem = document.getElementById('pW');
+            var kElem = document.getElementById('pK');
+            var pElem = document.getElementById('pP');
+            var fElem = document.getElementById('pF');
+            var cElem = document.getElementById('pC');
+
+            var name = nameElem ? nameElem.value.trim() : '';
+            var w = wElem ? parseFloat(wElem.value) || 100 : 100;
+            var p = pElem ? parseFloat(pElem.value) || 0 : 0;
+            var f = fElem ? parseFloat(fElem.value) || 0 : 0;
+            var c = cElem ? parseFloat(cElem.value) || 0 : 0;
+            var kcal = (kElem && kElem.value !== '') ? parseFloat(kElem.value) : Math.round(p * 4 + c * 4 + f * 9);
+
+            if (!name) return alert('Podaj nazwę produktu!');
+
+            if(state.editProdId) {
+                var prod = state.products.find(function(x) { return x.id === state.editProdId; });
+                if(prod) { prod.name = name; prod.baseWeight = w; prod.baseKcal = kcal; prod.baseP = p; prod.baseF = f; prod.baseC = c; }
+                state.editProdId = null;
+                state.statusMsg = 'Zaktualizowano produkt!';
+            } else { 
+                state.products.unshift({ id: String(Date.now()), name: name, baseWeight: w, baseKcal: kcal, baseP: p, baseF: f, baseC: c }); 
+                state.statusMsg = 'Dodano nowy produkt do bazy!';
+            }
+            saveState(); render();
+        };
+
+        window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
+
+        window.exportFullJson = function() {
+            var payload = { version: 34, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
+            state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
+        };
+
+        window.importFullJson = function() {
+            try {
+                var data = JSON.parse(document.getElementById('jsonArea').value);
+                if (!data.products && !data.diaries) return alert('Błędny kod JSON');
+                if (state.importMode === 'products') {
+                    var names = new Set(state.products.map(function(p) { return p.name.trim().toLowerCase(); })); var added = 0;
+                    (data.products || []).forEach(function(p) { if (!names.has(p.name.trim().toLowerCase())) { state.products.push(p); added++; } });
+                    state.statusMsg = 'Wgrano ' + added + ' nowych produktów.';
+                } else {
+                    if (!confirm('Nadpisać całą historię?')) return;
+                    if (data.products) state.products = data.products; 
+                    if (data.diaries) state.diaries = data.diaries;
+                    if (data.users) state.users = data.users; 
+                    if (data.settings) state.settings = data.settings; 
+                    if (data.workoutsDb) state.workoutsDb = data.workoutsDb;
+                    if (data.theme) state.theme = data.theme;
+                    state.statusMsg = 'Kopia wgrana pomyślnie!';
+                }
+                saveState(); render();
+            } catch(e) { alert('Błąd odczytu JSON!'); }
+        };
+
+        var touchStartX = 0, touchEndX = 0, tabsOrder = ['dziennik', 'baza', 'trening', 'podsumowanie', 'kopia'];
+        window.addEventListener('touchstart', function(e) { touchStartX = e.changedTouches[0].screenX; }, false);
+        window.addEventListener('touchend', function(e) {
+            touchEndX = e.changedTouches[0].screenX;
+            var threshold = 70;
+            if (touchEndX < touchStartX - threshold) {
+                var idx = tabsOrder.indexOf(state.tab); if (idx < tabsOrder.length - 1) { switchTab(tabsOrder[idx + 1]); }
+            }
+            if (touchEndX > touchStartX + threshold) {
+                var idx = tabsOrder.indexOf(state.tab); if (idx > 0) { switchTab(tabsOrder[idx - 1]); }
+            }
+        }, false);
+
+        render();
     </script>
 </body>
 </html>
