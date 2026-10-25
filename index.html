@@ -107,7 +107,7 @@
             tab: 'dziennik',
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v23_theme') || 'classic',
+            theme: localStorage.getItem('diet_v24_theme') || 'classic',
             products: [], workoutsDb: [], diaries: {}, settings: { startOfWeek: 1, measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ] },
             date: dzis, weekOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
@@ -145,7 +145,7 @@
                 }).catch(function(e){ console.log("Zapis do chmury nie powiódł się:", e); });
             }
             localStorage.setItem('diet_v15_curr_user', state.userId);
-            localStorage.setItem('diet_v23_theme', state.theme);
+            localStorage.setItem('diet_v24_theme', state.theme);
         };
 
         window.setTheme = function(th) { state.theme = th; saveState(); render(); };
@@ -356,6 +356,48 @@
                 '<span class="text-[10px] font-bold opacity-70 uppercase">Max: <span class="text-rose-500 ml-1">' + maxWGlobal + ' kg</span></span></div>';
         };
 
+        // BEZPIECZNA FUNKCJA WYSZUKIWANIA BEZ ODŚWIEŻANIA CAŁEJ STRONY (klawiatura nie znika)
+        window.filterProductsDropdown = function(val) {
+            state.prodSearch = val;
+            var dropdown = document.getElementById('prodDropdownList');
+            if (!dropdown) return;
+
+            if (!val || val.trim().length === 0) {
+                dropdown.innerHTML = '';
+                dropdown.classList.add('hidden');
+                return;
+            }
+
+            var results = state.products.filter(function(p) { return p.name.toLowerCase().includes(val.trim().toLowerCase()); }).slice(0, 15);
+            if (results.length === 0) {
+                dropdown.innerHTML = '<div class="p-2.5 text-xs text-gray-400 text-center">Brak produktów w bazie</div>';
+                dropdown.classList.remove('hidden');
+                return;
+            }
+
+            var html = '';
+            results.forEach(function(p) {
+                html += '<div onclick="selectProdDrop(\'' + p.id + '\')" class="p-2.5 border-b border-gray-50 text-xs cursor-pointer hover:bg-gray-100"><span class="font-bold block truncate">' + p.name + '</span><span class="text-[9px] opacity-60">' + p.baseWeight + 'g = ' + p.baseKcal + ' kcal</span></div>';
+            });
+            dropdown.innerHTML = html;
+            dropdown.classList.remove('hidden');
+        };
+
+        window.selectProdDrop = function(id) {
+            var p = state.products.find(function(x) { return x.id === id; });
+            if (p) {
+                state.selectedProdId = id;
+                state.prodSearch = p.name;
+                state.inputWeight = p.baseWeight;
+                var input = document.getElementById('pSearchInp');
+                var weightInput = document.getElementById('inpW');
+                if (input) input.value = p.name;
+                if (weightInput) weightInput.value = p.baseWeight;
+                var dropdown = document.getElementById('prodDropdownList');
+                if (dropdown) dropdown.classList.add('hidden');
+            }
+        };
+
         window.render = function() {
             var app = document.getElementById('app');
             var day = getDayData();
@@ -367,11 +409,8 @@
             var eatenKcal = 0, eatenP = 0, eatenF = 0, eatenC = 0;
             day.meals.forEach(function(m) { eatenKcal += m.kcal; eatenP += m.p; eatenF += m.f; eatenC += m.c; });
             var burned = day.workouts.reduce(function(s, w) { return s + w.kcal; }, 0);
-            
-            // POPRAWIONY BILANS NETTO: Pozwalamy na wartości ujemne przy dużych treningach, a "zostało na dziś" rośnie o spalone kalorie
             var nettoKcal = eatenKcal - burned;
             var left = day.goals.kcal - nettoKcal;
-            
             var statusLabel = left < 0 ? 'Przekroczono cel' : 'Zostało na dziś';
             var statusColor = left < 0 ? 'text-rose-500' : 'text-emerald-500';
 
@@ -441,16 +480,9 @@
                 html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
                     '<h3 class="font-bold text-sm mb-2">🍽️ Posiłki</h3>' +
                     '<div class="flex space-x-2 mb-3 relative"><div class="relative flex-1 min-w-0">' +
-                    '<input id="pSearchInp" placeholder="Wpisz (np. skyr)..." value="' + state.prodSearch + '" oninput="searchProd(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs font-medium px-3 py-2 outline-none" />';
-                
-                if (state.prodResults.length > 0) {
-                    html += '<div class="absolute top-full left-0 w-full mt-1 ' + th.card + ' border shadow-xl rounded-lg max-h-48 overflow-y-auto z-50">';
-                    state.prodResults.forEach(function(p) {
-                        html += '<div onclick="selectProdDrop(\'' + p.id + '\')" class="p-2.5 border-b border-gray-200/30 text-xs cursor-pointer hover:opacity-80"><span class="font-bold block truncate">' + p.name + '</span><span class="text-[9px] opacity-60">' + p.baseWeight + 'g = ' + p.baseKcal + ' kcal</span></div>';
-                    });
-                    html += '</div>';
-                }
-                html += '</div><input id="inpW" type="number" placeholder="Waga(g)" value="' + state.inputWeight + '" oninput="state.inputWeight=this.value" class="w-16 ' + th.inputBg + ' border rounded-lg text-xs font-bold text-center outline-none shrink-0" />' +
+                    '<input id="pSearchInp" placeholder="Wpisz (np. skyr)..." value="' + state.prodSearch + '" oninput="filterProductsDropdown(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs font-medium px-3 py-2 outline-none" />' +
+                    '<div id="prodDropdownList" class="absolute top-full left-0 w-full mt-1 ' + th.card + ' border shadow-xl rounded-lg max-h-48 overflow-y-auto z-50 hidden"></div>' +
+                    '</div><input id="inpW" type="number" placeholder="Waga(g)" value="' + state.inputWeight + '" oninput="state.inputWeight=this.value" class="w-16 ' + th.inputBg + ' border rounded-lg text-xs font-bold text-center outline-none shrink-0" />' +
                     '<button onclick="addMeal()" class="' + th.btn + ' px-3.5 rounded-lg font-bold shadow-md shrink-0">+</button></div><div class="space-y-2">';
                 
                 if (day.meals.length === 0) html += '<p class="text-[10px] opacity-50 text-center py-2">Brak posiłków</p>';
@@ -712,8 +744,8 @@
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v23 (Poprawiony bilans netto i szybki wybór z bazy)</p>' +
-                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 13:50</p>' +
+                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v24 (Stabilne pisanie bez zamykania klawiatury)</p>' +
+                    '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 25.10.2026, 14:10</p>' +
                     '</div>';
             }
 
@@ -735,23 +767,11 @@
         window.changeWeight = function(w) { getDayData().weight = w; saveState(); };
         window.toggleGoals = function() { state.isEditingGoals = !state.isEditingGoals; render(); };
         window.changeStartOfWeek = function(val) { state.settings.startOfWeek = parseInt(val); saveState(); render(); };
-        window.addWater = function(amount) { if (amount === 0) getDayData().water = 0; else getDayData().water = (parseFloat(getDayData().water) || 0) + amount; saveState(); render(); };
+        window.addWater = function(amount) { if (amount === 0) getDayData().water = 0; else getDayData().water = (parseFloat(day.water) || 0) + amount; saveState(); render(); };
         window.updateMeasurement = function(id, val) { getDayData().measurements[id] = val; saveState(); };
         window.promptAddMeasurement = function() { var name = prompt('Podaj nazwę nowego pomiaru (np. Łydka):'); if(name && name.trim()) { state.settings.measurements.push({ id: 'm_' + Date.now(), name: name.trim() }); saveState(); render(); } };
         window.removeMeasurement = function(id) { if(confirm('Usunąć ten pomiar?')) { state.settings.measurements = state.settings.measurements.filter(function(m) { return m.id !== id; }); saveState(); render(); } };
         window.changeUserName = function(id, newName) { var u = state.users.find(function(x) { return x.id === id; }); if (u && newName.trim()) { u.name = newName.trim(); saveState(); render(); } };
-
-        window.searchProd = function(val) {
-            state.prodSearch = val;
-            if (val.trim().length > 0) state.prodResults = state.products.filter(function(p) { return p.name.toLowerCase().includes(val.trim().toLowerCase()); }).slice(0, 15);
-            else state.prodResults = [];
-            render(); setTimeout(function() { var el = document.getElementById('pSearchInp'); if (el) { el.focus(); el.setSelectionRange(val.length, val.length); } }, 0);
-        };
-
-        window.selectProdDrop = function(id) {
-            var p = state.products.find(function(x) { return x.id === id; });
-            if (p) { state.selectedProdId = id; state.prodSearch = p.name; state.inputWeight = p.baseWeight; state.prodResults = []; render(); }
-        };
 
         window.addMeal = function() {
             var p = state.products.find(function(x) { return x.id === state.selectedProdId; }) || state.products.find(function(x) { return x.name.toLowerCase() === state.prodSearch.trim().toLowerCase(); });
@@ -811,7 +831,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 23, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 24, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
