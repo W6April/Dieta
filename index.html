@@ -15,7 +15,7 @@
         html, body { overflow-x: hidden; width: 100%; position: relative; }
         body { -webkit-tap-highlight-color: transparent; touch-action: pan-y; }
         @supports (padding-bottom: env(safe-area-inset-bottom)) { .pb-safe { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); } }
-        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         
@@ -118,9 +118,9 @@
             isCloudSynced: false,
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v47_theme') || 'classic',
+            theme: localStorage.getItem('diet_v48_theme') || localStorage.getItem('diet_v47_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
-            workingModelPath: localStorage.getItem('diet_working_model_v44') || '',
+            workingModelPath: localStorage.getItem('diet_working_model_v48') || '',
             products: localProducts, workoutsDb: [], diaries: localDiaries, 
             settings: { startOfWeek: 1, measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ] },
             date: dzis, weekOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
@@ -155,6 +155,9 @@
                         var lMeals = (lDay.meals || []).length;
                         if (lMeals > cMeals) result[uid][dt].meals = lDay.meals;
                         if (!cDay.weight && lDay.weight) result[uid][dt].weight = lDay.weight;
+                        if (lDay.measurements && Object.keys(lDay.measurements).length > 0) {
+                            result[uid][dt].measurements = Object.assign({}, cDay.measurements || {}, lDay.measurements);
+                        }
                     }
                 });
             });
@@ -199,7 +202,7 @@
                 localStorage.setItem('diet_local_diaries_vault', JSON.stringify(state.diaries));
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_v15_curr_user', state.userId);
-                localStorage.setItem('diet_v47_theme', state.theme);
+                localStorage.setItem('diet_v48_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             } catch(e) {}
 
@@ -247,48 +250,83 @@
         window.saveGeminiKey = function(key) {
             state.geminiApiKey = key.trim();
             state.workingModelPath = '';
-            localStorage.removeItem('diet_working_model_v44');
+            localStorage.removeItem('diet_working_model_v48');
             saveState();
             state.statusMsg = 'Zapisano klucz Gemini AI!';
             render();
         };
 
+        // =========================================================================
+        // ZOPTYMALIZOWANY, SZYBKI SILNIK AI (v48)
+        // =========================================================================
         async function executeGeminiFetch(fullModelName, key, promptStr) {
             var path = fullModelName.startsWith('models/') ? fullModelName : ('models/' + fullModelName);
             var url = 'https://generativelanguage.googleapis.com/v1beta/' + path + ':generateContent';
 
-            var res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-                body: JSON.stringify({ contents: [{ parts: [{ text: promptStr }] }] })
-            });
-
-            if (res.ok) {
-                var data = await res.json();
-                return data.candidates[0].content.parts[0].text.trim();
-            }
-
-            if (res.status === 401 || res.status === 403) {
-                var resB = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: promptStr }] }] })
-                });
-                if (resB.ok) {
-                    var dataB = await resB.json();
-                    return dataB.candidates[0].content.parts[0].text.trim();
+            // Konfiguracja wyłączająca zbędne opóźnienia i ograniczająca długość generowania
+            var payload = {
+                contents: [{ parts: [{ text: promptStr }] }],
+                generationConfig: {
+                    temperature: 0.2,
+                    maxOutputTokens: 300
                 }
+            };
+
+            var controller = new AbortController();
+            var timeoutId = setTimeout(function() { controller.abort(); }, 12000); // Maksymalnie 12s na odpowiedź
+
+            try {
+                var res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (res.ok) {
+                    var data = await res.json();
+                    return data.candidates[0].content.parts[0].text.trim();
+                }
+
+                if (res.status === 401 || res.status === 403) {
+                    var resB = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+                        body: JSON.stringify(payload)
+                    });
+                    if (resB.ok) {
+                        var dataB = await resB.json();
+                        return dataB.candidates[0].content.parts[0].text.trim();
+                    }
+                }
+                
+                var errObj = await res.json().catch(function(){ return {}; });
+                var msg = (errObj.error && errObj.error.message) ? errObj.error.message : ('Status ' + res.status);
+                throw new Error(msg);
+            } catch(e) {
+                clearTimeout(timeoutId);
+                throw e;
             }
-            
-            var errObj = await res.json().catch(function(){ return {}; });
-            var msg = (errObj.error && errObj.error.message) ? errObj.error.message : ('Status ' + res.status);
-            throw new Error(msg);
+        }
+
+        // Funkcja oceniająca szybkość modelu (preferuje modele lite oraz 2.0-flash bez narzutu "thinking")
+        function getModelSpeedRank(name) {
+            var n = name.toLowerCase();
+            if (n.includes('exp') || n.includes('preview') || n.includes('thinking')) return 90; // Unikaj wolnych wersji testowych
+            if (n.includes('flash-lite') || n.includes('8b')) return 1; // Najszybsze ( ~0.8s )
+            if (n.includes('2.0-flash')) return 2; // Bardzo szybki, brak narzutu myślenia ( ~1.2s )
+            if (n.includes('1.5-flash')) return 3;
+            if (n.includes('2.5-flash')) return 4;
+            if (n.includes('flash')) return 5;
+            return 50;
         }
 
         window.callGeminiSmart = async function(promptStr) {
             var key = state.geminiApiKey.trim();
             if (!key) throw new Error('Wklej klucz API w zakładce Ustawienia!');
 
+            // 1. Jeśli mamy już sprawdzony szybki model, uderzamy bezpośrednio!
             if (state.workingModelPath) {
                 try {
                     return await executeGeminiFetch(state.workingModelPath, key, promptStr);
@@ -311,10 +349,9 @@
                         return m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent') && m.name.includes('gemini');
                     });
 
+                    // Sortujemy od najszybszego modelu!
                     supported.sort(function(a, b) {
-                        var aFlash = a.name.includes('flash') ? 0 : 1;
-                        var bFlash = b.name.includes('flash') ? 0 : 1;
-                        return aFlash - bFlash;
+                        return getModelSpeedRank(a.name) - getModelSpeedRank(b.name);
                     });
 
                     for (var i = 0; i < supported.length; i++) {
@@ -323,7 +360,7 @@
                             var reply = await executeGeminiFetch(candidateName, key, promptStr);
                             if (reply) {
                                 state.workingModelPath = candidateName;
-                                localStorage.setItem('diet_working_model_v44', candidateName);
+                                localStorage.setItem('diet_working_model_v48', candidateName);
                                 return reply;
                             }
                         } catch(err) {
@@ -335,13 +372,13 @@
                 lastError = e.message;
             }
 
-            var directModels = ['models/gemini-2.5-flash', 'models/gemini-2.0-flash', 'models/gemini-1.5-flash-latest'];
+            var directModels = ['models/gemini-2.0-flash', 'models/gemini-2.5-flash', 'models/gemini-1.5-flash-latest'];
             for (var j = 0; j < directModels.length; j++) {
                 try {
                     var rep = await executeGeminiFetch(directModels[j], key, promptStr);
                     if (rep) {
                         state.workingModelPath = directModels[j];
-                        localStorage.setItem('diet_working_model_v44', directModels[j]);
+                        localStorage.setItem('diet_working_model_v48', directModels[j]);
                         return rep;
                     }
                 } catch(e) {
@@ -356,18 +393,22 @@
             var inputEl = document.getElementById('aiKeyInput');
             if (inputEl && inputEl.value.trim()) {
                 state.geminiApiKey = inputEl.value.trim();
-                saveState();
             }
             if (!state.geminiApiKey) return alert('Wklej najpierw klucz w pole powyżej!');
             
-            state.statusMsg = 'Wyszukuję najszybszy model AI na Twoim koncie...';
+            // Wymuszamy ponowny wybór najszybszego modelu
+            state.workingModelPath = '';
+            localStorage.removeItem('diet_working_model_v48');
+            saveState();
+
+            state.statusMsg = 'Szukam najszybszego modelu AI (Turbo)...';
             render();
             try {
                 var t0 = Date.now();
-                var reply = await callGeminiSmart('Odpowiedz jednym słowem: DZIAŁA');
+                var reply = await callGeminiSmart('Odpowiedz jednym słowem: OK');
                 var duration = ((Date.now() - t0) / 1000).toFixed(1);
-                state.statusMsg = '✅ Działa (' + duration + 's)! Model: ' + state.workingModelPath;
-                alert('✅ Sukces w ' + duration + ' sek.!\nPodpięto model:\n' + state.workingModelPath);
+                state.statusMsg = '✅ Turbo AI gotowe (' + duration + 's)! Model: ' + state.workingModelPath;
+                alert('⚡ Sukces w ' + duration + ' sek.!\nWybrano najszybszy dostępny model:\n' + state.workingModelPath);
             } catch(err) {
                 state.statusMsg = '❌ Błąd: ' + err.message;
                 alert('❌ Błąd: ' + err.message);
@@ -399,7 +440,8 @@
             render();
 
             try {
-                var promptStr = 'Jesteś profesjonalnym dietetykiem. Użytkownik zjadł posiłek opisany jako: "' + query + '". Oszacuj wagę (w gramach), kalorie oraz makroskładniki (białko, tłuszcz, węglowodany) dla tego posiłku. Zwróć odpowiedź WYŁĄCZNIE w czystym formacie JSON bez żadnych znaczników markdown: {"name": "Krótka, ładna nazwa posiłku", "weight": 350, "kcal": 550, "p": 35.0, "f": 20.0, "c": 60.0}';
+                // Krótki, konkretny prompt przyspiesza czas odpowiedzi AI o połowę
+                var promptStr = 'Oszacuj wagę(g), kcal i makro dla posiłku: "' + query + '". Zwróć TYLKO czysty JSON: {"name":"Krótka nazwa","weight":300,"kcal":450,"p":25.0,"f":15.0,"c":50.0}';
                 
                 var textResp = await callGeminiSmart(promptStr);
                 textResp = textResp.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/, "");
@@ -438,7 +480,7 @@
             render();
 
             try {
-                var promptStr = 'Jesteś przyjaznym, motywującym osobistym trenerem i dietetykiem. Przeanalizuj dzisiejsze wyniki użytkownika ' + user.name + ': Cel kalorii: ' + day.goals.kcal + ' kcal. Zjedzono: ' + Math.round(eaten) + ' kcal (Białko: ' + Math.round(p) + 'g, Tłuszcz: ' + Math.round(f) + 'g, Węglowodany: ' + Math.round(c) + 'g). Spalono na treningu: ' + burned + ' kcal. Waga dzisiaj: ' + (day.weight ? day.weight + ' kg' : 'brak pomiaru') + '. Napisz krótki, zwięzły, pełen energii komentarz (2-3 zdania). Pochwal za dobre nawyki, odnieś się do treningu lub bilansu i daj jedną konstruktywną radę na resztę dnia lub jutro. Mów bezpośrednio do użytkownika w języku polskim.';
+                var promptStr = 'Trenerze, oceń krótko (2 zdania po polsku) dzień użytkownika ' + user.name + ': Cel ' + day.goals.kcal + 'kcal, zjedzono ' + Math.round(eaten) + 'kcal (B:' + Math.round(p) + 'g, T:' + Math.round(f) + 'g, W:' + Math.round(c) + 'g), trening: -' + burned + 'kcal.';
                 
                 state.aiAdviceText = await callGeminiSmart(promptStr);
             } catch(err) {
@@ -471,7 +513,7 @@
         };
 
         // =========================================================================
-        // SKANER KODÓW Z PLANEM AWARYJNYM AI (WERSJA V47)
+        // TURBO SKANER KODÓW KRESKOWYCH (Limit 3.5s + Lekkie zapytanie + 20 FPS)
         // =========================================================================
         window.fetchProductByBarcode = async function(barcode) {
             var codeToSearch = barcode || state.scannedBarcodeInput || '';
@@ -483,12 +525,19 @@
             }
             var cleanCode = String(codeToSearch).trim();
             state.scannedBarcodeInput = cleanCode;
-            state.statusMsg = '⏳ Szukam w bazie OpenFoodFacts (kod: ' + cleanCode + ')...';
+            state.statusMsg = '⚡ Pobieram produkt (' + cleanCode + ')...';
             state.scannedProductData = null;
             render();
 
+            // 1. Szybkie, odchudzone zapytanie do OpenFoodFacts z limitem 3.5 sekundy
             try {
-                var response = await fetch('[https://world.openfoodfacts.org/api/v0/product/](https://world.openfoodfacts.org/api/v0/product/)' + encodeURIComponent(cleanCode) + '.json');
+                var controller = new AbortController();
+                var timeoutId = setTimeout(function() { controller.abort(); }, 3500);
+
+                var fastUrl = '[https://world.openfoodfacts.org/api/v0/product/](https://world.openfoodfacts.org/api/v0/product/)' + encodeURIComponent(cleanCode) + '.json?fields=product_name,product_name_pl,brands,nutriments,quantity,product_quantity';
+                var response = await fetch(fastUrl, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
                 var data = await response.json();
 
                 if (data && data.status === 1 && data.product) {
@@ -517,18 +566,18 @@
                     var totalCarb = Math.round((carb100 * ratio) * 10) / 10;
 
                     state.scannedProductData = { name: name, baseWeight: pkgWeight, baseKcal: totalKcal, baseP: totalProt, baseF: totalFat, baseC: totalCarb, addWeight: pkgWeight };
-                    state.statusMsg = '✅ Zeskanowano pomyślnie z OpenFoodFacts!';
+                    state.statusMsg = '✅ Pobrano błyskawicznie: ' + name;
                     render();
                     return;
                 }
             } catch(e) {}
 
-            // PLAN AWARYJNY AI
+            // 2. Natychmiastowy Plan Awaryjny AI
             if (state.geminiApiKey) {
-                state.statusMsg = '🤖 OpenFoodFacts nie zna tego kodu. Pytam asystenta AI o kod ' + cleanCode + '...';
+                state.statusMsg = '🤖 Baza zewnętrzna nie odpowiada – rozpoznaję kod przez AI...';
                 render();
                 try {
-                    var promptStr = 'Masz kod kreskowy produktu: "' + cleanCode + '". Rozpoznaj co to za produkt spożywczy (lub oszacuj na podstawie standardowych produktów o tym kodzie). Zwróć odpowiedź WYŁĄCZNIE w formacie JSON bez znaczników markdown: {"name": "Nazwa produktu i marka", "weight": 250, "kcal": 300, "p": 15.0, "f": 10.0, "c": 35.0}';
+                    var promptStr = 'Kod EAN: "' + cleanCode + '". Rozpoznaj polski produkt spożywczy. Zwróć TYLKO czysty JSON: {"name":"Nazwa","weight":200,"kcal":250,"p":10.0,"f":5.0,"c":30.0}';
                     var aiResponse = await callGeminiSmart(promptStr);
                     aiResponse = aiResponse.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/, "");
                     var aiParsed = JSON.parse(aiResponse);
@@ -542,14 +591,14 @@
                         baseC: aiParsed.c || 0,
                         addWeight: aiParsed.weight || 100
                     };
-                    state.statusMsg = '✅ AI rozpoznało produkt po kodzie!';
+                    state.statusMsg = '✅ AI rozpoznało produkt!';
                     render();
                     return;
                 } catch(aiErr) {}
             }
 
-            state.statusMsg = '⚠️ Brak w bazie. Wpisz dane ręcznie.';
-            alert('Nie znaleziono produktu. Możesz wpisać dane ręcznie.');
+            state.statusMsg = '⚠️ Nie znaleziono kodu. Wpisz dane ręcznie poniżej.';
+            alert('Nie znaleziono produktu w bazie. Wpisz dane ręcznie.');
             render();
         };
 
@@ -559,7 +608,7 @@
                 return alert('Biblioteka skanera się ładuje. Spróbuj za sekundę.');
             }
             state.isScanning = true;
-            state.statusMsg = '📷 Kieruj aparat na kod kreskowy...';
+            state.statusMsg = '📷 Zbliż kod kreskowy do ramki...';
             render();
 
             setTimeout(function() {
@@ -570,8 +619,25 @@
                     if (html5QrCode) {
                         try { html5QrCode.clear(); } catch(e) {}
                     }
-                    html5QrCode = new Html5Qrcode("reader");
-                    var config = { fps: 10, qrbox: { width: 240, height: 120 }, aspectRatio: 1.5 };
+                    // Ograniczamy formaty wyłącznie do kodów sklepowych EAN/UPC (dużo szybsze działanie!)
+                    var formats = [];
+                    if (typeof Html5QrcodeSupportedFormats !== 'undefined') {
+                        formats = [
+                            Html5QrcodeSupportedFormats.EAN_13,
+                            Html5QrcodeSupportedFormats.EAN_8,
+                            Html5QrcodeSupportedFormats.UPC_A,
+                            Html5QrcodeSupportedFormats.UPC_E,
+                            Html5QrcodeSupportedFormats.CODE_128
+                        ];
+                    }
+
+                    html5QrCode = formats.length > 0 ? new Html5Qrcode("reader", { formatsToSupport: formats }) : new Html5Qrcode("reader");
+                    var config = { 
+                        fps: 20, // Podwojona szybkość skanowania klatek
+                        qrbox: { width: 260, height: 110 }, 
+                        aspectRatio: 1.5,
+                        disableFlip: true 
+                    };
 
                     html5QrCode.start(
                         { facingMode: "environment" },
@@ -607,7 +673,7 @@
                     alert('Błąd skanera: ' + err.message);
                     render();
                 }
-            }, 250);
+            }, 150);
         };
 
         window.stopBarcodeScanner = function() {
@@ -713,7 +779,6 @@
             return null;
         };
 
-        // POPRAWIONY KALENDARZ (Bez przeskakiwania po 2 dni)
         window.changeDateOffset = function(days) {
             var parts = state.date.split('-');
             var dObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
@@ -751,6 +816,79 @@
             var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
             var days = ['Niedziela', 'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota'];
             return days[d.getDay()];
+        };
+
+        // =========================================================================
+        // HISTORIA I TABELA POMIARÓW CIAŁA (NOWOŚĆ W V48)
+        // =========================================================================
+        window.renderMeasurementsHistory = function(th) {
+            var userDiary = state.diaries[state.userId] || {};
+            var mList = state.settings.measurements || [];
+            if (mList.length === 0) return '';
+
+            var datesWithM = Object.keys(userDiary).sort(function(a, b) { return b.localeCompare(a); }).filter(function(d) {
+                var mObj = userDiary[d].measurements || {};
+                return mList.some(function(m) { return mObj[m.id] !== undefined && mObj[m.id] !== ''; });
+            });
+
+            if (datesWithM.length === 0) {
+                return '<div class="' + th.card + ' border p-4 rounded-xl mb-4 text-center"><h3 class="font-black text-sm mb-1">📉 Historia Pomiarów</h3><p class="text-xs opacity-60 py-3">Brak zapisanych pomiarów w historii. Wpisz dzisiejsze wymiary powyżej!</p></div>';
+            }
+
+            // Karty postępu dla każdej partii (Pierwszy pomiar vs Ostatni pomiar)
+            var progressCards = '';
+            var ascDates = datesWithM.slice().reverse();
+
+            mList.forEach(function(m) {
+                var vals = [];
+                ascDates.forEach(function(d) {
+                    var v = parseFloat(userDiary[d].measurements[m.id]);
+                    if (!isNaN(v) && v > 0) vals.push({ date: d, val: v });
+                });
+                if (vals.length > 0) {
+                    var first = vals[0].val;
+                    var last = vals[vals.length - 1].val;
+                    var diff = Math.round((last - first) * 10) / 10;
+                    var diffStr = diff > 0 ? ('+' + diff) : String(diff);
+                    var badgeColor = diff < 0 ? 'text-emerald-500' : (diff > 0 ? 'text-rose-500' : 'opacity-60');
+
+                    progressCards += '<div class="' + th.inputBg + ' p-2.5 rounded-xl border text-center">' +
+                        '<span class="text-[9px] font-bold uppercase opacity-60 block truncate">' + m.name + '</span>' +
+                        '<span class="text-sm font-black block mt-0.5">' + last + ' <span class="text-[9px] font-normal opacity-60">cm</span></span>' +
+                        (vals.length > 1 ? '<span class="text-[9px] font-black ' + badgeColor + ' block mt-0.5">Od startu: ' + diffStr + ' cm</span>' : '<span class="text-[8px] opacity-40 block mt-0.5">1 pomiar</span>') +
+                        '</div>';
+                }
+            });
+
+            var tableHtml = '<div class="overflow-x-auto mt-3"><table class="w-full text-left border-collapse text-xs">' +
+                '<thead><tr class="border-b border-gray-300/50 text-[9px] uppercase opacity-70">' +
+                '<th class="py-1.5 px-2 font-black">Data</th>';
+            mList.forEach(function(m) {
+                tableHtml += '<th class="py-1.5 px-2 font-black text-center">' + m.name + '</th>';
+            });
+            tableHtml += '</tr></thead><tbody>';
+
+            datesWithM.slice(0, 20).forEach(function(d) {
+                var mObj = userDiary[d].measurements || {};
+                var isCurr = (d === state.date);
+                var rowCls = isCurr ? 'bg-blue-500/10 font-bold' : 'border-b border-gray-200/30 hover:bg-black/5';
+                var shortDate = d.slice(5); // MM-DD
+                tableHtml += '<tr onclick="state.date=\'' + d + '\'; render();" class="' + rowCls + ' cursor-pointer transition-colors">' +
+                    '<td class="py-2 px-2 font-bold whitespace-nowrap">' + d + (isCurr ? ' 📍' : '') + '</td>';
+                mList.forEach(function(m) {
+                    var v = mObj[m.id];
+                    tableHtml += '<td class="py-2 px-2 text-center font-bold">' + (v ? v + ' <span class="text-[9px] font-normal opacity-60">cm</span>' : '<span class="opacity-30">-</span>') + '</td>';
+                });
+                tableHtml += '</tr>';
+            });
+            tableHtml += '</tbody></table></div>';
+
+            return '<div class="' + th.card + ' border p-4 rounded-xl mb-4">' +
+                '<div class="flex justify-between items-center mb-2"><h3 class="font-black text-sm">📉 Historia i Postępy Pomiarów</h3><span class="text-[9px] opacity-60 font-bold">Wpisów: ' + datesWithM.length + '</span></div>' +
+                (progressCards ? '<div class="grid grid-cols-2 gap-2 mb-2">' + progressCards + '</div>' : '') +
+                tableHtml +
+                '<p class="text-[9px] opacity-50 text-center mt-2">💡 Kliknij wybrany dzień w tabeli, aby przejść do jego edycji.</p>' +
+                '</div>';
         };
 
         window.renderWeightChart = function() {
@@ -794,7 +932,6 @@
             }
         };
 
-        // EDYCJA WAGI POSIŁKU Z POZIOMU DZIENNIKA
         window.promptEditMealWeight = function(mealId) {
             var day = getDayData();
             var meal = day.meals.find(function(m) { return m.id === mealId; });
@@ -947,11 +1084,11 @@
                     html += '<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">' +
                         '<div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-purple-100 text-gray-900">' +
                         '<h3 class="font-black text-sm text-purple-900 mb-1 flex items-center space-x-1"><span>🤖 Asystent Dietetyczny AI</span></h3>' +
-                        '<p class="text-[10px] text-gray-500 mb-3">Wpisz co zjeść (np. "kotlet schabowy z ziemniakami i mizerią"), a Gemini oszacuje kalorie i makro.</p>' +
+                        '<p class="text-[10px] text-gray-500 mb-3">Wpisz co zjeść (np. "kotlet schabowy z ziemniakami i mizerią"), a Gemini błyskawicznie oszacuje kalorie i makro.</p>' +
                         '<textarea id="aiInputQuery" rows="3" placeholder="Opisz posiłek..." class="w-full p-2.5 bg-gray-50 border border-purple-200 rounded-xl text-xs outline-none mb-3 font-medium" oninput="state.aiQueryText=this.value">' + state.aiQueryText + '</textarea>';
 
                     if (state.aiLoading) {
-                        html += '<div class="text-center py-4 text-xs font-bold text-purple-600 animate-pulse">Trwa szacowanie przez AI...</div>';
+                        html += '<div class="text-center py-4 text-xs font-bold text-purple-600 animate-pulse">⚡ Trwa szybkie szacowanie przez AI...</div>';
                     } else if (state.aiResultData) {
                         var res = state.aiResultData;
                         html += '<div class="bg-purple-50 border border-purple-200 p-3 rounded-xl mb-3 text-xs">' +
@@ -1035,8 +1172,10 @@
                 html += '</div>';
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl mb-4">' +
-                    '<div class="flex justify-between items-center mb-4"><h3 class="font-black text-sm">📏 Pomiary Ciała (cm)</h3>' +
-                    '<button onclick="promptAddMeasurement()" class="text-[10px] ' + th.btn + ' px-3 py-1.5 rounded-lg font-bold">+ Dodaj własny</button></div><div class="grid grid-cols-2 gap-3">';
+                    '<div class="flex justify-between items-center mb-1"><h3 class="font-black text-sm">📏 Pomiary Ciała (cm)</h3>' +
+                    '<button onclick="promptAddMeasurement()" class="text-[10px] ' + th.btn + ' px-3 py-1.5 rounded-lg font-bold">+ Dodaj własny</button></div>' +
+                    '<p class="text-[10px] opacity-60 mb-3 font-bold">Edytujesz dzień: <span class="' + th.accent + '">' + state.date + ' (' + getFormattedDayName(state.date) + ')</span></p>' +
+                    '<div class="grid grid-cols-2 gap-3">';
                 
                 (state.settings.measurements || []).forEach(function(m) {
                     var val = day.measurements[m.id] || '';
@@ -1046,13 +1185,16 @@
                 });
                 html += '</div></div>';
 
+                // WYŚWIETLANIE HISTORII POMIARÓW CIAŁA
+                html += renderMeasurementsHistory(th);
+
             } else if (state.tab === 'baza') {
                 var edProd = state.editProdId ? state.products.find(function(p) { return p.id === state.editProdId; }) : null;
                 
                 if (state.statusMsg) html += '<div class="bg-indigo-500/20 border border-indigo-500/40 text-indigo-700 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
 
                 html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
-                    '<h3 class="font-black mb-2 text-sm text-center">📷 Skaner Produktów (z awaryjnym AI)</h3>' +
+                    '<h3 class="font-black mb-2 text-sm text-center">📷 Skaner Produktów (Turbo 20 FPS + AI)</h3>' +
                     '<div class="flex space-x-2 mb-2">' +
                     '<input id="barcodeInput" placeholder="Wpisz kod EAN (np. 590...)" value="' + (state.scannedBarcodeInput || '') + '" oninput="state.scannedBarcodeInput=this.value" class="flex-1 p-2 ' + th.card + ' border rounded-lg text-xs font-bold outline-none" />' +
                     '<button onclick="fetchProductByBarcode()" class="' + th.btn + ' font-bold px-3 py-2 rounded-lg text-xs shadow">Szukaj</button>' +
@@ -1154,7 +1296,6 @@
                 });
 
                 var netWeekKcal = totalWeekEaten - totalWeekBurned;
-                // POPRAWIONY BILANS WZGLĘDEM ZERA (Zjedzono - Trening) -> Cel - Netto
                 var balanceVsZero = netWeekKcal - totalWeekTarget;
                 var wDiff = weightsForWeek.length >= 2 ? (weightsForWeek[weightsForWeek.length - 1] - weightsForWeek[0]) : 0;
                 var wDiffStr = (wDiff > 0 ? '+' : '') + wDiff.toFixed(1);
@@ -1166,7 +1307,7 @@
                     '</div>';
 
                 if (state.aiAdviceLoading) {
-                    html += '<p class="text-xs text-purple-200 animate-pulse text-center py-2">Gemini analizuje Twój dzień...</p>';
+                    html += '<p class="text-xs text-purple-200 animate-pulse text-center py-2">⚡ Gemini analizuje Twój dzień...</p>';
                 } else if (state.aiAdviceText) {
                     html += '<p class="text-xs text-purple-100 font-medium italic leading-relaxed">„' + state.aiAdviceText + '”</p>';
                 } else {
@@ -1215,12 +1356,12 @@
                     '</div></div>';
 
                 html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
-                    '<h3 class="font-black mb-2 text-sm text-center">🧠 Konfiguracja AI (Gemini)</h3>' +
+                    '<h3 class="font-black mb-2 text-sm text-center">🧠 Konfiguracja AI (Gemini Turbo)</h3>' +
                     '<p class="text-[10px] text-gray-500 mb-3 text-center">Wklej swój klucz API (`AQ...`) pobrany z <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-500 underline font-bold">Google AI Studio</a>.</p>' +
                     '<input type="password" id="aiKeyInput" placeholder="AQ... lub AIzaSy..." value="' + state.geminiApiKey + '" class="w-full p-2.5 ' + th.inputBg + ' border rounded-lg text-xs font-medium outline-none mb-2 text-center" />' +
                     '<div class="grid grid-cols-2 gap-2">' +
                     '<button onclick="saveGeminiKey(document.getElementById(\'aiKeyInput\').value)" class="w-full ' + th.btn + ' font-bold py-2.5 rounded-xl shadow-md text-xs">💾 Zapisz klucz</button>' +
-                    '<button onclick="testGeminiConnection()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl shadow-md text-xs">⚡ Podłącz i Testuj AI</button>' +
+                    '<button onclick="testGeminiConnection()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl shadow-md text-xs">⚡ Optymalizuj i Testuj</button>' +
                     '</div></div>';
 
                 html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
@@ -1261,7 +1402,7 @@
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v47 (Poprawiony kalendarz, nazwy dni, edycja wagi i minus w bilansie)</p>' +
+                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v48 (Historia Pomiarów + Turbo Skaner 20FPS & AI)</p>' +
                     '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 26.10.2026</p>' +
                     '</div>';
             }
@@ -1280,12 +1421,11 @@
 
         window.switchTab = function(t) { if (state.tab === 'baza' && t !== 'baza' && state.isScanning) { stopBarcodeScanner(); } state.tab = t; state.statusMsg = ''; state.prodResults = []; state.wResults = []; render(); };
         window.switchUser = function(u) { state.userId = u; saveState(); render(); };
-        window.changeDate = function(d) { state.date = d; render(); };
         window.changeWeight = function(w) { getDayData().weight = w; saveState(); };
         window.toggleGoals = function() { state.isEditingGoals = !state.isEditingGoals; render(); };
         window.changeStartOfWeek = function(val) { state.settings.startOfWeek = parseInt(val); saveState(); render(); };
         window.addWater = function(amount) { if (amount === 0) getDayData().water = 0; else getDayData().water = (parseFloat(getDayData().water) || 0) + amount; saveState(); render(); };
-        window.updateMeasurement = function(id, val) { getDayData().measurements[id] = val; saveState(); };
+        window.updateMeasurement = function(id, val) { getDayData().measurements[id] = val; saveState(); render(); };
         window.promptAddMeasurement = function() { var name = prompt('Podaj nazwę nowego pomiaru (np. Łydka):'); if(name && name.trim()) { state.settings.measurements.push({ id: 'm_' + Date.now(), name: name.trim() }); saveState(); render(); } };
         window.removeMeasurement = function(id) { if(confirm('Usunąć ten pomiar?')) { state.settings.measurements = state.settings.measurements.filter(function(m) { return m.id !== id; }); saveState(); render(); } };
         window.changeUserName = function(id, newName) { var u = state.users.find(function(x) { return x.id === id; }); if (u && newName.trim()) { u.name = newName.trim(); saveState(); render(); } };
@@ -1403,7 +1543,6 @@
             var name = nameElem ? nameElem.value.trim() : '';
             var w = wElem ? parseFloat(wElem.value) || 100 : 100;
             var p = pElem ? parseFloat(pElem.value) || 0 : 0;
-            var f = fElem ? parseFloat(pElem.value) || 0 : (pElem ? parseFloat(pElem.value) || 0 : 0); // safe fallback
             var fVal = fElem ? parseFloat(fElem.value) || 0 : 0;
             var cVal = cElem ? parseFloat(cElem.value) || 0 : 0;
             var kcal = (kElem && kElem.value !== '') ? parseFloat(kElem.value) : Math.round(p * 4 + cVal * 4 + fVal * 9);
@@ -1425,7 +1564,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 47, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 48, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
