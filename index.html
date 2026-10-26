@@ -56,7 +56,6 @@
 
         const PRODUCT_CATEGORIES = ['Białkowe i Nabiał', 'Węglowodany', 'Tłuszcze', 'Owoce i Warzywa', 'Gotowe Posiłki', 'Inne'];
 
-        // Baza z przypisanymi kategoriami
         const FULL_PRODUCTS = [
             { id: "c1", category: "Gotowe Posiłki", name: "Kanapki z łososiem wędzonym i serkiem", baseWeight: 190, baseKcal: 380, baseP: 24.0, baseF: 10.0, baseC: 48.0 },
             { id: "c2", category: "Gotowe Posiłki", name: "Domowa zupa pomidorowa z makaronem", baseWeight: 500, baseKcal: 280, baseP: 9.0, baseF: 6.0, baseC: 47.0 },
@@ -131,7 +130,7 @@
             isCloudSynced: false,
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v51_theme') || 'classic',
+            theme: localStorage.getItem('diet_v52_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             workingModelPath: localStorage.getItem('diet_working_model_v44') || '',
             products: localProducts, workoutsDb: [], diaries: localDiaries, 
@@ -153,7 +152,6 @@
                         state.products.push(bp);
                     }
                 });
-                // Upewnijmy się, że każdy produkt ma przypisaną kategorię
                 state.products.forEach(function(p) {
                     if (!p.category) p.category = 'Inne';
                 });
@@ -230,7 +228,7 @@
                 localStorage.setItem('diet_local_diaries_vault', JSON.stringify(state.diaries));
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_v15_curr_user', state.userId);
-                localStorage.setItem('diet_v51_theme', state.theme);
+                localStorage.setItem('diet_v52_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             } catch(e) {}
 
@@ -511,7 +509,7 @@
             }
             var cleanCode = String(codeToSearch).trim();
             state.scannedBarcodeInput = cleanCode;
-            state.statusMsg = '⏳ Szukam w darmowej bazie (kod: ' + cleanCode + ')...';
+            state.statusMsg = '⏳ Szukam w bazie OpenFoodFacts (kod: ' + cleanCode + ')...';
             state.scannedProductData = null;
             render();
 
@@ -551,7 +549,6 @@
                 }
             } catch(e) {}
 
-            // MĄDRY RATUNEK AI (Pytamy o nazwę, a nie kod)
             if (state.geminiApiKey) {
                 var prodName = prompt("Baza darmowa nie rozpoznała kodu " + cleanCode + ".\n\nWpisz nazwę tego produktu (np. 'Jogurt naturalny Zott'), a asystent AI oszacuje jego skład i dołączy do zeskanowanego kodu:");
                 
@@ -746,7 +743,6 @@
             var userDiary = state.diaries[state.userId] || {}; var allDates = Object.keys(userDiary).sort();
             for (var i = 0; i < allDates.length; i++) { 
                 var d = userDiary[allDates[i]]; 
-                // ZMIANA: Tylko dodane POSIŁKI kwalifikują dzień jako "pierwszy wpis" do statystyk!
                 if (d.meals && d.meals.length > 0) return allDates[i]; 
             }
             return null;
@@ -766,8 +762,6 @@
                 render();
             }
         };
-
-        window.changeWeekOffset = function(val) { state.weekOffset += val; render(); };
 
         window.getFormattedDayName = function(dateStr) {
             var parts = dateStr.split('-');
@@ -943,7 +937,6 @@
                         '<button onclick="addWater(0)" ' + (day.isEnded ? 'disabled' : '') + ' class="bg-rose-500/10 text-rose-500 px-2 py-1 rounded-lg text-[10px] font-bold ml-1">Reset</button>' +
                         '</div></div></div>';
 
-                    // POKAZUJEMY POSIŁKI TYLKO JEŚLI DZIEN NIE ZAKOŃCZONY
                     if (day.isEnded) {
                         html += '<div class="bg-gradient-to-br from-emerald-500 to-teal-600 p-5 rounded-2xl text-white shadow-lg mb-4 text-center border-2 border-emerald-400/50 relative overflow-hidden">' +
                             '<div class="absolute -right-4 -top-4 opacity-20 text-6xl">🏆</div>' +
@@ -1055,7 +1048,6 @@
                 } else if (state.tab === 'trening') {
                     var parts = state.date.split('-');
                     var curr = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-                    curr.setDate(curr.getDate() + (state.weekOffset * 7));
                     var dayOfWeek = curr.getDay();
                     var offset = state.settings.startOfWeek === 1 ? (dayOfWeek === 0 ? -6 : 1 - dayOfWeek) : -dayOfWeek;
                     curr.setDate(curr.getDate() + offset);
@@ -1189,7 +1181,6 @@
                     }
                     html += '</div>';
 
-                    // DODAWANIE PRODUKTU (Z WYBOREM KATEGORII)
                     var catOptions = PRODUCT_CATEGORIES.map(function(c) {
                         var isSel = (edProd && edProd.category === c) ? 'selected' : (!edProd && c === 'Inne' ? 'selected' : '');
                         return '<option value="' + c + '" ' + isSel + '>' + c + '</option>';
@@ -1209,7 +1200,6 @@
                         '<div class="flex space-x-2"><button onclick="addProd()" class="flex-1 ' + th.btn + ' font-bold py-2 rounded-lg shadow-md text-xs">' + (edProd ? 'Zapisz zmiany' : 'Zapisz w bazie') + '</button>' +
                         (edProd ? '<button onclick="cancelEditProd()" class="bg-gray-300 text-gray-700 font-bold px-4 py-2 rounded-lg text-xs">Anuluj</button>' : '') + '</div></div>';
 
-                    // WYŚWIETLANIE LISTY PRODUKTÓW Z PODZIAŁEM NA KATEGORIE (v51)
                     html += '<div class="' + th.card + ' p-3 rounded-xl border mb-6"><h3 class="font-bold text-sm mb-1">Baza Produktów (' + state.products.length + ')</h3><p class="text-[10px] opacity-60 mb-2">💡 Przytrzymaj palec na produkcie, aby dodać go do dzienniczka!</p><div class="max-h-[60vh] overflow-y-auto pr-1 pb-4">';
                     
                     var groupedProducts = {};
@@ -1235,7 +1225,6 @@
                     html += '</div></div>';
 
                 } else if (state.tab === 'podsumowanie') {
-                    // NOWE ZAAWANSOWANE STATYSTYKI CZASOWE (v50)
                     var view = state.summaryView || 'tydzien';
                     var offset = state.summaryOffset || 0;
                     
@@ -1263,7 +1252,6 @@
                         var months = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
                         periodLabel = months[mDate.getMonth()] + " " + yStr;
                     } else {
-                        // Tydzień
                         var curr = new Date(baseD.getFullYear(), baseD.getMonth(), baseD.getDate());
                         curr.setDate(curr.getDate() + (offset * 7));
                         var dayOfWeek = curr.getDay();
@@ -1290,14 +1278,13 @@
                             if (dObj.weight && !isNaN(parseFloat(dObj.weight))) weightsForPeriod.push({date: d, val: parseFloat(dObj.weight)});
                         }
 
-                        // Weryfikacja: Dzień liczymy do statystyk TYLKO jeśli zjedzono chociaż 1 kcal
                         if (e > 0) { 
                             tKcal += e; tP += p; tF += f; tC += c; 
                             tBurned += b; 
                             totalTarget += dayGoal;
                             dCount++; 
                         } else if (b > 0) {
-                            tBurned += b; // Spalone dodajemy, ale nie liczymy jako osobny "aktywny dzień diety"
+                            tBurned += b;
                         }
                     });
 
@@ -1305,9 +1292,8 @@
                     var wDiff = weightsForPeriod.length >= 2 ? (weightsForPeriod[weightsForPeriod.length - 1].val - weightsForPeriod[0].val) : 0;
                     var wDiffStr = (wDiff > 0 ? '+' : '') + wDiff.toFixed(1);
                     var netKcal = tKcal - tBurned;
-                    var balanceVsZero = netKcal - totalTarget; // Minus kiedy nettoKcal mniejsze niż cel
+                    var balanceVsZero = netKcal - totalTarget;
 
-                    // AI OKNO NA GÓRZE ZAKŁADKI PODSUMOWANIA
                     html += '<div class="bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-4 rounded-xl shadow-md mb-4">' +
                         '<div class="flex justify-between items-center mb-2">' +
                         '<h3 class="font-black text-xs uppercase tracking-wide flex items-center space-x-1"><span>💬 AI Komentarz i Porada Dnia</span></h3>' +
@@ -1322,7 +1308,6 @@
                     }
                     html += '</div>';
 
-                    // PRZEŁĄCZNIKI WIDOKU STATYSTYK
                     html += '<div class="flex space-x-1 mb-3 ' + th.inputBg + ' p-1 rounded-lg border">';
                     ['tydzien', 'miesiac', 'rok', 'ogolne'].forEach(function(v, idx) {
                         var labels = ['Tydzień', 'Miesiąc', 'Rok', 'Ogólne'];
@@ -1343,7 +1328,6 @@
                             '</div>';
                     }
 
-                    // KAFELKI Z NOWYMI STATYSTYKAMI ZALEŻNYMI OD OKRESU
                     html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
                         '<h3 class="font-black text-base mb-3 text-center">📊 Statystyki z ' + dCount + ' dni</h3>' +
                         '<div class="grid grid-cols-2 gap-2 mb-3">' +
@@ -1423,7 +1407,7 @@
 
                     html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                         '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                        '<p class="text-xs font-bold ' + th.accent + '">Wersja: v51 (Kategorie bazy, Zakończ dzień, Mądry Skaner, Statystyki Okresowe)</p>' +
+                        '<p class="text-xs font-bold ' + th.accent + '">Wersja: v52 (Naprawa kalendarza w zakładce Ciało)</p>' +
                         '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 26.10.2026</p>' +
                         '</div>';
                 }
@@ -1593,7 +1577,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 51, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 52, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
