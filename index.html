@@ -104,7 +104,7 @@
 
         var dzis = new Date().toISOString().split('T')[0];
 
-        // ŻELAZNA KWARANTANNA PAMIĘCI - v49
+        // ZABEZPIECZENIE PAMIĘCI
         var localDiaries = {};
         var localProducts = [];
         try {
@@ -121,7 +121,6 @@
         } catch(e) {
             localDiaries = {};
             localProducts = [];
-            console.log("Kwarantanna zresetowała uszkodzoną pamięć:", e);
         }
 
         window.state = {
@@ -129,18 +128,17 @@
             isCloudSynced: false,
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v49_theme') || 'classic',
+            theme: localStorage.getItem('diet_v50_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             workingModelPath: localStorage.getItem('diet_working_model_v44') || '',
             products: localProducts, workoutsDb: [], diaries: localDiaries, 
             settings: { startOfWeek: 1, measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ] },
-            date: dzis, weekOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
+            date: dzis, summaryView: 'tydzien', summaryOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
             wSearch: '', wResults: [], wInputTime: '', wInputKcal: '', editProdId: null,
             isScanning: false, scannedBarcodeInput: '', scannedProductData: null,
             aiModalOpen: false, aiQueryText: '', aiResultData: null, aiLoading: false,
-            aiAdviceText: '', aiAdviceLoading: false,
-            unknownProductModal: false, unknownName: '', unknownWeight: ''
+            aiAdviceText: '', aiAdviceLoading: false
         };
 
         function initLocalDefaults() {
@@ -152,7 +150,7 @@
                     }
                 });
             } catch(e) {
-                state.products = FULL_PRODUCTS.slice(); // Ostateczny ratunek w przypadku krytycznego błędu
+                state.products = FULL_PRODUCTS.slice(); 
             }
         }
         initLocalDefaults();
@@ -223,7 +221,7 @@
                 localStorage.setItem('diet_local_diaries_vault', JSON.stringify(state.diaries));
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_v15_curr_user', state.userId);
-                localStorage.setItem('diet_v49_theme', state.theme);
+                localStorage.setItem('diet_v50_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             } catch(e) {}
 
@@ -494,6 +492,7 @@
             }).catch(function(err) { alert('Błąd: ' + err.message); });
         };
 
+        // NOWY ZABEZPIECZONY SKANER
         window.fetchProductByBarcode = async function(barcode) {
             var codeToSearch = barcode || state.scannedBarcodeInput || '';
             var inpElem = document.getElementById('barcodeInput');
@@ -504,12 +503,12 @@
             }
             var cleanCode = String(codeToSearch).trim();
             state.scannedBarcodeInput = cleanCode;
-            state.statusMsg = '⏳ Szukam w bazie OpenFoodFacts (kod: ' + cleanCode + ')...';
+            state.statusMsg = '⏳ Szukam w darmowej bazie (kod: ' + cleanCode + ')...';
             state.scannedProductData = null;
             render();
 
             try {
-                var response = await fetch('[https://world.openfoodfacts.org/api/v0/product/](https://world.openfoodfacts.org/api/v0/product/)' + encodeURIComponent(cleanCode) + '.json');
+                var response = await fetch('[https://pl.openfoodfacts.org/api/v0/product/](https://pl.openfoodfacts.org/api/v0/product/)' + encodeURIComponent(cleanCode) + '.json');
                 var data = await response.json();
 
                 if (data && data.status === 1 && data.product) {
@@ -538,38 +537,45 @@
                     var totalCarb = Math.round((carb100 * ratio) * 10) / 10;
 
                     state.scannedProductData = { name: name, baseWeight: pkgWeight, baseKcal: totalKcal, baseP: totalProt, baseF: totalFat, baseC: totalCarb, addWeight: pkgWeight };
-                    state.statusMsg = '✅ Zeskanowano pomyślnie z OpenFoodFacts!';
+                    state.statusMsg = '✅ Zeskanowano pomyślnie!';
                     render();
                     return;
                 }
             } catch(e) {}
 
+            // MĄDRY RATUNEK AI (Pytamy o nazwę, a nie kod)
             if (state.geminiApiKey) {
-                state.statusMsg = '🤖 OpenFoodFacts nie zna tego kodu. Pytam asystenta AI o kod ' + cleanCode + '...';
-                render();
-                try {
-                    var promptStr = 'Masz kod kreskowy produktu: "' + cleanCode + '". Rozpoznaj co to za produkt spożywczy (lub oszacuj na podstawie standardowych produktów o tym kodzie). Zwróć odpowiedź WYŁĄCZNIE w formacie JSON bez znaczników markdown: {"name": "Nazwa produktu i marka", "weight": 250, "kcal": 300, "p": 15.0, "f": 10.0, "c": 35.0}';
-                    var aiResponse = await callGeminiSmart(promptStr);
-                    aiResponse = aiResponse.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/, "");
-                    var aiParsed = JSON.parse(aiResponse);
-
-                    state.scannedProductData = {
-                        name: aiParsed.name + ' (AI)',
-                        baseWeight: aiParsed.weight || 100,
-                        baseKcal: aiParsed.kcal || 100,
-                        baseP: aiParsed.p || 0,
-                        baseF: aiParsed.f || 0,
-                        baseC: aiParsed.c || 0,
-                        addWeight: aiParsed.weight || 100
-                    };
-                    state.statusMsg = '✅ AI rozpoznało produkt po kodzie!';
+                var prodName = prompt("Baza darmowa nie rozpoznała kodu " + cleanCode + ".\n\nWpisz nazwę tego produktu (np. 'Jogurt naturalny Zott'), a asystent AI oszacuje jego skład i dołączy do zeskanowanego kodu:");
+                
+                if (prodName && prodName.trim()) {
+                    state.statusMsg = '🤖 Pytam AI o produkt: ' + prodName + '...';
                     render();
-                    return;
-                } catch(aiErr) {}
+                    try {
+                        var promptStr = 'Oszacuj wartości odżywcze dla produktu o nazwie: "' + prodName.trim() + '". Zwróć odpowiedź WYŁĄCZNIE w formacie JSON bez znaczników markdown: {"name": "' + prodName.trim() + '", "weight": 100, "kcal": 100, "p": 5.0, "f": 2.0, "c": 15.0}. Załóż standardową porcję lub domyślnie 100g, jeśli nie masz pewności.';
+                        var aiResponse = await callGeminiSmart(promptStr);
+                        aiResponse = aiResponse.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/, "");
+                        var aiParsed = JSON.parse(aiResponse);
+
+                        state.scannedProductData = {
+                            name: aiParsed.name + ' (AI)',
+                            baseWeight: aiParsed.weight || 100,
+                            baseKcal: aiParsed.kcal || 100,
+                            baseP: aiParsed.p || 0,
+                            baseF: aiParsed.f || 0,
+                            baseC: aiParsed.c || 0,
+                            addWeight: aiParsed.weight || 100
+                        };
+                        state.statusMsg = '✅ AI błyskawicznie oszacowało produkt po Twojej nazwie!';
+                        render();
+                        return;
+                    } catch(aiErr) {
+                        alert('Błąd sztucznej inteligencji: ' + aiErr.message);
+                    }
+                }
             }
 
             state.statusMsg = '⚠️ Brak w bazie. Wpisz dane ręcznie.';
-            alert('Nie znaleziono produktu. Możesz wpisać dane ręcznie.');
+            alert('Nie znaleziono produktu w bazie. Wpisz dane ręcznie (lub dodaj klucz AI w ustawieniach, aby uaktywnić inteligentne szacowanie z nazwy).');
             render();
         };
 
@@ -748,23 +754,6 @@
             }
         };
 
-        window.changeWeekOffset = function(val) { state.weekOffset += val; render(); };
-
-        window.getWeekDates = function() {
-            var parts = state.date.split('-');
-            var curr = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-            curr.setDate(curr.getDate() + (state.weekOffset * 7));
-            var dayOfWeek = curr.getDay();
-            var offset = state.settings.startOfWeek === 1 ? (dayOfWeek === 0 ? -6 : 1 - dayOfWeek) : -dayOfWeek;
-            curr.setDate(curr.getDate() + offset);
-            var weekDates = [];
-            for (var i = 0; i < 7; i++) { 
-                var n = new Date(curr.getFullYear(), curr.getMonth(), curr.getDate() + i); 
-                weekDates.push(n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0')); 
-            }
-            return weekDates;
-        };
-
         window.getFormattedDayName = function(dateStr) {
             var parts = dateStr.split('-');
             var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
@@ -938,9 +927,10 @@
                         '<button onclick="addMeal()" class="' + th.btn + ' px-3.5 rounded-lg font-bold shadow-md shrink-0">+</button></div><div class="space-y-2">';
                     
                     if (day.meals.length === 0) html += '<p class="text-[10px] opacity-50 text-center py-2">Brak posiłków</p>';
-                    day.meals.forEach(function(m) {
+                    // NUMEROWANIE POSIŁKÓW (v50)
+                    day.meals.forEach(function(m, idx) {
                         html += '<div class="flex justify-between items-center ' + th.inputBg + ' p-2 rounded-lg border">' +
-                            '<div class="flex-1 pr-1 min-w-0"><p class="font-bold text-xs truncate">' + m.name + '</p><p class="text-[9px] opacity-60 mt-0.5">' + m.weight + 'g | B:' + m.p + ' T:' + m.f + ' W:' + m.c + '</p></div>' +
+                            '<div class="flex-1 pr-1 min-w-0"><p class="font-bold text-xs truncate"><span class="opacity-50 font-normal mr-1">' + (idx + 1) + '.</span>' + m.name + '</p><p class="text-[9px] opacity-60 mt-0.5">' + m.weight + 'g | B:' + m.p + ' T:' + m.f + ' W:' + m.c + '</p></div>' +
                             '<div class="flex items-center space-x-2 shrink-0"><span class="font-black text-xs">' + m.kcal + ' <span class="font-normal text-[9px] opacity-60">kcal</span></span><button onclick="promptEditMealWeight(' + m.id + ')" class="text-blue-500 font-bold px-1.5 text-xs" title="Edytuj wagę">✏️</button><button onclick="delMeal(' + m.id + ')" class="text-rose-400 font-bold px-1.5">✕</button></div></div>';
                     });
                     html += '</div></div>';
@@ -1096,7 +1086,7 @@
                     if (state.statusMsg) html += '<div class="bg-indigo-500/20 border border-indigo-500/40 text-indigo-700 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
 
                     html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
-                        '<h3 class="font-black mb-2 text-sm text-center">📷 Skaner Produktów (z awaryjnym AI)</h3>' +
+                        '<h3 class="font-black mb-2 text-sm text-center">📷 Skaner Produktów</h3>' +
                         '<div class="flex space-x-2 mb-2">' +
                         '<input id="barcodeInput" placeholder="Wpisz kod EAN (np. 590...)" value="' + (state.scannedBarcodeInput || '') + '" oninput="state.scannedBarcodeInput=this.value" class="flex-1 p-2 ' + th.card + ' border rounded-lg text-xs font-bold outline-none" />' +
                         '<button onclick="fetchProductByBarcode()" class="' + th.btn + ' font-bold px-3 py-2 rounded-lg text-xs shadow">Szukaj</button>' +
@@ -1170,44 +1160,81 @@
                     html += '</div></div>';
 
                 } else if (state.tab === 'podsumowanie') {
-                    var weekDates2 = getWeekDates();
-                    var firstActiveDate = getFirstActiveEntryDate();
-                    var todayIso = new Date().toISOString().split('T')[0];
-                    var tKcal = 0, tBurned = 0, dCount = 0, weightsForWeek = [];
-                    var totalWeekEaten = 0, totalWeekBurned = 0, totalWeekTarget = 0, validGoalDays = 0;
+                    // NOWE ZAAWANSOWANE STATYSTYKI CZASOWE (v50)
+                    var view = state.summaryView || 'tydzien';
+                    var offset = state.summaryOffset || 0;
+                    
+                    var todayParts = state.date.split('-');
+                    var baseD = new Date(parseInt(todayParts[0]), parseInt(todayParts[1]) - 1, parseInt(todayParts[2]));
+                    
+                    var datesToProcess = [];
+                    var periodLabel = "";
+                    var userDiary = state.diaries[state.userId] || {};
+                    var allDates = Object.keys(userDiary).sort();
 
-                    weekDates2.forEach(function(d) {
-                        var dObj = state.diaries[state.userId] ? state.diaries[state.userId][d] : null;
+                    if (view === 'ogolne') {
+                        datesToProcess = allDates;
+                        periodLabel = "Od początku";
+                    } else if (view === 'rok') {
+                        var y = baseD.getFullYear() + offset;
+                        datesToProcess = allDates.filter(function(d) { return d.startsWith(y.toString()); });
+                        periodLabel = "Rok " + y;
+                    } else if (view === 'miesiac') {
+                        var mDate = new Date(baseD.getFullYear(), baseD.getMonth() + offset, 1);
+                        var yStr = mDate.getFullYear();
+                        var mStr = String(mDate.getMonth() + 1).padStart(2, '0');
+                        var prefix = yStr + '-' + mStr;
+                        datesToProcess = allDates.filter(function(d) { return d.startsWith(prefix); });
+                        var months = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
+                        periodLabel = months[mDate.getMonth()] + " " + yStr;
+                    } else {
+                        // Tydzień
+                        var curr = new Date(baseD.getFullYear(), baseD.getMonth(), baseD.getDate());
+                        curr.setDate(curr.getDate() + (offset * 7));
+                        var dayOfWeek = curr.getDay();
+                        var wOffset = state.settings.startOfWeek === 1 ? (dayOfWeek === 0 ? -6 : 1 - dayOfWeek) : -dayOfWeek;
+                        curr.setDate(curr.getDate() + wOffset);
+                        for (var i = 0; i < 7; i++) { 
+                            var n = new Date(curr.getFullYear(), curr.getMonth(), curr.getDate() + i); 
+                            datesToProcess.push(n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0')); 
+                        }
+                        periodLabel = datesToProcess[0] + " — " + datesToProcess[6];
+                    }
+
+                    var tKcal = 0, tBurned = 0, dCount = 0, weightsForPeriod = [];
+                    var tP = 0, tF = 0, tC = 0, totalTarget = 0;
+
+                    datesToProcess.forEach(function(d) {
+                        var dObj = userDiary[d] || null;
                         var dayGoal = (dObj && dObj.goals && dObj.goals.kcal) ? dObj.goals.kcal : (user.id === 'u1' ? 2500 : 2000);
-                        var e = dObj ? (dObj.meals || []).reduce(function(s, m) { return s + m.kcal; }, 0) : 0;
-                        var b = dObj ? (dObj.workouts || []).reduce(function(s, w) { return s + w.kcal; }, 0) : 0;
+                        var e = 0, p = 0, f = 0, c = 0, b = 0;
+                        
+                        if (dObj) {
+                            (dObj.meals || []).forEach(function(m) { e += m.kcal; p += m.p; f += m.f; c += m.c; });
+                            (dObj.workouts || []).forEach(function(w) { b += w.kcal; });
+                            if (dObj.weight && !isNaN(parseFloat(dObj.weight))) weightsForPeriod.push({date: d, val: parseFloat(dObj.weight)});
+                        }
 
-                        if (e > 0) { tKcal += e; dCount++; }
-                        tBurned += b;
-                        if (dObj && dObj.weight && !isNaN(parseFloat(dObj.weight))) weightsForWeek.push(parseFloat(dObj.weight));
-
-                        var isAfterFirstEntry = firstActiveDate && (d >= firstActiveDate);
-                        var isNotFuture = (d <= todayIso) || (e > 0 || b > 0);
-
-                        if (isAfterFirstEntry && isNotFuture) {
-                            totalWeekEaten += e;
-                            totalWeekBurned += b;
-                            totalWeekTarget += dayGoal;
-                            validGoalDays++;
+                        if (e > 0 || b > 0) { 
+                            tKcal += e; tP += p; tF += f; tC += c; 
+                            tBurned += b; 
+                            totalTarget += dayGoal;
+                            dCount++; 
                         }
                     });
 
-                    var netWeekKcal = totalWeekEaten - totalWeekBurned;
-                    var balanceVsZero = netWeekKcal - totalWeekTarget;
-                    var wDiff = weightsForWeek.length >= 2 ? (weightsForWeek[weightsForWeek.length - 1] - weightsForWeek[0]) : 0;
+                    weightsForPeriod.sort(function(a,b){ return new Date(a.date) - new Date(b.date); });
+                    var wDiff = weightsForPeriod.length >= 2 ? (weightsForPeriod[weightsForPeriod.length - 1].val - weightsForPeriod[0].val) : 0;
                     var wDiffStr = (wDiff > 0 ? '+' : '') + wDiff.toFixed(1);
+                    var netKcal = tKcal - tBurned;
+                    var balanceVsZero = netKcal - totalTarget; // Minus kiedy nettoKcal mniejsze niż cel
 
-                    html += '<div class="bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-4 rounded-xl shadow-md mb-3">' +
+                    // AI OKNO NA GÓRZE ZAKŁADKI PODSUMOWANIA
+                    html += '<div class="bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-4 rounded-xl shadow-md mb-4">' +
                         '<div class="flex justify-between items-center mb-2">' +
                         '<h3 class="font-black text-xs uppercase tracking-wide flex items-center space-x-1"><span>💬 AI Komentarz i Porada Dnia</span></h3>' +
                         '<button onclick="getGeminiDailyAdvice()" class="bg-purple-600 hover:bg-purple-500 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold shadow">Analizuj dzień</button>' +
                         '</div>';
-
                     if (state.aiAdviceLoading) {
                         html += '<p class="text-xs text-purple-200 animate-pulse text-center py-2">Gemini analizuje Twój dzień...</p>';
                     } else if (state.aiAdviceText) {
@@ -1217,34 +1244,48 @@
                     }
                     html += '</div>';
 
-                    html += '<div class="' + th.card + ' p-2.5 rounded-xl border flex items-center justify-between mb-3">' +
-                        '<button onclick="changeWeekOffset(-1)" class="' + th.inputBg + ' border px-3 py-1.5 rounded-lg text-xs font-black">◀ Poprzedni</button>' +
-                        '<button onclick="state.weekOffset=0; render();" class="text-[10px] font-black ' + th.accent + ' px-2 py-1 rounded uppercase">Obecny tydzień</button>' +
-                        '<button onclick="changeWeekOffset(1)" class="' + th.inputBg + ' border px-3 py-1.5 rounded-lg text-xs font-black">Następny ▶</button>' +
+                    // NOWE PRZEŁĄCZNIKI WIDOKU STATYSTYK
+                    html += '<div class="flex space-x-1 mb-3 ' + th.inputBg + ' p-1 rounded-lg border">';
+                    ['tydzien', 'miesiac', 'rok', 'ogolne'].forEach(function(v, idx) {
+                        var labels = ['Tydzień', 'Miesiąc', 'Rok', 'Ogólne'];
+                        var activeCls = (view === v) ? th.btn + ' shadow text-white' : 'opacity-60 text-xs font-bold';
+                        html += '<button onclick="state.summaryView=\'' + v + '\'; state.summaryOffset=0; render();" class="flex-1 py-1.5 rounded-md text-[10px] uppercase font-black transition-colors ' + activeCls + '">' + labels[idx] + '</button>';
+                    });
+                    html += '</div>';
+
+                    if (view !== 'ogolne') {
+                        html += '<div class="' + th.card + ' p-2.5 rounded-xl border flex items-center justify-between mb-4">' +
+                            '<button onclick="state.summaryOffset-=1; render();" class="' + th.inputBg + ' border px-3 py-1.5 rounded-lg text-xs font-black">◀ Wstecz</button>' +
+                            '<span class="text-[10px] font-black ' + th.accent + ' px-2 py-1 uppercase text-center leading-tight">' + periodLabel + '</span>' +
+                            '<button onclick="state.summaryOffset+=1; render();" class="' + th.inputBg + ' border px-3 py-1.5 rounded-lg text-xs font-black">Dalej ▶</button>' +
+                            '</div>';
+                    } else {
+                        html += '<div class="' + th.card + ' p-2.5 rounded-xl border flex items-center justify-center mb-4">' +
+                            '<span class="text-[10px] font-black ' + th.accent + ' uppercase">' + periodLabel + '</span>' +
+                            '</div>';
+                    }
+
+                    // KAFELKI Z NOWYMI STATYSTYKAMI ZALEŻNYMI OD OKRESU
+                    html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
+                        '<h3 class="font-black text-base mb-3 text-center">📊 Statystyki z ' + dCount + ' dni</h3>' +
+                        '<div class="grid grid-cols-2 gap-2 mb-3">' +
+                        '<div class="' + th.card + ' p-3 rounded-xl border text-center"><p class="text-[9px] font-bold opacity-60 uppercase mb-1">Średnio Kcal/dzień</p><p class="text-xl font-black ' + th.accent + '">' + (dCount > 0 ? Math.round(tKcal / dCount) : 0) + '</p></div>' +
+                        '<div class="' + th.card + ' p-3 rounded-xl border text-center"><p class="text-[9px] font-bold text-orange-500 uppercase mb-1">Spalone w sumie</p><p class="text-xl font-black text-orange-500">🔥 ' + tBurned + '</p></div>' +
+                        '</div>' +
+                        '<div class="' + th.inputBg + ' p-3 rounded-xl border grid grid-cols-3 gap-1 text-center mb-3 shadow-inner">' +
+                        '<div><p class="text-[9px] font-bold opacity-60 uppercase">Śr. Białko</p><p class="font-black text-sm text-blue-600">' + (dCount > 0 ? Math.round(tP / dCount) : 0) + 'g</p></div>' +
+                        '<div><p class="text-[9px] font-bold opacity-60 uppercase">Śr. Tłuszcz</p><p class="font-black text-sm text-amber-600">' + (dCount > 0 ? Math.round(tF / dCount) : 0) + 'g</p></div>' +
+                        '<div><p class="text-[9px] font-bold opacity-60 uppercase">Śr. Węglo</p><p class="font-black text-sm text-emerald-600">' + (dCount > 0 ? Math.round(tC / dCount) : 0) + 'g</p></div>' +
+                        '</div>' +
+                        '<div class="' + th.card + ' p-3 rounded-xl border flex justify-between items-center shadow-inner mb-3">' +
+                        '<div><span class="text-[10px] font-bold opacity-75 uppercase block">Bilans względem zera:</span>' +
+                        '<span class="text-[9px] opacity-60">Całkowity deficyt/nadwyżka w okresie</span></div>' +
+                        '<span class="text-lg font-black ' + (balanceVsZero <= 0 ? 'text-emerald-500' : 'text-rose-500') + '">' + 
+                        (balanceVsZero > 0 ? '+' + Math.round(balanceVsZero) : Math.round(balanceVsZero)) + ' kcal</span></div>' +
+                        '<div class="' + th.inputBg + ' p-4 rounded-xl border flex justify-between items-center"><p class="text-[10px] font-bold opacity-60 uppercase">Zmiana wagi w okresie:</p><p class="text-2xl font-black ' + (wDiff > 0 ? 'text-rose-500' : 'text-emerald-500') + '">' + wDiffStr + ' kg</p></div>' +
                         '</div>';
 
-                    html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
-                        '<h3 class="font-black text-base mb-0.5 text-center">⚖️ Bilans Kaloryczny Tygodnia</h3>' +
-                        '<p class="text-[10px] opacity-75 font-bold text-center mb-3 uppercase">' + weekDates2[0] + ' — ' + weekDates2[6] + ' (aktywnych: ' + validGoalDays + 'd)</p>' +
-                        '<div class="grid grid-cols-3 gap-2 mb-3 text-center">' +
-                        '<div class="' + th.card + ' p-2 rounded-lg border"><span class="text-[9px] font-bold opacity-60 block uppercase">Cel</span><span class="text-sm font-black">' + Math.round(totalWeekTarget) + '</span></div>' +
-                        '<div class="' + th.card + ' p-2 rounded-lg border"><span class="text-[9px] font-bold opacity-60 block uppercase">Zjedzono</span><span class="text-sm font-black">' + Math.round(totalWeekEaten) + '</span></div>' +
-                        '<div class="' + th.card + ' p-2 rounded-lg border"><span class="text-[9px] font-bold text-orange-500 block uppercase">Trening</span><span class="text-sm font-black text-orange-500">-' + Math.round(totalWeekBurned) + '</span></div>' +
-                        '</div>' +
-                        '<div class="' + th.card + ' p-3 rounded-xl border flex justify-between items-center shadow-inner">' +
-                        '<div><span class="text-[10px] font-bold opacity-75 uppercase block">Bilans względem zera:</span>' +
-                        '<span class="text-[9px] opacity-60">Od 1. wpisu (' + (firstActiveDate || 'brak') + ')</span></div>' +
-                        '<span class="text-lg font-black ' + (balanceVsZero <= 0 ? 'text-emerald-500' : 'text-rose-500') + '">' + 
-                        (balanceVsZero > 0 ? '+' + Math.round(balanceVsZero) + ' kcal' : Math.round(balanceVsZero) + ' kcal') + 
-                        '</span></div></div>';
-
-                    html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-4">' +
-                        '<h2 class="font-black text-base mb-3">📊 Podsumowanie (' + user.name + ')</h2>' +
-                        '<div class="grid grid-cols-2 gap-3 mb-3">' +
-                        '<div class="' + th.inputBg + ' p-3 rounded-xl border"><p class="text-[9px] font-bold opacity-60 uppercase mb-1">Średnio zjedzono</p><p class="text-xl font-black ' + th.accent + '">' + (dCount > 0 ? Math.round(tKcal / dCount) : 0) + ' <span class="text-xs opacity-60">kcal</span></p></div>' +
-                        '<div class="' + th.inputBg + ' p-3 rounded-xl border"><p class="text-[9px] font-bold text-orange-500 uppercase mb-1">Spalone w tyg.</p><p class="text-xl font-black text-orange-500">🔥 ' + tBurned + '</p></div></div>' +
-                        '<div class="' + th.inputBg + ' p-4 rounded-xl border"><p class="text-[10px] font-bold opacity-60 uppercase mb-1">Zmiana wagi (w tym tyg.)</p><p class="text-3xl font-black ' + (wDiff > 0 ? 'text-rose-500' : 'text-emerald-500') + '">' + wDiffStr + ' kg</p></div></div>' +
-                        '<div class="' + th.card + ' p-4 rounded-xl border"><h3 class="font-black text-sm mb-3">📈 Wykres Wagi (Ostatnie 14 wpisów)</h3>' + renderWeightChart() + '</div>';
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border"><h3 class="font-black text-sm mb-3">📈 Wykres Wagi (Ostatnie 14 wpisów)</h3>' + renderWeightChart() + '</div>';
 
                 } else if (state.tab === 'kopia') {
                     if (state.statusMsg) html += '<div class="bg-emerald-500/20 border border-emerald-500/40 text-emerald-700 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
@@ -1304,7 +1345,7 @@
 
                     html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                         '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                        '<p class="text-xs font-bold ' + th.accent + '">Wersja: v49 (Żelazna Kwarantanna Pamięci)</p>' +
+                        '<p class="text-xs font-bold ' + th.accent + '">Wersja: v50 (Statystyki czasowe, Numeracja posiłków, Nowy Skaner)</p>' +
                         '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 26.10.2026</p>' +
                         '</div>';
                 }
@@ -1315,7 +1356,9 @@
                 html += '</div><div class="fixed bottom-0 left-1/2 transform -translate-x-1/2 w-full max-w-md backdrop-blur border-t grid grid-cols-5 p-1 z-50 ' + th.nav + '">';
                 tabs.forEach(function(t, idx) {
                     var col = state.tab === t ? th.tabActive : 'opacity-50';
-                    html += '<button onclick="switchTab(\'' + t + '\')" class="flex flex-col items-center justify-center p-1.5 rounded-xl min-w-0 transition-all ' + col + '"><span class="text-xl mb-0.5">' + icons[idx] + '</span><span class="text-[9px] font-bold truncate w-full text-center">' + labels[idx] + '</span></button>';
+                    var tl = labels[idx];
+                    if(t === 'podsumowanie') tl = 'Podsum.'; // krótsza nazwa
+                    html += '<button onclick="switchTab(\'' + t + '\')" class="flex flex-col items-center justify-center p-1.5 rounded-xl min-w-0 transition-all ' + col + '"><span class="text-xl mb-0.5">' + icons[idx] + '</span><span class="text-[9px] font-bold truncate w-full text-center">' + tl + '</span></button>';
                 });
                 html += '</div>';
                 app.innerHTML = html;
@@ -1470,7 +1513,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 49, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 50, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
