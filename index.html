@@ -54,7 +54,6 @@
             dark: { name: "🌙 Nocny Neon", appBg: "theme-dark-bg text-slate-100", header: "bg-gradient-to-r from-violet-900 via-purple-900 to-slate-900 text-white border-b border-purple-700", headerSub: "bg-black/40", card: "bg-slate-800/90 border-slate-700 shadow-lg text-slate-100", softBox: "bg-slate-800 border-purple-500/40 text-purple-200", btn: "bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white", accent: "text-fuchsia-400", nav: "bg-slate-900/95 border-slate-800 text-slate-400", tabActive: "text-fuchsia-400 bg-slate-800", inputBg: "bg-slate-700 border-slate-600 text-white placeholder-slate-400" }
         };
 
-        // Wszystkie Twoje produkty oraz odzyskane zestawy posiłków z wcześniejszych wpisów!
         const FULL_PRODUCTS = [
             { id: "c1", name: "Kanapki z łososiem wędzonym i serkiem (chleb niski IG)", baseWeight: 190, baseKcal: 380, baseP: 24.0, baseF: 10.0, baseC: 48.0 },
             { id: "c2", name: "Domowa zupa pomidorowa z makaronem i marchewką", baseWeight: 500, baseKcal: 280, baseP: 9.0, baseF: 6.0, baseC: 47.0 },
@@ -105,7 +104,6 @@
 
         var dzis = new Date().toISOString().split('T')[0];
 
-        // Wczytanie lokalnego sejfu przed połączeniem z chmurą!
         var localDiaries = {};
         var localProducts = [];
         try {
@@ -117,10 +115,10 @@
 
         window.state = {
             tab: 'dziennik',
-            isCloudSynced: false, // TARCZA: Dopóki false, aplikacja ma zakaz nadpisywania chmury!
+            isCloudSynced: false,
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v44_theme') || 'classic',
+            theme: localStorage.getItem('diet_v45_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             workingModelPath: localStorage.getItem('diet_working_model_v44') || '',
             products: localProducts, workoutsDb: [], diaries: localDiaries, 
@@ -128,7 +126,7 @@
             date: dzis, weekOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
             wSearch: '', wResults: [], wInputTime: '', wInputKcal: '', editProdId: null,
-            isScanning: false, scannedProductData: null,
+            isScanning: false, scannedBarcodeInput: '', scannedProductData: null,
             aiModalOpen: false, aiQueryText: '', aiResultData: null, aiLoading: false,
             aiAdviceText: '', aiAdviceLoading: false,
             unknownProductModal: false, unknownName: '', unknownWeight: ''
@@ -143,7 +141,6 @@
         }
         initLocalDefaults();
 
-        // Bezpieczne łączenie danych lokalnych z chmurą (chroni przed utratą wpisów)
         function safeMergeDiaries(cloudDiaries, locDiaries) {
             var result = JSON.parse(JSON.stringify(cloudDiaries || {}));
             Object.keys(locDiaries || {}).forEach(function(uid) {
@@ -154,7 +151,6 @@
                     if (!cDay) {
                         result[uid][dt] = lDay;
                     } else {
-                        // Jeśli w pamięci telefonu jest więcej posiłków niż w chmurze, zachowaj bogatszą wersję
                         var cMeals = (cDay.meals || []).length;
                         var lMeals = (lDay.meals || []).length;
                         if (lMeals > cMeals) result[uid][dt].meals = lDay.meals;
@@ -169,14 +165,11 @@
             db.collection("dieta").doc("dane_wspolne").onSnapshot(function(doc) {
                 if (doc.exists) {
                     var data = doc.data();
-                    
-                    // Zanim przyjmiemy dane z chmury, robimy migawkę bezpieczeństwa w telefonie
                     if (Object.keys(state.diaries).length > 0) {
                         localStorage.setItem('diet_emergency_snapshot', JSON.stringify({
                             diaries: state.diaries, products: state.products, timestamp: new Date().toLocaleTimeString()
                         }));
                     }
-
                     if (data.products && data.products.length > 0) { state.products = data.products; initLocalDefaults(); }
                     if (data.workoutsDb) state.workoutsDb = data.workoutsDb;
                     if (data.diaries) {
@@ -185,19 +178,21 @@
                     if (data.users) state.users = data.users;
                     if (data.settings) state.settings = data.settings;
                 }
-                // DOPIERO TERAZ odblokowujemy możliwość zapisu do chmury!
                 state.isCloudSynced = true;
                 localStorage.setItem('diet_local_diaries_vault', JSON.stringify(state.diaries));
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
-                render();
+                
+                // NAPRAWA SKANERA: Nie przebudowuj ekranu, jeśli użytkownik ma aktualnie włączoną kamerę!
+                if (!state.isScanning) {
+                    render();
+                }
             }, function(err) { 
                 console.log("Błąd chmury:", err); 
-                render();
+                if (!state.isScanning) render();
             });
         }
 
         window.saveState = function() {
-            // 1. Zawsze zapisuj natychmiast w lokalnym sejfie telefonu!
             try {
                 var prevVault = localStorage.getItem('diet_local_diaries_vault');
                 if (prevVault && prevVault.length > 50) {
@@ -206,17 +201,12 @@
                 localStorage.setItem('diet_local_diaries_vault', JSON.stringify(state.diaries));
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_v15_curr_user', state.userId);
-                localStorage.setItem('diet_v44_theme', state.theme);
+                localStorage.setItem('diet_v45_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             } catch(e) {}
 
-            // 2. TARCZA: Jeśli aplikacja nie pobrała jeszcze danych z chmury po uruchomieniu, ZAKAZ wysyłania!
-            if (!state.isCloudSynced) {
-                console.log("Tarcza aktywna: Czekam na pobranie danych z chmury przed zapisem.");
-                return;
-            }
+            if (!state.isCloudSynced) return;
 
-            // 3. Bezpieczny zapis do chmury z opcją { merge: true } (nigdy nie kasuje starych dni!)
             if (typeof db !== 'undefined') {
                 db.collection("dieta").doc("dane_wspolne").set({
                     products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, users: state.users, settings: state.settings
@@ -224,7 +214,6 @@
             }
         };
 
-        // FUNKCJE RATUNKOWE (ODZYSKIWANIE DANYCH)
         window.restoreLastAutoBackup = function() {
             var backupStr = localStorage.getItem('diet_previous_auto_backup') || localStorage.getItem('diet_emergency_snapshot');
             if (!backupStr) return alert('Brak wcześniejszej migawki w pamięci tego urządzenia.');
@@ -249,7 +238,7 @@
                 }
             }
             if (foundKeys.length > 0) {
-                alert('Znaleziono w pamięci telefonu następujące sejfy danych:\n\n' + foundKeys.join('\n') + '\n\nDane zostały automatycznie zintegrowane z Twoją bazą!');
+                alert('Znaleziono w pamięci telefonu następujące sejfy danych:\n\n' + foundKeys.join('\n') + '\n\nDane są zintegrowane z Twoją bazą!');
             } else {
                 alert('Przeskanowano pamięć przeglądarki – brak innych ukrytych kopii poza obecną.');
             }
@@ -266,20 +255,13 @@
             render();
         };
 
-        // =========================================================================
-        // SILNIK AI Z WERSJI V39 (KTÓRY ZADZIAŁAŁ!), ALE Z PAMIĘCIĄ CACHE (SZYBKI!)
-        // =========================================================================
         async function executeGeminiFetch(fullModelName, key, promptStr) {
-            // Upewniamy się, że ścieżka ma format "models/nazwa" i leci na v1beta (tak jak zadziałało w v39!)
             var path = fullModelName.startsWith('models/') ? fullModelName : ('models/' + fullModelName);
             var url = 'https://generativelanguage.googleapis.com/v1beta/' + path + ':generateContent';
 
             var res = await fetch(url, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-goog-api-key': key
-                },
+                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
                 body: JSON.stringify({ contents: [{ parts: [{ text: promptStr }] }] })
             });
 
@@ -288,14 +270,10 @@
                 return data.candidates[0].content.parts[0].text.trim();
             }
 
-            // Jeśli status wymaga autoryzacji Bearer
             if (res.status === 401 || res.status === 403) {
                 var resB = await fetch(url, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': 'Bearer ' + key
-                    },
+                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
                     body: JSON.stringify({ contents: [{ parts: [{ text: promptStr }] }] })
                 });
                 if (resB.ok) {
@@ -313,17 +291,14 @@
             var key = state.geminiApiKey.trim();
             if (!key) throw new Error('Wklej klucz API w zakładce Ustawienia!');
 
-            // KROK 1: Jeśli znamy już działający model z poprzedniego uruchomienia, uderzamy od razu (trwa to 1 sekundę!)
             if (state.workingModelPath) {
                 try {
                     return await executeGeminiFetch(state.workingModelPath, key, promptStr);
                 } catch(e) {
-                    console.log("Zapamiętany model przestał odpowiadać, szukam nowego...", e);
                     state.workingModelPath = '';
                 }
             }
 
-            // KROK 2: Dokładnie to, co zadziałało w wersji v39! Odpytujemy ListModels na v1beta
             var lastError = '';
             try {
                 var listRes = await fetch('https://generativelanguage.googleapis.com/v1beta/models', {
@@ -334,13 +309,10 @@
                 if (listRes.ok) {
                     var listData = await listRes.json();
                     var models = listData.models || [];
-                    
-                    // Wybieramy wszystkie modele obsługujące generateContent
                     var supported = models.filter(function(m) {
                         return m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent') && m.name.includes('gemini');
                     });
 
-                    // Sortujemy tak, aby najszybsze modele (flash) były pierwsze
                     supported.sort(function(a, b) {
                         var aFlash = a.name.includes('flash') ? 0 : 1;
                         var bFlash = b.name.includes('flash') ? 0 : 1;
@@ -349,10 +321,9 @@
 
                     for (var i = 0; i < supported.length; i++) {
                         try {
-                            var candidateName = supported[i].name; // np. "models/gemini-2.0-flash-001"
+                            var candidateName = supported[i].name;
                             var reply = await executeGeminiFetch(candidateName, key, promptStr);
                             if (reply) {
-                                // Zapisujemy ten dokładny model na stałe, żeby kolejne pytania trwały 1 sekundę!
                                 state.workingModelPath = candidateName;
                                 localStorage.setItem('diet_working_model_v44', candidateName);
                                 return reply;
@@ -369,7 +340,6 @@
                 lastError = e.message;
             }
 
-            // KROK 3: Gdyby ListModels było zablokowane, próbujemy bezpośrednio
             var directModels = ['models/gemini-2.5-flash', 'models/gemini-2.0-flash', 'models/gemini-1.5-flash-latest'];
             for (var j = 0; j < directModels.length; j++) {
                 try {
@@ -402,7 +372,7 @@
                 var reply = await callGeminiSmart('Odpowiedz jednym słowem: DZIAŁA');
                 var duration = ((Date.now() - t0) / 1000).toFixed(1);
                 state.statusMsg = '✅ Działa (' + duration + 's)! Model: ' + state.workingModelPath;
-                alert('✅ Sukces w ' + duration + ' sek.!\nPodpięto i zapamiętano model:\n' + state.workingModelPath + '\n\nKażde kolejne zapytanie pójdzie już błyskawicznie!');
+                alert('✅ Sukces w ' + duration + ' sek.!\nPodpięto i zapamiętano model:\n' + state.workingModelPath);
             } catch(err) {
                 state.statusMsg = '❌ Błąd: ' + err.message;
                 alert('❌ Błąd: ' + err.message);
@@ -505,34 +475,142 @@
             }).catch(function(err) { alert('Błąd: ' + err.message); });
         };
 
+        // =========================================================================
+        // NAPRAWIONY MODUŁ SKANERA KODÓW KRESKOWYCH (WERSJA V45)
+        // =========================================================================
         window.fetchProductByBarcode = function(barcode) {
-            if (!barcode || !barcode.trim()) return alert('Wpisz lub zeskanuj kod kreskowy!');
-            var cleanCode = barcode.trim();
-            state.statusMsg = 'Pobieram dane produktu...'; state.scannedProductData = null; render();
+            var codeToSearch = barcode || state.scannedBarcodeInput || '';
+            var inpElem = document.getElementById('barcodeInput');
+            if (!codeToSearch && inpElem) codeToSearch = inpElem.value;
 
-            fetch('[https://world.openfoodfacts.org/api/v0/product/](https://world.openfoodfacts.org/api/v0/product/)' + cleanCode + '.json')
+            if (!codeToSearch || !String(codeToSearch).trim()) {
+                return alert('Wpisz lub zeskanuj kod kreskowy!');
+            }
+            var cleanCode = String(codeToSearch).trim();
+            state.scannedBarcodeInput = cleanCode;
+            state.statusMsg = '⏳ Pobieram dane dla kodu: ' + cleanCode + '...';
+            state.scannedProductData = null;
+            render();
+
+            fetch('[https://world.openfoodfacts.org/api/v0/product/](https://world.openfoodfacts.org/api/v0/product/)' + encodeURIComponent(cleanCode) + '.json')
                 .then(function(response) { return response.json(); })
                 .then(function(data) {
-                    if (data.status === 1 && data.product) {
-                        var p = data.product; var name = (p.product_name_pl || p.product_name || 'Produkt z kodu') + (p.brands ? ' (' + p.brands + ')' : '');
+                    if (data && data.status === 1 && data.product) {
+                        var p = data.product;
+                        var name = (p.product_name_pl || p.product_name || 'Produkt z kodu') + (p.brands ? ' (' + p.brands + ')' : '');
                         var nut = p.nutriments || {};
-                        var kcal100 = nut['energy-kcal_100g'] || nut['energy-kcal'] || 0;
-                        var prot100 = nut['proteins_100g'] || 0; var fat100 = nut['fat_100g'] || 0; var carb100 = nut['carbohydrates_100g'] || 0;
+                        var kcal100 = parseFloat(nut['energy-kcal_100g'] || nut['energy-kcal']) || 0;
+                        var prot100 = parseFloat(nut['proteins_100g']) || 0;
+                        var fat100 = parseFloat(nut['fat_100g']) || 0;
+                        var carb100 = parseFloat(nut['carbohydrates_100g']) || 0;
 
-                        var pkgWeight = 100; var rawQty = p.quantity || p.product_quantity || '';
-                        var match = String(rawQty).match(/(\d+)\s*g/i);
-                        if (match && match[1]) { pkgWeight = parseInt(match[1]); }
-                        else if (kcal100 > 0) { var kcalTotal = nut['energy-kcal'] || 0; if (kcalTotal > 0 && kcalTotal !== kcal100) pkgWeight = Math.round((kcalTotal / kcal100) * 100); }
+                        var pkgWeight = 100;
+                        var rawQty = p.quantity || p.product_quantity || '';
+                        var match = String(rawQty).match(/(\d+)\s*(g|ml)/i);
+                        if (match && match[1]) {
+                            pkgWeight = parseInt(match[1]);
+                        } else if (kcal100 > 0) {
+                            var kcalTotal = parseFloat(nut['energy-kcal']) || 0;
+                            if (kcalTotal > 0 && kcalTotal !== kcal100) pkgWeight = Math.round((kcalTotal / kcal100) * 100);
+                        }
 
                         var ratio = pkgWeight / 100;
-                        var totalKcal = Math.round(kcal100 * ratio); var totalProt = Math.round((prot100 * ratio) * 10) / 10;
-                        var totalFat = Math.round((fat100 * ratio) * 10) / 10; var totalCarb = Math.round((carb100 * ratio) * 10) / 10;
+                        var totalKcal = Math.round(kcal100 * ratio);
+                        var totalProt = Math.round((prot100 * ratio) * 10) / 10;
+                        var totalFat = Math.round((fat100 * ratio) * 10) / 10;
+                        var totalCarb = Math.round((carb100 * ratio) * 10) / 10;
 
                         state.scannedProductData = { name: name, baseWeight: pkgWeight, baseKcal: totalKcal, baseP: totalProt, baseF: totalFat, baseC: totalCarb, addWeight: pkgWeight };
-                        state.statusMsg = 'Zeskanowano pomyślnie!'; render();
-                    } else { state.statusMsg = ''; alert('Nie znaleziono w darmowej bazie. Wpisz dane ręcznie.'); render(); }
+                        state.statusMsg = '✅ Zeskanowano pomyślnie: ' + name;
+                        render();
+                    } else {
+                        state.statusMsg = '⚠️ Nie znaleziono kodu ' + cleanCode + ' w bazie OpenFoodFacts. Wpisz poniżej dane ręcznie.';
+                        alert('Nie znaleziono tego kodu w darmowej bazie OpenFoodFacts. Możesz wpisać produkt ręcznie poniżej.');
+                        render();
+                    }
                 })
-                .catch(function(err) { state.statusMsg = ''; alert('Błąd sieci: ' + err.message); render(); });
+                .catch(function(err) {
+                    state.statusMsg = '❌ Błąd sieci podczas szukania kodu.';
+                    alert('Błąd połączenia z bazą kodów: ' + err.message);
+                    render();
+                });
+        };
+
+        var html5QrCode = null;
+        window.startBarcodeScanner = function() {
+            if (typeof Html5Qrcode === 'undefined') {
+                return alert('Biblioteka skanera jeszcze się ładuje. Sprawdź połączenie z internetem i spróbuj za sekundę.');
+            }
+            state.isScanning = true;
+            state.statusMsg = '📷 Kieruj aparat na kod kreskowy produktu...';
+            render();
+
+            setTimeout(function() {
+                var readerEl = document.getElementById("reader");
+                if (!readerEl) return;
+
+                try {
+                    if (html5QrCode) {
+                        try { html5QrCode.clear(); } catch(e) {}
+                    }
+                    html5QrCode = new Html5Qrcode("reader");
+                    var config = { fps: 10, qrbox: { width: 240, height: 120 }, aspectRatio: 1.5 };
+
+                    html5QrCode.start(
+                        { facingMode: "environment" },
+                        config,
+                        function(decodedText) {
+                            // Sukces! Mamy kod kreskowy
+                            if (!state.isScanning) return;
+                            state.isScanning = false;
+                            state.scannedBarcodeInput = decodedText;
+                            
+                            var scannerRef = html5QrCode;
+                            html5QrCode = null;
+
+                            if (scannerRef) {
+                                scannerRef.stop().then(function() {
+                                    try { scannerRef.clear(); } catch(e) {}
+                                    fetchProductByBarcode(decodedText);
+                                }).catch(function() {
+                                    fetchProductByBarcode(decodedText);
+                                });
+                            } else {
+                                fetchProductByBarcode(decodedText);
+                            }
+                        },
+                        function(errorMessage) {
+                            // Ignorujemy pojedyncze klatki bez kodu
+                        }
+                    ).catch(function(err) {
+                        state.isScanning = false;
+                        state.statusMsg = '';
+                        alert('Nie udało się uruchomić kamery. Upewnij się, że przeglądarka ma uprawnienia do aparatu.\nSzczegóły: ' + err);
+                        render();
+                    });
+                } catch(err) {
+                    state.isScanning = false;
+                    alert('Błąd inicjalizacji aparatu: ' + err.message);
+                    render();
+                }
+            }, 250);
+        };
+
+        window.stopBarcodeScanner = function() {
+            state.isScanning = false;
+            state.statusMsg = '';
+            var scannerRef = html5QrCode;
+            html5QrCode = null;
+            if (scannerRef) {
+                scannerRef.stop().then(function() {
+                    try { scannerRef.clear(); } catch(e) {}
+                    render();
+                }).catch(function() {
+                    render();
+                });
+            } else {
+                render();
+            }
         };
 
         window.confirmAddScannedProduct = function(updateIfExists) {
@@ -588,22 +666,6 @@
             var r = weightVal / p.baseWeight;
             getDayData().meals.push({ id: Date.now(), name: p.name, weight: weightVal, kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10, f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 });
             state.statusMsg = 'Dodano "' + p.name + '" (' + weightVal + 'g) do dzisiejszego dziennika!'; saveState(); render();
-        };
-
-        var html5QrCode = null;
-        window.startBarcodeScanner = function() {
-            state.isScanning = true; render();
-            setTimeout(function() {
-                html5QrCode = new Html5Qrcode("reader");
-                html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 150 } },
-                    function(decodedText) { stopBarcodeScanner(); document.getElementById('barcodeInput').value = decodedText; fetchProductByBarcode(decodedText); }, function() {}
-                ).catch(function(err) { state.isScanning = false; alert('Błąd aparatu: ' + err); render(); });
-            }, 200);
-        };
-
-        window.stopBarcodeScanner = function() {
-            if (html5QrCode) { html5QrCode.stop().then(function() { html5QrCode.clear(); state.isScanning = false; render(); }).catch(function() { state.isScanning = false; render(); }); }
-            else { state.isScanning = false; render(); }
         };
 
         window.getDayData = function(customDate) {
@@ -908,15 +970,15 @@
                 html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
                     '<h3 class="font-black mb-2 text-sm text-center">📷 Skaner Produktów</h3>' +
                     '<div class="flex space-x-2 mb-2">' +
-                    '<input id="barcodeInput" placeholder="Wpisz kod EAN (np. 590...)" class="flex-1 p-2 ' + th.card + ' border rounded-lg text-xs font-bold outline-none" />' +
-                    '<button onclick="fetchProductByBarcode(document.getElementById(\'barcodeInput\').value)" class="' + th.btn + ' font-bold px-3 py-2 rounded-lg text-xs shadow">Szukaj</button>' +
+                    '<input id="barcodeInput" placeholder="Wpisz kod EAN (np. 590...)" value="' + (state.scannedBarcodeInput || '') + '" oninput="state.scannedBarcodeInput=this.value" class="flex-1 p-2 ' + th.card + ' border rounded-lg text-xs font-bold outline-none" />' +
+                    '<button onclick="fetchProductByBarcode()" class="' + th.btn + ' font-bold px-3 py-2 rounded-lg text-xs shadow">Szukaj</button>' +
                     '</div>';
 
                 if (!state.isScanning) {
                     html += '<button onclick="startBarcodeScanner()" class="w-full ' + th.btn + ' font-bold py-2.5 rounded-xl shadow text-xs">📷 Włącz aparat i skanuj kod</button>';
                 } else {
-                    html += '<div id="reader" class="w-full mb-2 overflow-hidden rounded-lg border"></div>' +
-                            '<button onclick="stopBarcodeScanner()" class="w-full bg-rose-500 text-white font-bold py-2 rounded-xl text-xs">❌ Zamknij aparat</button>';
+                    html += '<div id="reader" class="w-full mb-2 overflow-hidden rounded-lg border bg-black min-h-[220px]"></div>' +
+                            '<button onclick="stopBarcodeScanner()" class="w-full bg-rose-500 text-white font-bold py-2.5 rounded-xl text-xs shadow">❌ Zamknij aparat</button>';
                 }
 
                 if (state.scannedProductData) {
@@ -1012,7 +1074,6 @@
                 var wDiff = weightsForWeek.length >= 2 ? (weightsForWeek[weightsForWeek.length - 1] - weightsForWeek[0]) : 0;
                 var wDiffStr = (wDiff > 0 ? '+' : '') + wDiff.toFixed(1);
 
-                // OKNO AI NA SAMYM GÓRZE (PONAD PRZEŁĄCZNIKIEM TYGODNI)
                 html += '<div class="bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-4 rounded-xl shadow-md mb-3">' +
                     '<div class="flex justify-between items-center mb-2">' +
                     '<h3 class="font-black text-xs uppercase tracking-wide flex items-center space-x-1"><span>💬 AI Komentarz i Porada Dnia</span></h3>' +
@@ -1060,7 +1121,6 @@
             } else if (state.tab === 'kopia') {
                 if (state.statusMsg) html += '<div class="bg-emerald-500/20 border border-emerald-500/40 text-emerald-700 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
 
-                // NOWY PANEL RATUNKOWY I OCHRONY DANYCH
                 html += '<div class="bg-amber-50 border-2 border-amber-300 text-amber-950 p-4 rounded-xl mb-4 shadow-sm">' +
                     '<h3 class="font-black mb-1 text-sm text-center">🛡️ Tarcza Danych i Odzyskiwanie</h3>' +
                     '<p class="text-[10px] opacity-80 mb-3 text-center">Ochrona przed nadpisaniem chmury jest <b>AKTYWNA</b>. Jeśli dane zniknęły, użyj poniższych opcji ratunkowych:</p>' +
@@ -1116,7 +1176,7 @@
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v44 (Tarcza Danych + Szybkie AI v39)</p>' +
+                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v45 (Naprawiony Skaner EAN + Tarcza Danych + Szybkie AI)</p>' +
                     '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 26.10.2026</p>' +
                     '</div>';
             }
@@ -1139,7 +1199,7 @@
         window.changeWeight = function(w) { getDayData().weight = w; saveState(); };
         window.toggleGoals = function() { state.isEditingGoals = !state.isEditingGoals; render(); };
         window.changeStartOfWeek = function(val) { state.settings.startOfWeek = parseInt(val); saveState(); render(); };
-        window.addWater = function(amount) { if (amount === 0) getDayData().water = 0; else getDayData().water = (parseFloat(day.water) || 0) + amount; saveState(); render(); };
+        window.addWater = function(amount) { if (amount === 0) getDayData().water = 0; else getDayData().water = (parseFloat(getDayData().water) || 0) + amount; saveState(); render(); };
         window.updateMeasurement = function(id, val) { getDayData().measurements[id] = val; saveState(); };
         window.promptAddMeasurement = function() { var name = prompt('Podaj nazwę nowego pomiaru (np. Łydka):'); if(name && name.trim()) { state.settings.measurements.push({ id: 'm_' + Date.now(), name: name.trim() }); saveState(); render(); } };
         window.removeMeasurement = function(id) { if(confirm('Usunąć ten pomiar?')) { state.settings.measurements = state.settings.measurements.filter(function(m) { return m.id !== id; }); saveState(); render(); } };
@@ -1279,7 +1339,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 44, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 45, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
