@@ -118,7 +118,7 @@
             isCloudSynced: false,
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v46_theme') || 'classic',
+            theme: localStorage.getItem('diet_v47_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             workingModelPath: localStorage.getItem('diet_working_model_v44') || '',
             products: localProducts, workoutsDb: [], diaries: localDiaries, 
@@ -199,7 +199,7 @@
                 localStorage.setItem('diet_local_diaries_vault', JSON.stringify(state.diaries));
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_v15_curr_user', state.userId);
-                localStorage.setItem('diet_v46_theme', state.theme);
+                localStorage.setItem('diet_v47_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             } catch(e) {}
 
@@ -471,7 +471,7 @@
         };
 
         // =========================================================================
-        // SKANER KODÓW KRESKOWYCH Z PLANEM AWARYJNYM AI (WERSJA V46)
+        // SKANER KODÓW Z PLANEM AWARYJNYM AI (WERSJA V47)
         // =========================================================================
         window.fetchProductByBarcode = async function(barcode) {
             var codeToSearch = barcode || state.scannedBarcodeInput || '';
@@ -523,7 +523,7 @@
                 }
             } catch(e) {}
 
-            // PLAN AWARYJNY: Jeśli OpenFoodFacts nie ma produktu lub wystąpił błąd, pytamy Sztuczną Inteligencję (Gemini)!
+            // PLAN AWARYJNY AI
             if (state.geminiApiKey) {
                 state.statusMsg = '🤖 OpenFoodFacts nie zna tego kodu. Pytam asystenta AI o kod ' + cleanCode + '...';
                 render();
@@ -548,9 +548,8 @@
                 } catch(aiErr) {}
             }
 
-            // Jeśli AI również nie pomogło
             state.statusMsg = '⚠️ Brak w bazie. Wpisz dane ręcznie.';
-            alert('Nie znaleziono produktu w darmowej bazie ani przez AI (wymagany klucz Gemini w Ustawieniach). Możesz wpisać dane ręcznie.');
+            alert('Nie znaleziono produktu. Możesz wpisać dane ręcznie.');
             render();
         };
 
@@ -701,8 +700,11 @@
 
         window.setDayCounter = function(val) {
             var days = parseInt(val); if(isNaN(days) || days <= 0) return;
-            var current = new Date(state.date); current.setDate(current.getDate() - (days - 1));
-            state.users.find(function(u) { return u.id === state.userId; }).startDate = current.toISOString().split('T')[0]; saveState(); render();
+            var parts = state.date.split('-');
+            var dObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            dObj.setDate(dObj.getDate() - (days - 1));
+            state.users.find(function(u) { return u.id === state.userId; }).startDate = dObj.getFullYear() + '-' + String(dObj.getMonth() + 1).padStart(2, '0') + '-' + String(dObj.getDate()).padStart(2, '0');
+            saveState(); render();
         };
 
         window.getFirstActiveEntryDate = function() {
@@ -711,15 +713,44 @@
             return null;
         };
 
-        window.changeDateOffset = function(days) { var curr = new Date(state.date); curr.setDate(curr.getDate() + days); state.date = curr.toISOString().split('T')[0]; render(); };
+        // POPRAWIONY KALENDARZ (Bez przeskakiwania po 2 dni)
+        window.changeDateOffset = function(days) {
+            var parts = state.date.split('-');
+            var dObj = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            dObj.setDate(dObj.getDate() + days);
+            state.date = dObj.getFullYear() + '-' + String(dObj.getMonth() + 1).padStart(2, '0') + '-' + String(dObj.getDate()).padStart(2, '0');
+            render();
+        };
+
+        window.changeDate = function(newDateStr) {
+            if (newDateStr) {
+                state.date = newDateStr;
+                render();
+            }
+        };
+
         window.changeWeekOffset = function(val) { state.weekOffset += val; render(); };
 
         window.getWeekDates = function() {
-            var curr = new Date(state.date); curr.setDate(curr.getDate() + (state.weekOffset * 7));
-            var offset = state.settings.startOfWeek === 1 ? (curr.getDay() === 0 ? -6 : 1 - curr.getDay()) : -curr.getDay();
-            var firstDay = new Date(curr.setDate(curr.getDate() + offset)); var weekDates = [];
-            for (var i = 0; i < 7; i++) { var n = new Date(firstDay); n.setDate(firstDay.getDate() + i); weekDates.push(n.toISOString().split('T')[0]); }
+            var parts = state.date.split('-');
+            var curr = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            curr.setDate(curr.getDate() + (state.weekOffset * 7));
+            var dayOfWeek = curr.getDay();
+            var offset = state.settings.startOfWeek === 1 ? (dayOfWeek === 0 ? -6 : 1 - dayOfWeek) : -dayOfWeek;
+            curr.setDate(curr.getDate() + offset);
+            var weekDates = [];
+            for (var i = 0; i < 7; i++) { 
+                var n = new Date(curr.getFullYear(), curr.getMonth(), curr.getDate() + i); 
+                weekDates.push(n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0')); 
+            }
             return weekDates;
+        };
+
+        window.getFormattedDayName = function(dateStr) {
+            var parts = dateStr.split('-');
+            var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+            var days = ['Niedziela', 'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota'];
+            return days[d.getDay()];
         };
 
         window.renderWeightChart = function() {
@@ -763,6 +794,36 @@
             }
         };
 
+        // EDYCJA WAGI POSIŁKU Z POZIOMU DZIENNIKA
+        window.promptEditMealWeight = function(mealId) {
+            var day = getDayData();
+            var meal = day.meals.find(function(m) { return m.id === mealId; });
+            if (!meal) return;
+            var newW = prompt('Edytuj wagę dla posiłku "' + meal.name + '":\nPodaj nową wagę (g):', meal.weight);
+            if (newW === null) return;
+            var wVal = parseFloat(newW);
+            if (isNaN(wVal) || wVal <= 0) return alert('Podaj prawidłową wagę!');
+
+            var prod = state.products.find(function(x) { return x.name.toLowerCase() === meal.name.replace(' (AI)', '').toLowerCase(); });
+            if (prod && prod.baseWeight > 0) {
+                var r = wVal / prod.baseWeight;
+                meal.weight = wVal;
+                meal.kcal = Math.round(prod.baseKcal * r);
+                meal.p = Math.round(prod.baseP * r * 10) / 10;
+                meal.f = Math.round(prod.baseF * r * 10) / 10;
+                meal.c = Math.round(prod.baseC * r * 10) / 10;
+            } else {
+                var ratio = wVal / meal.weight;
+                meal.weight = wVal;
+                meal.kcal = Math.round(meal.kcal * ratio);
+                meal.p = Math.round(meal.p * ratio * 10) / 10;
+                meal.f = Math.round(meal.f * ratio * 10) / 10;
+                meal.c = Math.round(meal.c * ratio * 10) / 10;
+            }
+            state.statusMsg = 'Zaktualizowano wagę posiłku!';
+            saveState(); render();
+        };
+
         window.render = function() {
             var app = document.getElementById('app');
             var day = getDayData();
@@ -799,7 +860,9 @@
             html += '</div></div></div><div class="p-3 w-full flex-1 overflow-x-hidden relative">';
 
             if (state.tab === 'dziennik') {
-                html += '<div class="flex space-x-2 mb-3 items-center">' +
+                var dayName = getFormattedDayName(state.date);
+                html += '<div class="mb-2 px-1 flex justify-between items-end"><span class="text-[11px] font-black uppercase tracking-wider ' + th.accent + '">' + dayName + '</span><span class="text-[10px] opacity-60 font-bold">' + state.date + '</span></div>' +
+                    '<div class="flex space-x-2 mb-3 items-center">' +
                     '<div class="flex-1 ' + th.card + ' p-2 rounded-xl border flex items-center justify-between">' +
                     '<button onclick="changeDateOffset(-1)" class="' + th.inputBg + ' px-3 py-1 rounded-lg text-sm font-black">◀</button>' +
                     '<input type="date" value="' + state.date + '" onchange="changeDate(this.value)" class="text-xs font-bold bg-transparent outline-none text-center" />' +
@@ -859,7 +922,7 @@
                 day.meals.forEach(function(m) {
                     html += '<div class="flex justify-between items-center ' + th.inputBg + ' p-2 rounded-lg border">' +
                         '<div class="flex-1 pr-1 min-w-0"><p class="font-bold text-xs truncate">' + m.name + '</p><p class="text-[9px] opacity-60 mt-0.5">' + m.weight + 'g | B:' + m.p + ' T:' + m.f + ' W:' + m.c + '</p></div>' +
-                        '<div class="flex items-center space-x-2 shrink-0"><span class="font-black text-xs">' + m.kcal + ' <span class="font-normal text-[9px] opacity-60">kcal</span></span><button onclick="delMeal(' + m.id + ')" class="text-rose-400 font-bold px-2">✕</button></div></div>';
+                        '<div class="flex items-center space-x-2 shrink-0"><span class="font-black text-xs">' + m.kcal + ' <span class="font-normal text-[9px] opacity-60">kcal</span></span><button onclick="promptEditMealWeight(' + m.id + ')" class="text-blue-500 font-bold px-1.5 text-xs" title="Edytuj wagę">✏️</button><button onclick="delMeal(' + m.id + ')" class="text-rose-400 font-bold px-1.5">✕</button></div></div>';
                 });
                 html += '</div></div>';
 
@@ -929,11 +992,17 @@
                 html += '</div></div>';
 
             } else if (state.tab === 'trening') {
-                var curr = new Date(state.date);
-                var offset = state.settings.startOfWeek === 1 ? (curr.getDay() === 0 ? -6 : 1 - curr.getDay()) : -curr.getDay();
-                var firstDay = new Date(curr.setDate(curr.getDate() + offset));
+                var parts = state.date.split('-');
+                var curr = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                curr.setDate(curr.getDate() + (state.weekOffset * 7));
+                var dayOfWeek = curr.getDay();
+                var offset = state.settings.startOfWeek === 1 ? (dayOfWeek === 0 ? -6 : 1 - dayOfWeek) : -dayOfWeek;
+                curr.setDate(curr.getDate() + offset);
                 var weekDates = [];
-                for (var i = 0; i < 7; i++) { var n = new Date(firstDay); n.setDate(firstDay.getDate() + i); weekDates.push(n.toISOString().split('T')[0]); }
+                for (var i = 0; i < 7; i++) { 
+                    var n = new Date(curr.getFullYear(), curr.getMonth(), curr.getDate() + i); 
+                    weekDates.push(n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0')); 
+                }
 
                 var weekTime = 0, weekKcal = 0, types = {};
                 weekDates.forEach(function(d) {
@@ -1085,7 +1154,8 @@
                 });
 
                 var netWeekKcal = totalWeekEaten - totalWeekBurned;
-                var balanceVsZero = totalWeekTarget - netWeekKcal;
+                // POPRAWIONY BILANS WZGLĘDEM ZERA (Zjedzono - Trening) -> Cel - Netto
+                var balanceVsZero = netWeekKcal - totalWeekTarget;
                 var wDiff = weightsForWeek.length >= 2 ? (weightsForWeek[weightsForWeek.length - 1] - weightsForWeek[0]) : 0;
                 var wDiffStr = (wDiff > 0 ? '+' : '') + wDiff.toFixed(1);
 
@@ -1121,8 +1191,8 @@
                     '<div class="' + th.card + ' p-3 rounded-xl border flex justify-between items-center shadow-inner">' +
                     '<div><span class="text-[10px] font-bold opacity-75 uppercase block">Bilans względem zera:</span>' +
                     '<span class="text-[9px] opacity-60">Od 1. wpisu (' + (firstActiveDate || 'brak') + ')</span></div>' +
-                    '<span class="text-lg font-black ' + (balanceVsZero >= 0 ? 'text-emerald-500' : 'text-rose-500') + '">' + 
-                    (balanceVsZero >= 0 ? '+' + Math.round(balanceVsZero) + ' kcal' : Math.round(balanceVsZero) + ' kcal') + 
+                    '<span class="text-lg font-black ' + (balanceVsZero <= 0 ? 'text-emerald-500' : 'text-rose-500') + '">' + 
+                    (balanceVsZero > 0 ? '+' + Math.round(balanceVsZero) + ' kcal' : Math.round(balanceVsZero) + ' kcal') + 
                     '</span></div></div>';
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-4">' +
@@ -1191,7 +1261,7 @@
 
                 html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                     '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v46 (Skaner EAN z awaryjnym AI)</p>' +
+                    '<p class="text-xs font-bold ' + th.accent + '">Wersja: v47 (Poprawiony kalendarz, nazwy dni, edycja wagi i minus w bilansie)</p>' +
                     '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 26.10.2026</p>' +
                     '</div>';
             }
@@ -1333,19 +1403,20 @@
             var name = nameElem ? nameElem.value.trim() : '';
             var w = wElem ? parseFloat(wElem.value) || 100 : 100;
             var p = pElem ? parseFloat(pElem.value) || 0 : 0;
-            var f = fElem ? parseFloat(fElem.value) || 0 : 0;
-            var c = cElem ? parseFloat(cElem.value) || 0 : 0;
-            var kcal = (kElem && kElem.value !== '') ? parseFloat(kElem.value) : Math.round(p * 4 + c * 4 + f * 9);
+            var f = fElem ? parseFloat(pElem.value) || 0 : (pElem ? parseFloat(pElem.value) || 0 : 0); // safe fallback
+            var fVal = fElem ? parseFloat(fElem.value) || 0 : 0;
+            var cVal = cElem ? parseFloat(cElem.value) || 0 : 0;
+            var kcal = (kElem && kElem.value !== '') ? parseFloat(kElem.value) : Math.round(p * 4 + cVal * 4 + fVal * 9);
 
             if (!name) return alert('Podaj nazwę produktu!');
 
             if(state.editProdId) {
                 var prod = state.products.find(function(x) { return x.id === state.editProdId; });
-                if(prod) { prod.name = name; prod.baseWeight = w; prod.baseKcal = kcal; prod.baseP = p; prod.baseF = f; prod.baseC = c; }
+                if(prod) { prod.name = name; prod.baseWeight = w; prod.baseKcal = kcal; prod.baseP = p; prod.baseF = fVal; prod.baseC = cVal; }
                 state.editProdId = null;
                 state.statusMsg = 'Zaktualizowano produkt!';
             } else { 
-                state.products.unshift({ id: String(Date.now()), name: name, baseWeight: w, baseKcal: kcal, baseP: p, baseF: f, baseC: c }); 
+                state.products.unshift({ id: String(Date.now()), name: name, baseWeight: w, baseKcal: kcal, baseP: p, baseF: fVal, baseC: cVal }); 
                 state.statusMsg = 'Dodano nowy produkt do bazy!';
             }
             saveState(); render();
@@ -1354,7 +1425,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 46, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 47, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
