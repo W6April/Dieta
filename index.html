@@ -23,6 +23,12 @@
         .theme-nature-bg { background-color: #ecfdf5; background-image: linear-gradient(135deg, #d1fae5 25%, transparent 25%), linear-gradient(225deg, #d1fae5 25%, transparent 25%), linear-gradient(45deg, #d1fae5 25%, transparent 25%), linear-gradient(315deg, #d1fae5 25%, #ecfdf5 25%); background-size: 40px 40px; }
         .theme-sunset-bg { background: linear-gradient(180deg, #fff7ed 0%, #ffedd5 50%, #fce7f3 100%); }
         .theme-dark-bg { background-color: #0f172a; color: #f1f5f9; }
+
+        /* Animacja przysiadów ze sztangą */
+        @keyframes lift-squat {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(6px); }
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans pb-24 select-none">
@@ -182,7 +188,6 @@
                         var lMeals = (lDay.meals || []).length;
                         if (lMeals > cMeals) result[uid][dt].meals = lDay.meals;
                         if (!cDay.weight && lDay.weight) result[uid][dt].weight = lDay.weight;
-                        if (lDay.isEnded !== undefined && !cDay.isEnded) result[uid][dt].isEnded = lDay.isEnded;
                         if (lDay.measurements) {
                             if (!cDay.measurements) cDay.measurements = {};
                             Object.keys(lDay.measurements).forEach(function(mId) {
@@ -730,8 +735,6 @@
         window.promptChangeCategory = function(prodId) {
             var p = state.products.find(function(x) { return x.id === prodId; });
             if (!p) return;
-            
-            // Usunąłem stare zachowanie i zastąpiłem przyciskiem folderu - kod zostawiam dla bezpieczeństwa wywołań
             var cats = (state.settings.categories || []).join(", ");
             var newCat = prompt('Zmień kategorię dla: "' + p.name + '"\n\nObecna kategoria: ' + (p.category || 'Inne') + '\n\nDostępne kategorie:\n' + cats + '\n\nWpisz nową lub istniejącą nazwę kategorii:', p.category || 'Inne');
             if (newCat !== null && newCat.trim() !== "") {
@@ -758,30 +761,26 @@
             saveState(); render();
         };
 
-        // NOWE FUNKCJE EDYCJI I USUWANIA KATEGORII
         window.editCat = function(idx) {
             var oldName = state.settings.categories[idx];
             var newName = prompt('Zmień nazwę kategorii:', oldName);
-            if (newName && newName.trim() && newName.trim() !== oldName) {
-                var finalName = newName.trim();
-                if (state.settings.categories.includes(finalName)) {
-                    return alert('Taka kategoria już istnieje!');
-                }
-                state.settings.categories[idx] = finalName;
+            if (newName !== null && newName.trim() !== '' && newName.trim() !== oldName) {
+                var cName = newName.trim();
+                state.settings.categories[idx] = cName;
                 state.products.forEach(function(p) {
-                    if (p.category === oldName) p.category = finalName;
+                    if (p.category === oldName) p.category = cName;
                 });
-                state.statusMsg = 'Kategoria zmieniona na: ' + finalName;
+                state.statusMsg = 'Zaktualizowano nazwę kategorii!';
                 saveState(); render();
             }
         };
 
-        window.deleteCat = function(idx) {
-            var oldName = state.settings.categories[idx];
-            if (confirm('Czy na pewno chcesz usunąć kategorię "' + oldName + '"?\n\nProdukty w niej zawarte nie zostaną usunięte, trafią tylko do grupy "Inne".')) {
+        window.delCat = function(idx) {
+            var catName = state.settings.categories[idx];
+            if (confirm('Czy na pewno chcesz usunąć kategorię "' + catName + '"?\n\nWszystkie produkty z tej kategorii zostaną bezpiecznie przeniesione do "Inne".')) {
                 state.settings.categories.splice(idx, 1);
                 state.products.forEach(function(p) {
-                    if (p.category === oldName) p.category = 'Inne (Niesklasyfikowane)';
+                    if (p.category === catName) p.category = 'Inne';
                 });
                 state.statusMsg = 'Kategoria została usunięta.';
                 saveState(); render();
@@ -1038,11 +1037,11 @@
                     var ratio = day.goals.kcal > 0 ? (nettoKcal / day.goals.kcal) : 0;
                     
                     if (ratio < 0.33) {
-                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-10 h-10 text-blue-500 drop-shadow-md" style="animation: pulse 2s infinite;"><style>@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }</style><circle cx="50" cy="25" r="10" fill="currentColor"/><line x1="50" y1="35" x2="50" y2="75" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M 50 45 L 35 60 M 50 45 L 65 60" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M 50 75 L 40 100 M 50 75 L 60 100" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>';
+                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-blue-500 animate-pulse drop-shadow-md"><circle cx="50" cy="20" r="10" fill="currentColor"/><line x1="50" y1="30" x2="50" y2="70" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M 50 40 L 35 55 M 50 40 L 65 55" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M 50 70 L 40 95 M 50 70 L 60 95" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>';
                     } else if (ratio <= 1.0) {
-                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-10 h-10 text-emerald-500 drop-shadow-md"><circle cx="50" cy="20" r="12" fill="currentColor"/><rect x="40" y="32" width="20" height="35" rx="5" fill="currentColor"/><path d="M 40 40 L 25 50 M 60 40 L 75 50" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 45 67 L 35 95 M 55 67 L 65 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg>';
+                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-emerald-500 drop-shadow-md"><circle cx="50" cy="20" r="12" fill="currentColor"/><rect x="40" y="32" width="20" height="35" rx="5" fill="currentColor"/><path d="M 40 40 L 25 50 M 60 40 L 75 50" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 45 67 L 35 95 M 55 67 L 65 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg>';
                     } else {
-                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-10 h-10 text-rose-500 drop-shadow-md" style="animation: shake 0.5s infinite;"><style>@keyframes shake { 0% { transform: translateX(0); } 25% { transform: translateX(2px); } 50% { transform: translateX(-2px); } 75% { transform: translateX(2px); } 100% { transform: translateX(0); } }</style><circle cx="50" cy="15" r="12" fill="currentColor"/><circle cx="50" cy="50" r="26" fill="currentColor"/><path d="M 26 40 L 12 50 M 74 40 L 88 50" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 40 73 L 30 95 M 60 73 L 70 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg>';
+                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-rose-500 drop-shadow-md"><circle cx="50" cy="15" r="12" fill="currentColor"/><circle cx="50" cy="50" r="26" fill="currentColor"/><path d="M 26 40 L 12 50 M 74 40 L 88 50" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 40 73 L 30 95 M 60 73 L 70 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg>';
                     }
 
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
@@ -1051,9 +1050,9 @@
                         '<div class="text-center w-1/3 border-x border-gray-200/40"><p class="text-[9px] font-bold text-orange-500 uppercase">Spalone</p><p class="text-lg font-black text-orange-500">-' + burned + '</p></div>' +
                         '<div class="text-center w-1/3"><p class="text-[9px] font-bold opacity-60 uppercase">Kcal Netto</p><p class="text-lg font-black ' + (nettoKcal < 0 ? 'text-orange-500' : th.accent) + '">' + Math.round(nettoKcal) + '</p></div>' +
                         '</div>' +
-                        '<div class="' + th.inputBg + ' border rounded-lg p-2.5 flex justify-between items-center mb-3 h-16">' +
+                        '<div class="' + th.inputBg + ' border rounded-lg p-2.5 flex justify-between items-center mb-3">' +
                         '<div><span class="text-[10px] font-bold opacity-75 uppercase block">' + statusLabel + '</span><span class="text-xl font-black ' + statusColor + '">' + Math.abs(Math.round(left)) + ' kcal</span></div>' +
-                        '<div class="mr-2 flex items-center justify-center">' + ludzikHtml + '</div>' + 
+                        '<div class="mr-2">' + ludzikHtml + '</div>' + 
                         '</div>' +
                         '<div class="grid grid-cols-3 gap-2 mb-3">' +
                         '<div class="bg-blue-500/10 text-blue-600 py-1 rounded text-center text-[10px] font-bold">B: ' + Math.round(eatenP) + '/' + day.goals.p + 'g</div>' +
@@ -1134,13 +1133,21 @@
                             '</div></div>';
                     }
 
-                    // TRENING (Z Animacją sztangisty!)
-                    var workoutIcon = burned > 0 ? 
-                        '<svg viewBox="0 0 100 100" class="inline-block w-6 h-6 text-orange-500 drop-shadow-md" style="animation: lift 1s infinite alternate ease-in-out;" fill="currentColor" stroke="currentColor"><style>@keyframes lift { from { transform: translateY(3px); } to { transform: translateY(-4px); } }</style><circle cx="50" cy="30" r="10" stroke="none"/><path d="M 50 40 L 50 70 M 50 70 L 35 95 M 50 70 L 65 95 M 50 45 L 30 25 L 15 25 M 50 45 L 70 25 L 85 25" stroke-width="7" stroke-linecap="round" fill="none"/><line x1="5" y1="25" x2="95" y2="25" stroke-width="6" stroke-linecap="round"/><rect x="4" y="10" width="8" height="30" rx="3" stroke="none"/><rect x="88" y="10" width="8" height="30" rx="3" stroke="none"/></svg>' 
-                        : '🔥';
+                    // LUDZIK PODNOSZĄCY CIĘŻARY
+                    var liftingSvg = day.workouts.length > 0 ? 
+                        '<svg viewBox="0 0 100 100" class="w-6 h-6 text-orange-500 ml-1 inline-block drop-shadow-md">' +
+                        '<path d="M 50 70 L 35 95 M 50 70 L 65 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>' +
+                        '<g style="animation: lift-squat 1s ease-in-out infinite;">' +
+                        '<circle cx="50" cy="30" r="10" fill="currentColor"/>' +
+                        '<line x1="50" y1="40" x2="50" y2="70" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>' +
+                        '<path d="M 50 45 L 25 15 M 50 45 L 75 15" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>' +
+                        '<line x1="15" y1="15" x2="85" y2="15" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>' +
+                        '<circle cx="15" cy="15" r="7" fill="currentColor"/>' +
+                        '<circle cx="85" cy="15" r="7" fill="currentColor"/>' +
+                        '</g></svg>' : '';
 
                     html += '<div class="' + th.card + ' p-4 rounded-xl border">' +
-                        '<h3 class="font-bold text-sm text-orange-500 mb-2 flex items-center space-x-1"><span class="mr-1">' + workoutIcon + '</span> Dodaj trening (Dzisiaj)</h3>' +
+                        '<h3 class="font-bold text-sm text-orange-500 mb-2 flex items-center">🔥 Dodaj trening ' + liftingSvg + '</h3>' +
                         '<div class="flex space-x-2 mb-3 relative"><div class="relative flex-1 min-w-0">' +
                         '<input id="wNameInp" placeholder="Nazwa np. Bieganie" value="' + state.wSearch + '" oninput="searchWorkout(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs px-2 py-2 outline-none" />';
                     
@@ -1320,13 +1327,13 @@
                         '<div class="flex space-x-2"><button onclick="addProd()" class="flex-1 ' + th.btn + ' font-bold py-2 rounded-lg shadow-md text-xs">' + (edProd ? 'Zapisz zmiany' : 'Zapisz w bazie') + '</button>' +
                         (edProd ? '<button onclick="cancelEditProd()" class="bg-gray-300 text-gray-700 font-bold px-4 py-2 rounded-lg text-xs">Anuluj</button>' : '') + '</div></div>';
 
-                    // NOWA BAZA PRODUKTÓW Z KATEGORIAMI I PRZYCISKAMI
+                    // BAZA Z EDYCJĄ KATEGORII
                     html += '<div class="' + th.card + ' p-3 rounded-xl border mb-6">' +
                         '<div class="flex justify-between items-center mb-1">' +
-                        '<h3 class="font-bold text-sm">Baza (' + state.products.length + ')</h3>' +
+                        '<h3 class="font-bold text-sm">Baza Produktów (' + state.products.length + ')</h3>' +
                         '<button onclick="addCategory()" class="text-[10px] ' + th.btn + ' px-2 py-1 rounded-lg shadow-sm">➕ Kategoria</button>' +
                         '</div>' +
-                        '<div class="max-h-[60vh] overflow-y-auto pr-1 pb-4">';
+                        '<p class="text-[10px] opacity-70 mb-2 font-medium">💡 Kliknij ➕ aby dodać do dziennika. Kliknij 🗂️ by zmienić kategorię.</p><div class="max-h-[60vh] overflow-y-auto pr-1 pb-4">';
                     
                     var cats = state.settings.categories || DEFAULT_CATEGORIES;
                     var groupedProducts = {};
@@ -1345,7 +1352,7 @@
 
                     var allRenderCats = cats.concat(['Inne (Niesklasyfikowane)']);
                     allRenderCats.forEach(function(cat, catIdx) {
-                        var isCustom = catIdx < cats.length; // "Inne" nie da się przesuwać
+                        var isCustom = catIdx < cats.length; 
                         if (groupedProducts[cat]) {
                             html += '<div class="flex justify-between items-center mt-5 mb-2 px-2 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20">';
                             html += '<h4 class="font-black text-[11px] uppercase tracking-widest text-blue-700">' + cat + '</h4>';
@@ -1353,8 +1360,8 @@
                                 html += '<div class="flex space-x-1">';
                                 html += '<button onclick="moveCat('+catIdx+', -1)" class="text-[10px] px-1.5 py-0.5 opacity-50 hover:opacity-100 bg-white rounded shadow-sm">▲</button>';
                                 html += '<button onclick="moveCat('+catIdx+', 1)" class="text-[10px] px-1.5 py-0.5 opacity-50 hover:opacity-100 bg-white rounded shadow-sm">▼</button>';
-                                html += '<button onclick="editCat('+catIdx+')" class="text-[10px] px-1.5 py-0.5 opacity-50 hover:opacity-100 bg-white rounded shadow-sm">✏️</button>';
-                                html += '<button onclick="deleteCat('+catIdx+')" class="text-[10px] px-1.5 py-0.5 opacity-50 hover:opacity-100 bg-white rounded shadow-sm text-rose-500">✕</button>';
+                                html += '<button onclick="editCat('+catIdx+')" class="text-[10px] px-1.5 py-0.5 opacity-50 hover:opacity-100 bg-white rounded shadow-sm text-blue-600" title="Edytuj">✏️</button>';
+                                html += '<button onclick="delCat('+catIdx+')" class="text-[10px] px-1.5 py-0.5 opacity-50 hover:opacity-100 bg-white rounded shadow-sm text-rose-500" title="Usuń">✕</button>';
                                 html += '</div>';
                             }
                             html += '</div><div class="space-y-2">';
@@ -1563,7 +1570,7 @@
 
                     html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                         '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                        '<p class="text-xs font-bold ' + th.accent + '">Wersja: v56 (Animowany ciężarowiec + Edycja i łatwe dodawanie kategorii)</p>' +
+                        '<p class="text-xs font-bold ' + th.accent + '">Wersja: v56 (Edycja kategorii i wesołe ludziki)</p>' +
                         '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 27.10.2026</p>' +
                         '</div>';
                 }
