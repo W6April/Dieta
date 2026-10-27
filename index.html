@@ -130,7 +130,7 @@
             isCloudSynced: false,
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v53_theme') || 'classic',
+            theme: localStorage.getItem('diet_v54_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             workingModelPath: localStorage.getItem('diet_working_model_v44') || '',
             products: localProducts, workoutsDb: [], diaries: localDiaries, 
@@ -238,7 +238,7 @@
                 localStorage.setItem('diet_local_diaries_vault', JSON.stringify(state.diaries));
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_v15_curr_user', state.userId);
-                localStorage.setItem('diet_v53_theme', state.theme);
+                localStorage.setItem('diet_v54_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             } catch(e) {}
 
@@ -727,6 +727,22 @@
             state.statusMsg = 'Dodano "' + p.name + '" (' + weightVal + 'g) do dzisiejszego dziennika!'; saveState(); render();
         };
 
+        window.promptChangeCategory = function(prodId) {
+            var p = state.products.find(function(x) { return x.id === prodId; });
+            if (!p) return;
+            var cats = (state.settings.categories || []).join(", ");
+            var newCat = prompt('Zmień kategorię dla: "' + p.name + '"\n\nObecna kategoria: ' + (p.category || 'Inne') + '\n\nDostępne kategorie:\n' + cats + '\n\nWpisz nową lub istniejącą nazwę kategorii:', p.category || 'Inne');
+            if (newCat !== null && newCat.trim() !== "") {
+                var cName = newCat.trim();
+                p.category = cName;
+                if (!state.settings.categories.includes(cName)) {
+                    state.settings.categories.push(cName);
+                }
+                state.statusMsg = 'Przeniesiono do kategorii: ' + cName;
+                saveState(); render();
+            }
+        };
+
         window.getDayData = function(customDate) {
             var targetDate = customDate || state.date;
             if (!state.diaries[state.userId]) state.diaries[state.userId] = {};
@@ -761,7 +777,6 @@
             return null;
         };
 
-        // SZUKANIE WAGI Z POPRZEDNIEGO DNIA DO WSKAŹNIKA TRENDU
         window.getPrevWeight = function(currDate) {
             var userDiary = state.diaries[state.userId] || {};
             var dates = Object.keys(userDiary).sort();
@@ -955,7 +970,6 @@
                 if (state.tab === 'dziennik') {
                     var dayName = getFormattedDayName(state.date);
                     
-                    // IKONA TRENDU WAGI ZAMIAST ZWYKŁEGO TEKSTU
                     var prevW = getPrevWeight(state.date);
                     var currW = parseFloat(day.weight);
                     var wIcon = '';
@@ -1039,7 +1053,6 @@
                         
                         if (day.meals.length === 0) html += '<p class="text-[10px] opacity-50 text-center py-2">Brak posiłków</p>';
                         
-                        // POSIŁKI ZE STRZAŁKAMI DO PRZESUWANIA (v53)
                         day.meals.forEach(function(m, idx) {
                             html += '<div class="flex justify-between items-center ' + th.inputBg + ' p-2 rounded-lg border">' +
                                 '<div class="flex flex-col items-center justify-center mr-2 space-y-1">' +
@@ -1260,18 +1273,17 @@
                     }
                     html += '</div>';
 
-                    // NOWY PRZYCISK: DODAJ KATEGORIĘ (v53)
+                    var catOptions = state.settings.categories.map(function(c) {
+                        var isSel = (edProd && edProd.category === c) ? 'selected' : (!edProd && c === 'Inne' ? 'selected' : '');
+                        return '<option value="' + c + '" ' + isSel + '>' + c + '</option>';
+                    }).join('');
+
                     html += '<div class="' + th.card + ' border p-4 rounded-xl mb-4" id="prodForm">' +
                         '<h3 class="font-bold text-sm mb-3">' + (edProd ? '✏️ Edytuj produkt' : '➕ Dodaj własny produkt') + '</h3>' +
                         '<input id="pName" placeholder="Nazwa produktu" value="' + (edProd ? edProd.name : '') + '" class="w-full mb-2 p-2 text-xs rounded-lg border ' + th.inputBg + ' font-bold outline-none" />' +
                         
                         '<div class="mb-2"><label class="text-[10px] font-bold opacity-70 mb-1 block">Kategoria</label>';
                     
-                    var catOptions = state.settings.categories.map(function(c) {
-                        var isSel = (edProd && edProd.category === c) ? 'selected' : (!edProd && c === 'Inne' ? 'selected' : '');
-                        return '<option value="' + c + '" ' + isSel + '>' + c + '</option>';
-                    }).join('');
-
                     html += '<select id="pCat" class="w-full p-2 text-xs rounded-lg border ' + th.inputBg + ' outline-none font-bold">' + catOptions + '</select></div>' +
                         '<div class="grid grid-cols-2 gap-2 mb-2">' +
                         '<div><label class="text-[10px] font-bold opacity-70 mb-1 block">Waga bazowa (g)</label><input id="pW" type="number" value="' + (edProd ? edProd.baseWeight : 100) + '" class="w-full p-2 text-xs rounded-lg border ' + th.inputBg + ' outline-none" /></div>' +
@@ -1283,12 +1295,13 @@
                         '<div class="flex space-x-2"><button onclick="addProd()" class="flex-1 ' + th.btn + ' font-bold py-2 rounded-lg shadow-md text-xs">' + (edProd ? 'Zapisz zmiany' : 'Zapisz w bazie') + '</button>' +
                         (edProd ? '<button onclick="cancelEditProd()" class="bg-gray-300 text-gray-700 font-bold px-4 py-2 rounded-lg text-xs">Anuluj</button>' : '') + '</div></div>';
 
+                    // BAZA PRODUKTÓW (v54 - wyraźne kategorie i fizyczny przycisk ➕)
                     html += '<div class="' + th.card + ' p-3 rounded-xl border mb-6">' +
                         '<div class="flex justify-between items-center mb-1">' +
                         '<h3 class="font-bold text-sm">Baza Produktów (' + state.products.length + ')</h3>' +
-                        '<button onclick="addCategory()" class="text-[10px] ' + th.btn + ' px-2 py-1 rounded-lg">➕ Kategoria</button>' +
+                        '<button onclick="addCategory()" class="text-[10px] ' + th.btn + ' px-2 py-1 rounded-lg shadow-sm">➕ Kategoria</button>' +
                         '</div>' +
-                        '<p class="text-[10px] opacity-60 mb-2">💡 Przytrzymaj palec na produkcie, aby dodać go do dzienniczka!</p><div class="max-h-[60vh] overflow-y-auto pr-1 pb-4">';
+                        '<p class="text-[10px] opacity-70 mb-2 font-medium">💡 Kliknij ➕ aby dodać posiłek. Przytrzymaj, by przenieść do innej kategorii!</p><div class="max-h-[60vh] overflow-y-auto pr-1 pb-4">';
                     
                     var cats = state.settings.categories || DEFAULT_CATEGORIES;
                     var groupedProducts = {};
@@ -1308,11 +1321,16 @@
                     var allRenderCats = cats.concat(['Inne (Niesklasyfikowane)']);
                     allRenderCats.forEach(function(cat) {
                         if (groupedProducts[cat] && groupedProducts[cat].length > 0) {
-                            html += '<h4 class="font-black text-[11px] uppercase tracking-wider mt-4 mb-2 opacity-70 border-b border-gray-200/50 pb-1">' + cat + '</h4><div class="space-y-2">';
+                            html += '<h4 class="font-black text-xs uppercase tracking-widest mt-5 mb-2 px-2 py-1.5 rounded-lg bg-blue-500/10 text-blue-700 border border-blue-500/20">' + cat + '</h4><div class="space-y-2">';
                             groupedProducts[cat].forEach(function(p) {
-                                html += '<div oncontextmenu="event.preventDefault(); promptAddProductFromList(\'' + p.id + '\');" ontouchstart="window.lpTimer=setTimeout(function(){ promptAddProductFromList(\'' + p.id + '\'); }, 600);" ontouchend="clearTimeout(window.lpTimer);" onmousedown="window.lpTimer=setTimeout(function(){ promptAddProductFromList(\'' + p.id + '\'); }, 600);" onmouseup="clearTimeout(window.lpTimer);" class="' + th.inputBg + ' border p-2.5 rounded-lg flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform">' +
-                                    '<div class="pr-2 min-w-0"><p class="font-bold text-xs truncate">' + p.name + ' <span class="' + th.accent + ' font-normal">(' + p.baseWeight + 'g)</span></p><p class="text-[9px] opacity-60 font-bold">B:' + p.baseP + ' | T:' + p.baseF + ' | W:' + p.baseC + '</p></div>' +
-                                    '<div class="flex items-center space-x-3 shrink-0"><span class="font-bold text-emerald-500 text-xs">' + p.baseKcal + ' kcal</span><button onclick="event.stopPropagation(); startEditProd(\'' + p.id + '\')" class="opacity-60 font-bold">✏️</button><button onclick="event.stopPropagation(); delProd(\'' + p.id + '\')" class="text-rose-400 font-bold">🗑️</button></div></div>';
+                                html += '<div oncontextmenu="event.preventDefault(); promptChangeCategory(\'' + p.id + '\');" ontouchstart="window.lpTimer=setTimeout(function(){ promptChangeCategory(\'' + p.id + '\'); }, 600);" ontouchend="clearTimeout(window.lpTimer);" onmousedown="window.lpTimer=setTimeout(function(){ promptChangeCategory(\'' + p.id + '\'); }, 600);" onmouseup="clearTimeout(window.lpTimer);" class="' + th.inputBg + ' border p-2.5 rounded-lg flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform">' +
+                                    '<div class="pr-2 min-w-0 flex-1"><p class="font-bold text-xs truncate">' + p.name + ' <span class="' + th.accent + ' font-normal">(' + p.baseWeight + 'g)</span></p><p class="text-[9px] opacity-60 font-bold">B:' + p.baseP + ' | T:' + p.baseF + ' | W:' + p.baseC + '</p></div>' +
+                                    '<div class="flex items-center space-x-2 shrink-0">' +
+                                    '<span class="font-bold text-emerald-500 text-xs w-10 text-right">' + p.baseKcal + ' kcal</span>' +
+                                    '<button onclick="event.stopPropagation(); promptAddProductFromList(\'' + p.id + '\')" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold px-2 py-1 rounded text-xs shadow-sm" title="Dodaj do dziennika">➕</button>' +
+                                    '<button onclick="event.stopPropagation(); startEditProd(\'' + p.id + '\')" class="opacity-60 hover:opacity-100 font-bold px-1 text-xs" title="Edytuj">✏️</button>' +
+                                    '<button onclick="event.stopPropagation(); delProd(\'' + p.id + '\')" class="text-rose-400 hover:text-rose-600 font-bold px-1 text-xs" title="Usuń">✕</button>' +
+                                    '</div></div>';
                             });
                             html += '</div>';
                         }
@@ -1503,7 +1521,7 @@
 
                     html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                         '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                        '<p class="text-xs font-bold ' + th.accent + '">Wersja: v53 (Sortowanie posiłków, Trend Wagi, Własne Kategorie)</p>' +
+                        '<p class="text-xs font-bold ' + th.accent + '">Wersja: v54 (Szybkie dodawanie i kategorie)</p>' +
                         '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 27.10.2026</p>' +
                         '</div>';
                 }
@@ -1672,7 +1690,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 53, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 54, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
