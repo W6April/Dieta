@@ -24,11 +24,16 @@
         .theme-sunset-bg { background: linear-gradient(180deg, #fff7ed 0%, #ffedd5 50%, #fce7f3 100%); }
         .theme-dark-bg { background-color: #0f172a; color: #f1f5f9; }
 
-        /* Animacja przysiadów ze sztangą */
-        @keyframes lift-squat {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(6px); }
-        }
+        /* Animacje UI */
+        @keyframes lift-squat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+        @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        @keyframes walk { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+        @keyframes arm-swing { 0%, 100% { transform: rotate(-20deg); } 50% { transform: rotate(20deg); } }
+        @keyframes arm-swing-rev { 0%, 100% { transform: rotate(20deg); } 50% { transform: rotate(-20deg); } }
+        @keyframes run { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+        @keyframes run-leg1 { 0%, 100% { transform: rotate(-30deg); } 50% { transform: rotate(30deg); } }
+        @keyframes run-leg2 { 0%, 100% { transform: rotate(30deg); } 50% { transform: rotate(-30deg); } }
+        @keyframes fat-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-1px) rotate(1deg); } 75% { transform: translateX(1px) rotate(-1deg); } }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans pb-24 select-none">
@@ -112,7 +117,6 @@
 
         var dzis = new Date().toISOString().split('T')[0];
 
-        // ZABEZPIECZENIE PAMIĘCI
         var localDiaries = {};
         var localProducts = [];
         try {
@@ -136,7 +140,7 @@
             isCloudSynced: false,
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v56_theme') || 'classic',
+            theme: localStorage.getItem('diet_v57_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             workingModelPath: localStorage.getItem('diet_working_model_v44') || '',
             products: localProducts, workoutsDb: [], diaries: localDiaries, 
@@ -188,6 +192,7 @@
                         var lMeals = (lDay.meals || []).length;
                         if (lMeals > cMeals) result[uid][dt].meals = lDay.meals;
                         if (!cDay.weight && lDay.weight) result[uid][dt].weight = lDay.weight;
+                        if (lDay.isEnded !== undefined && !cDay.isEnded) result[uid][dt].isEnded = lDay.isEnded;
                         if (lDay.measurements) {
                             if (!cDay.measurements) cDay.measurements = {};
                             Object.keys(lDay.measurements).forEach(function(mId) {
@@ -243,7 +248,7 @@
                 localStorage.setItem('diet_local_diaries_vault', JSON.stringify(state.diaries));
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_v15_curr_user', state.userId);
-                localStorage.setItem('diet_v56_theme', state.theme);
+                localStorage.setItem('diet_v57_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             } catch(e) {}
 
@@ -980,21 +985,12 @@
                 var syncDot = state.isCloudSynced ? '<span class="text-emerald-300" title="Zsynchronizowano z chmurą">☁️✓</span>' : '<span class="text-amber-300 animate-pulse" title="Łączenie z chmurą...">⏳</span>';
 
                 var html = '<div class="' + th.header + ' p-4 shadow-md w-full">' +
-                    '<div class="flex justify-between items-center mb-3">' +
+                    '<div class="flex justify-between items-center mb-1">' +
                     '<h1 class="text-xl font-bold tracking-tight flex items-center space-x-1.5"><span>Dziennik Diety</span><span class="text-xs">' + syncDot + '</span></h1>' +
                     '<div class="flex items-center space-x-1 ' + th.headerSub + ' px-2.5 py-1 rounded-full shadow-inner text-xs font-bold">' +
                     '<span>Dzień:</span><input type="number" value="' + getDietDaysCounter() + '" onchange="setDayCounter(this.value)" class="w-12 bg-transparent text-white text-center outline-none border-b border-white/40 font-black" />' +
                     '</div></div>' +
-                    '<div class="flex items-center space-x-2 ' + th.headerSub + ' p-1.5 rounded-lg shadow-inner">' +
-                    '<span class="text-[10px] text-white/80 pl-2 font-bold uppercase">Profil:</span>' +
-                    '<div class="flex space-x-1 flex-1">';
-
-                state.users.forEach(function(u) {
-                    var activeCls = (state.userId === u.id) ? 'bg-white text-gray-900 shadow font-black' : 'text-white hover:bg-white/10';
-                    html += '<button onclick="switchUser(\'' + u.id + '\')" class="flex-1 py-1.5 rounded-md text-xs font-bold transition-colors truncate ' + activeCls + '">' + u.name + '</button>';
-                });
-
-                html += '</div></div></div><div class="p-3 w-full flex-1 overflow-x-hidden relative">';
+                    '</div><div class="p-3 w-full flex-1 overflow-x-hidden relative">';
 
                 if (state.tab === 'dziennik') {
                     var dayName = getFormattedDayName(state.date);
@@ -1008,14 +1004,14 @@
                         else wIcon = '<span class="text-gray-400 font-black text-[12px] ml-1">➖</span>';
                     }
 
-                    html += '<div class="mb-2 px-1 flex justify-between items-end"><span class="text-[11px] font-black uppercase tracking-wider ' + th.accent + '">' + dayName + '</span><span class="text-[10px] opacity-60 font-bold">' + state.date + '</span></div>' +
-                        '<div class="flex space-x-2 mb-3 items-center">' +
+                    html += '<div class="flex space-x-2 mb-3 items-center">' +
                         '<div class="flex-1 ' + th.card + ' p-2 rounded-xl border flex items-center justify-between">' +
                         '<button onclick="changeDateOffset(-1)" class="' + th.inputBg + ' px-3 py-1 rounded-lg text-sm font-black">◀</button>' +
-                        '<input type="date" value="' + state.date + '" onchange="changeDate(this.value)" class="text-xs font-bold bg-transparent outline-none text-center" />' +
+                        '<div class="flex flex-col items-center leading-none"><span class="text-[9px] font-black uppercase ' + th.accent + ' mb-0.5">' + dayName + '</span>' +
+                        '<input type="date" value="' + state.date + '" onchange="changeDate(this.value)" class="text-xs font-bold bg-transparent outline-none text-center" /></div>' +
                         '<button onclick="changeDateOffset(1)" class="' + th.inputBg + ' px-3 py-1 rounded-lg text-sm font-black">▶</button>' +
                         '</div>' +
-                        '<div class="w-24 ' + th.card + ' p-2 rounded-xl border shrink-0"><label class="text-[10px] font-bold opacity-60 uppercase mb-0.5 flex items-center justify-between">Waga (kg)' + wIcon + '</label><input type="number" step="0.1" value="' + day.weight + '" onchange="changeWeight(this.value)" class="w-full text-xs font-bold text-center bg-transparent outline-none" /></div>' +
+                        '<div class="w-24 ' + th.card + ' p-2.5 rounded-xl border shrink-0"><label class="text-[10px] font-bold opacity-60 uppercase mb-0.5 flex items-center justify-between">Waga (kg)' + wIcon + '</label><input type="number" step="0.1" value="' + day.weight + '" onchange="changeWeight(this.value)" class="w-full text-xs font-bold text-center bg-transparent outline-none" /></div>' +
                         '</div>';
 
                     html += '<div class="' + th.softBox + ' border p-3 rounded-xl mb-3">' +
@@ -1034,14 +1030,18 @@
                     html += '</div>';
 
                     var ludzikHtml = '';
+                    var overlimitMsg = '';
                     var ratio = day.goals.kcal > 0 ? (nettoKcal / day.goals.kcal) : 0;
                     
                     if (ratio < 0.33) {
-                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-blue-500 animate-pulse drop-shadow-md"><circle cx="50" cy="20" r="10" fill="currentColor"/><line x1="50" y1="30" x2="50" y2="70" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M 50 40 L 35 55 M 50 40 L 65 55" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M 50 70 L 40 95 M 50 70 L 60 95" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>';
+                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-blue-500 drop-shadow-md"><g style="animation: walk 1.5s ease-in-out infinite transform-origin: center;"><circle cx="50" cy="20" r="10" fill="currentColor"/><line x1="50" y1="30" x2="50" y2="70" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M 50 40 L 35 55 M 50 40 L 65 55" stroke="currentColor" stroke-width="4" stroke-linecap="round" style="animation: arm-swing 1s infinite alternate transform-origin: top;"/><path d="M 50 70 L 40 95 M 50 70 L 60 95" stroke="currentColor" stroke-width="4" stroke-linecap="round" style="animation: arm-swing 0.8s infinite alternate-reverse transform-origin: top;"/></g></svg>';
                     } else if (ratio <= 1.0) {
-                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-emerald-500 drop-shadow-md"><circle cx="50" cy="20" r="12" fill="currentColor"/><rect x="40" y="32" width="20" height="35" rx="5" fill="currentColor"/><path d="M 40 40 L 25 50 M 60 40 L 75 50" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 45 67 L 35 95 M 55 67 L 65 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg>';
+                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-emerald-500 drop-shadow-md"><g style="animation: breathe 2s ease-in-out infinite transform-origin: center;"><circle cx="50" cy="20" r="12" fill="currentColor"/><rect x="40" y="32" width="20" height="35" rx="5" fill="currentColor"/><path d="M 40 40 L 25 50 M 60 40 L 75 50" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 45 67 L 35 95 M 55 67 L 65 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></g></svg>';
                     } else {
-                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-rose-500 drop-shadow-md"><circle cx="50" cy="15" r="12" fill="currentColor"/><circle cx="50" cy="50" r="26" fill="currentColor"/><path d="M 26 40 L 12 50 M 74 40 L 88 50" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 40 73 L 30 95 M 60 73 L 70 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg>';
+                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-rose-500 drop-shadow-md"><g style="animation: fat-shake 0.5s infinite;"><circle cx="50" cy="15" r="12" fill="currentColor"/><circle cx="50" cy="50" r="26" fill="currentColor"/><path d="M 26 40 L 12 50 M 74 40 L 88 50" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 40 73 L 30 95 M 60 73 L 70 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></g></svg>';
+                        if (day.goals.kcal > 0) {
+                            overlimitMsg = '<div class="absolute -top-3 -right-2 bg-rose-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg z-10 animate-bounce whitespace-nowrap">Przestań żreć !</div>';
+                        }
                     }
 
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
@@ -1050,9 +1050,9 @@
                         '<div class="text-center w-1/3 border-x border-gray-200/40"><p class="text-[9px] font-bold text-orange-500 uppercase">Spalone</p><p class="text-lg font-black text-orange-500">-' + burned + '</p></div>' +
                         '<div class="text-center w-1/3"><p class="text-[9px] font-bold opacity-60 uppercase">Kcal Netto</p><p class="text-lg font-black ' + (nettoKcal < 0 ? 'text-orange-500' : th.accent) + '">' + Math.round(nettoKcal) + '</p></div>' +
                         '</div>' +
-                        '<div class="' + th.inputBg + ' border rounded-lg p-2.5 flex justify-between items-center mb-3">' +
+                        '<div class="' + th.inputBg + ' border rounded-lg p-2.5 flex justify-between items-center mb-3 relative">' +
                         '<div><span class="text-[10px] font-bold opacity-75 uppercase block">' + statusLabel + '</span><span class="text-xl font-black ' + statusColor + '">' + Math.abs(Math.round(left)) + ' kcal</span></div>' +
-                        '<div class="mr-2">' + ludzikHtml + '</div>' + 
+                        '<div class="mr-2 relative">' + overlimitMsg + ludzikHtml + '</div>' + 
                         '</div>' +
                         '<div class="grid grid-cols-3 gap-2 mb-3">' +
                         '<div class="bg-blue-500/10 text-blue-600 py-1 rounded text-center text-[10px] font-bold">B: ' + Math.round(eatenP) + '/' + day.goals.p + 'g</div>' +
@@ -1133,21 +1133,18 @@
                             '</div></div>';
                     }
 
-                    // LUDZIK PODNOSZĄCY CIĘŻARY
-                    var liftingSvg = day.workouts.length > 0 ? 
-                        '<svg viewBox="0 0 100 100" class="w-6 h-6 text-orange-500 ml-1 inline-block drop-shadow-md">' +
-                        '<path d="M 50 70 L 35 95 M 50 70 L 65 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>' +
-                        '<g style="animation: lift-squat 1s ease-in-out infinite;">' +
-                        '<circle cx="50" cy="30" r="10" fill="currentColor"/>' +
-                        '<line x1="50" y1="40" x2="50" y2="70" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>' +
-                        '<path d="M 50 45 L 25 15 M 50 45 L 75 15" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>' +
-                        '<line x1="15" y1="15" x2="85" y2="15" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>' +
-                        '<circle cx="15" cy="15" r="7" fill="currentColor"/>' +
-                        '<circle cx="85" cy="15" r="7" fill="currentColor"/>' +
-                        '</g></svg>' : '';
+                    var isRunning = day.workouts.some(function(w) { return w.name.toLowerCase().includes('bieg'); });
+                    var workoutSvg = '';
+                    if (day.workouts.length > 0) {
+                        if (isRunning) {
+                            workoutSvg = '<svg viewBox="0 0 100 100" class="w-6 h-6 text-orange-500 ml-1 inline-block drop-shadow-md"><g style="animation: run 0.6s linear infinite;"><circle cx="65" cy="20" r="10" fill="currentColor"/><path d="M 60 30 L 45 60" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 45 40 L 25 40 M 55 40 L 75 50" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: arm-swing 0.6s infinite alternate;"/><path d="M 45 60 L 25 80 M 45 60 L 65 90" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: run-leg1 0.6s infinite alternate;"/></g></svg>';
+                        } else {
+                            workoutSvg = '<svg viewBox="0 0 100 100" class="w-6 h-6 text-orange-500 ml-1 inline-block drop-shadow-md"><path d="M 50 70 L 35 95 M 50 70 L 65 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><g style="animation: lift-squat 1s ease-in-out infinite;"><circle cx="50" cy="30" r="10" fill="currentColor"/><line x1="50" y1="40" x2="50" y2="70" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 50 45 L 25 15 M 50 45 L 75 15" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><line x1="15" y1="15" x2="85" y2="15" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><circle cx="15" cy="15" r="7" fill="currentColor"/><circle cx="85" cy="15" r="7" fill="currentColor"/></g></svg>';
+                        }
+                    }
 
                     html += '<div class="' + th.card + ' p-4 rounded-xl border">' +
-                        '<h3 class="font-bold text-sm text-orange-500 mb-2 flex items-center">🔥 Dodaj trening ' + liftingSvg + '</h3>' +
+                        '<h3 class="font-bold text-sm text-orange-500 mb-2 flex items-center">🔥 Dodaj trening ' + workoutSvg + '</h3>' +
                         '<div class="flex space-x-2 mb-3 relative"><div class="relative flex-1 min-w-0">' +
                         '<input id="wNameInp" placeholder="Nazwa np. Bieganie" value="' + state.wSearch + '" oninput="searchWorkout(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs px-2 py-2 outline-none" />';
                     
@@ -1327,7 +1324,6 @@
                         '<div class="flex space-x-2"><button onclick="addProd()" class="flex-1 ' + th.btn + ' font-bold py-2 rounded-lg shadow-md text-xs">' + (edProd ? 'Zapisz zmiany' : 'Zapisz w bazie') + '</button>' +
                         (edProd ? '<button onclick="cancelEditProd()" class="bg-gray-300 text-gray-700 font-bold px-4 py-2 rounded-lg text-xs">Anuluj</button>' : '') + '</div></div>';
 
-                    // BAZA Z EDYCJĄ KATEGORII
                     html += '<div class="' + th.card + ' p-3 rounded-xl border mb-6">' +
                         '<div class="flex justify-between items-center mb-1">' +
                         '<h3 class="font-bold text-sm">Baza Produktów (' + state.products.length + ')</h3>' +
@@ -1515,12 +1511,24 @@
                 } else if (state.tab === 'kopia') {
                     if (state.statusMsg) html += '<div class="bg-emerald-500/20 border border-emerald-500/40 text-emerald-700 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
 
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4"><h3 class="font-black mb-3 text-sm">👤 Zarządzanie Profilami</h3>' +
+                        '<div class="flex space-x-2 mb-4 p-1.5 ' + th.inputBg + ' rounded-lg">';
+                    state.users.forEach(function(u) {
+                        var activeCls = (state.userId === u.id) ? 'bg-white text-gray-900 shadow font-black' : 'opacity-60 font-bold';
+                        html += '<button onclick="switchUser(\'' + u.id + '\')" class="flex-1 py-1.5 rounded-md text-xs transition-colors truncate ' + activeCls + '">' + u.name + '</button>';
+                    });
+                    html += '</div><div class="space-y-3 mb-4">';
+                    state.users.forEach(function(u, i) {
+                        html += '<div><label class="text-[10px] font-bold opacity-60 uppercase block mb-1">Imię Profilu ' + (i+1) + '</label><input type="text" value="' + u.name + '" onchange="changeUserName(\'' + u.id + '\', this.value)" class="w-full p-2 ' + th.inputBg + ' border rounded-lg text-sm font-bold outline-none" /></div>';
+                    });
+                    html += '</div><div><label class="text-[10px] font-bold opacity-60 uppercase block mb-1">Pierwszy dzień tyg. statystyk</label><select onchange="changeStartOfWeek(this.value)" class="w-full p-2 ' + th.inputBg + ' border rounded-lg text-xs font-bold outline-none"><option value="1" ' + (state.settings.startOfWeek === 1 ? 'selected' : '') + '>Poniedziałek</option><option value="0" ' + (state.settings.startOfWeek === 0 ? 'selected' : '') + '>Niedziela</option></select></div></div>';
+
                     html += '<div class="bg-amber-50 border-2 border-amber-300 text-amber-950 p-4 rounded-xl mb-4 shadow-sm">' +
                         '<h3 class="font-black mb-1 text-sm text-center">🛡️ Tarcza Danych i Odzyskiwanie</h3>' +
                         '<p class="text-[10px] opacity-80 mb-3 text-center">Ochrona przed nadpisaniem chmury jest <b>AKTYWNA</b>. Jeśli dane zniknęły, użyj poniższych opcji ratunkowych:</p>' +
                         '<div class="grid grid-cols-1 gap-2">' +
                         '<button onclick="restoreLastAutoBackup()" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl shadow text-xs">🚑 Przywróć ostatni stan przed zapisem</button>' +
-                        '<button onclick="scanPhoneMemoryForHistory()" class="w-full bg-white border border-amber-400 text-amber-900 font-bold py-2 rounded-xl text-xs">🔍 Skanuj pamięć telefonu w poszukiwaniu historii</button>' +
+                        '<button onclick="scanPhoneMemoryForHistory()" class="w-full bg-white border border-amber-400 text-amber-900 font-bold py-2 rounded-xl text-xs">🔍 Skanuj pamięć telefonu</button>' +
                         '</div></div>';
 
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
@@ -1529,7 +1537,7 @@
                         '<input type="password" id="aiKeyInput" placeholder="AQ... lub AIzaSy..." value="' + state.geminiApiKey + '" class="w-full p-2.5 ' + th.inputBg + ' border rounded-lg text-xs font-medium outline-none mb-2 text-center" />' +
                         '<div class="grid grid-cols-2 gap-2">' +
                         '<button onclick="saveGeminiKey(document.getElementById(\'aiKeyInput\').value)" class="w-full ' + th.btn + ' font-bold py-2.5 rounded-xl shadow-md text-xs">💾 Zapisz klucz</button>' +
-                        '<button onclick="testGeminiConnection()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl shadow-md text-xs">⚡ Podłącz i Testuj AI</button>' +
+                        '<button onclick="testGeminiConnection()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-xl shadow-md text-xs">⚡ Testuj AI</button>' +
                         '</div></div>';
 
                     html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
@@ -1538,12 +1546,6 @@
                         '<button onclick="cloudUploadOnly()" class="' + th.btn + ' font-bold py-2.5 px-2 rounded-xl shadow-md text-xs">⬆️ Wyślij (Bezpiecznie)</button>' +
                         '<button onclick="cloudDownloadOnly()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-2 rounded-xl shadow-md text-xs">⬇️ Pobierz i Połącz</button>' +
                         '</div></div>';
-
-                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4"><h3 class="font-black mb-3 text-sm">👤 Ustawienia Profili</h3><div class="space-y-3 mb-4">';
-                    state.users.forEach(function(u, i) {
-                        html += '<div><label class="text-[10px] font-bold opacity-60 uppercase block mb-1">Imię Profilu ' + (i+1) + '</label><input type="text" value="' + u.name + '" onchange="changeUserName(\'' + u.id + '\', this.value)" class="w-full p-2 ' + th.inputBg + ' border rounded-lg text-sm font-bold outline-none" /></div>';
-                    });
-                    html += '</div><div><label class="text-[10px] font-bold opacity-60 uppercase block mb-1">Pierwszy dzień tyg. statystyk</label><select onchange="changeStartOfWeek(this.value)" class="w-full p-2 ' + th.inputBg + ' border rounded-lg text-xs font-bold outline-none"><option value="1" ' + (state.settings.startOfWeek === 1 ? 'selected' : '') + '>Poniedziałek</option><option value="0" ' + (state.settings.startOfWeek === 0 ? 'selected' : '') + '>Niedziela</option></select></div></div>';
 
                     html += '<div class="' + th.card + ' p-5 rounded-xl border text-center mb-4"><h3 class="font-black mb-2 text-sm">💾 Kopia Zapasowa Danych</h3><div class="space-y-3 mt-4">' +
                         '<button onclick="exportFullJson()" class="w-full ' + th.btn + ' font-bold py-3 rounded-xl shadow-md text-xs">📥 Pobierz wszystko do pliku (.json)</button>' +
@@ -1570,7 +1572,7 @@
 
                     html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                         '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                        '<p class="text-xs font-bold ' + th.accent + '">Wersja: v56 (Edycja kategorii i wesołe ludziki)</p>' +
+                        '<p class="text-xs font-bold ' + th.accent + '">Wersja: v57 (Dynamiczne awatary + Kompaktowe UI)</p>' +
                         '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 27.10.2026</p>' +
                         '</div>';
                 }
@@ -1739,7 +1741,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 56, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 57, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
