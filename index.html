@@ -130,7 +130,7 @@
             isCloudSynced: false,
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v54_theme') || 'classic',
+            theme: localStorage.getItem('diet_v55_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             workingModelPath: localStorage.getItem('diet_working_model_v44') || '',
             products: localProducts, workoutsDb: [], diaries: localDiaries, 
@@ -182,7 +182,6 @@
                         var lMeals = (lDay.meals || []).length;
                         if (lMeals > cMeals) result[uid][dt].meals = lDay.meals;
                         if (!cDay.weight && lDay.weight) result[uid][dt].weight = lDay.weight;
-                        if (lDay.isEnded !== undefined && !cDay.isEnded) result[uid][dt].isEnded = lDay.isEnded;
                         if (lDay.measurements) {
                             if (!cDay.measurements) cDay.measurements = {};
                             Object.keys(lDay.measurements).forEach(function(mId) {
@@ -238,7 +237,7 @@
                 localStorage.setItem('diet_local_diaries_vault', JSON.stringify(state.diaries));
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_v15_curr_user', state.userId);
-                localStorage.setItem('diet_v54_theme', state.theme);
+                localStorage.setItem('diet_v55_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             } catch(e) {}
 
@@ -743,14 +742,27 @@
             }
         };
 
+        window.moveCat = function(idx, dir) {
+            if (dir === -1 && idx > 0) {
+                var temp = state.settings.categories[idx];
+                state.settings.categories[idx] = state.settings.categories[idx - 1];
+                state.settings.categories[idx - 1] = temp;
+            } else if (dir === 1 && idx < state.settings.categories.length - 1) {
+                var temp = state.settings.categories[idx];
+                state.settings.categories[idx] = state.settings.categories[idx + 1];
+                state.settings.categories[idx + 1] = temp;
+            }
+            saveState(); render();
+        };
+
         window.getDayData = function(customDate) {
             var targetDate = customDate || state.date;
             if (!state.diaries[state.userId]) state.diaries[state.userId] = {};
             if (!state.diaries[state.userId][targetDate]) {
-                state.diaries[state.userId][targetDate] = { goals: state.userId === 'u1' ? { kcal: 2500, p: 170, f: 70, c: 220 } : { kcal: 2000, p: 120, f: 60, c: 180 }, meals: [], workouts: [], weight: '', water: 0, measurements: {}, isEnded: false };
+                state.diaries[state.userId][targetDate] = { goals: state.userId === 'u1' ? { kcal: 2500, p: 170, f: 70, c: 220 } : { kcal: 2000, p: 120, f: 60, c: 180 }, meals: [], workouts: [], weight: '', water: 0, measurements: {} };
             }
             var d = state.diaries[state.userId][targetDate];
-            if(d.water === undefined) d.water = 0; if(!d.measurements) d.measurements = {}; if(!d.meals) d.meals = []; if(!d.workouts) d.workouts = []; if(d.isEnded === undefined) d.isEnded = false;
+            if(d.water === undefined) d.water = 0; if(!d.measurements) d.measurements = {}; if(!d.meals) d.meals = []; if(!d.workouts) d.workouts = [];
             return d;
         };
 
@@ -861,7 +873,6 @@
 
         window.promptEditMealWeight = function(mealId) {
             var day = getDayData();
-            if(day.isEnded) return alert('Dzień jest zakończony. Najpierw go odblokuj.');
             var meal = day.meals.find(function(m) { return m.id === mealId; });
             if (!meal) return;
             var newW = prompt('Edytuj wagę dla posiłku "' + meal.name + '":\nPodaj nową wagę (g):', meal.weight);
@@ -891,8 +902,6 @@
 
         window.moveMeal = function(idx, dir) {
             var day = getDayData();
-            if(day.isEnded) return alert('Dzień zakończony. Najpierw go odblokuj.');
-            
             if (dir === -1 && idx > 0) {
                 var temp = day.meals[idx];
                 day.meals[idx] = day.meals[idx - 1];
@@ -911,18 +920,6 @@
                 state.settings.categories.push(c.trim());
                 saveState(); render();
             }
-        };
-
-        window.endDay = function() {
-            if(confirm('Czy na pewno chcesz zakończyć ten dzień?\nPodsumujemy Twoje statystyki, a edycja posiłków zostanie zablokowana (będziesz mógł ją cofnąć w każdej chwili).')) {
-                getDayData().isEnded = true;
-                saveState(); render();
-            }
-        };
-
-        window.unlockDay = function() {
-            getDayData().isEnded = false;
-            saveState(); render();
         };
 
         window.changeWeight = function(w) { 
@@ -986,7 +983,7 @@
                         '<input type="date" value="' + state.date + '" onchange="changeDate(this.value)" class="text-xs font-bold bg-transparent outline-none text-center" />' +
                         '<button onclick="changeDateOffset(1)" class="' + th.inputBg + ' px-3 py-1 rounded-lg text-sm font-black">▶</button>' +
                         '</div>' +
-                        '<div class="w-24 ' + th.card + ' p-2 rounded-xl border shrink-0"><label class="text-[10px] font-bold opacity-60 uppercase mb-0.5 flex items-center justify-between">Waga (kg)' + wIcon + '</label><input type="number" step="0.1" value="' + day.weight + '" onchange="changeWeight(this.value)" ' + (day.isEnded ? 'disabled' : '') + ' class="w-full text-xs font-bold text-center bg-transparent outline-none" /></div>' +
+                        '<div class="w-24 ' + th.card + ' p-2 rounded-xl border shrink-0"><label class="text-[10px] font-bold opacity-60 uppercase mb-0.5 flex items-center justify-between">Waga (kg)' + wIcon + '</label><input type="number" step="0.1" value="' + day.weight + '" onchange="changeWeight(this.value)" class="w-full text-xs font-bold text-center bg-transparent outline-none" /></div>' +
                         '</div>';
 
                     html += '<div class="' + th.softBox + ' border p-3 rounded-xl mb-3">' +
@@ -1004,6 +1001,21 @@
                     }
                     html += '</div>';
 
+                    // SYSTEM AWATARÓW - LUDZIK KALORII
+                    var ludzikHtml = '';
+                    var ratio = day.goals.kcal > 0 ? (nettoKcal / day.goals.kcal) : 0;
+                    
+                    if (ratio < 0.33) {
+                        // Chudy Ludzik
+                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-blue-500 animate-pulse drop-shadow-md"><circle cx="50" cy="20" r="10" fill="currentColor"/><line x1="50" y1="30" x2="50" y2="70" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M 50 40 L 35 55 M 50 40 L 65 55" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M 50 70 L 40 95 M 50 70 L 60 95" stroke="currentColor" stroke-width="4" stroke-linecap="round"/></svg>';
+                    } else if (ratio <= 1.0) {
+                        // Normalny Ludzik
+                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-emerald-500 drop-shadow-md"><circle cx="50" cy="20" r="12" fill="currentColor"/><rect x="40" y="32" width="20" height="35" rx="5" fill="currentColor"/><path d="M 40 40 L 25 50 M 60 40 L 75 50" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 45 67 L 35 95 M 55 67 L 65 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg>';
+                    } else {
+                        // Gruby Ludzik
+                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-rose-500 drop-shadow-md"><circle cx="50" cy="15" r="12" fill="currentColor"/><circle cx="50" cy="50" r="26" fill="currentColor"/><path d="M 26 40 L 12 50 M 74 40 L 88 50" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 40 73 L 30 95 M 60 73 L 70 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg>';
+                    }
+
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
                         '<div class="flex justify-between items-center mb-3">' +
                         '<div class="text-center w-1/3"><p class="text-[9px] font-bold opacity-60 uppercase">Zjedzono</p><p class="text-lg font-black">' + Math.round(eatenKcal) + '</p></div>' +
@@ -1011,7 +1023,9 @@
                         '<div class="text-center w-1/3"><p class="text-[9px] font-bold opacity-60 uppercase">Kcal Netto</p><p class="text-lg font-black ' + (nettoKcal < 0 ? 'text-orange-500' : th.accent) + '">' + Math.round(nettoKcal) + '</p></div>' +
                         '</div>' +
                         '<div class="' + th.inputBg + ' border rounded-lg p-2.5 flex justify-between items-center mb-3">' +
-                        '<span class="text-[10px] font-bold opacity-75 uppercase">' + statusLabel + '</span><span class="text-xl font-black ' + statusColor + '">' + Math.abs(Math.round(left)) + ' kcal</span></div>' +
+                        '<div><span class="text-[10px] font-bold opacity-75 uppercase block">' + statusLabel + '</span><span class="text-xl font-black ' + statusColor + '">' + Math.abs(Math.round(left)) + ' kcal</span></div>' +
+                        '<div class="mr-2">' + ludzikHtml + '</div>' + // Animowany ludzik tutaj!
+                        '</div>' +
                         '<div class="grid grid-cols-3 gap-2 mb-3">' +
                         '<div class="bg-blue-500/10 text-blue-600 py-1 rounded text-center text-[10px] font-bold">B: ' + Math.round(eatenP) + '/' + day.goals.p + 'g</div>' +
                         '<div class="bg-amber-500/10 text-amber-600 py-1 rounded text-center text-[10px] font-bold">T: ' + Math.round(eatenF) + '/' + day.goals.f + 'g</div>' +
@@ -1019,56 +1033,35 @@
                         '<div class="flex justify-between items-center pt-3 border-t border-gray-200/40">' +
                         '<span class="text-[10px] font-bold opacity-70 uppercase">Wypito: <span class="' + th.accent + ' text-sm ml-1 font-black">' + (parseFloat(day.water) || 0).toFixed(2) + ' L</span></span>' +
                         '<div class="flex space-x-1">' +
-                        '<button onclick="addWater(0.25)" ' + (day.isEnded ? 'disabled' : '') + ' class="' + th.inputBg + ' border px-2 py-1 rounded-lg text-[10px] font-bold">+0.25L</button>' +
-                        '<button onclick="addWater(0.5)" ' + (day.isEnded ? 'disabled' : '') + ' class="' + th.inputBg + ' border px-2 py-1 rounded-lg text-[10px] font-bold">+0.5L</button>' +
-                        '<button onclick="addWater(1.0)" ' + (day.isEnded ? 'disabled' : '') + ' class="' + th.inputBg + ' border px-2 py-1 rounded-lg text-[10px] font-bold">+1L</button>' +
-                        '<button onclick="addWater(0)" ' + (day.isEnded ? 'disabled' : '') + ' class="bg-rose-500/10 text-rose-500 px-2 py-1 rounded-lg text-[10px] font-bold ml-1">Reset</button>' +
+                        '<button onclick="addWater(0.25)" class="' + th.inputBg + ' border px-2 py-1 rounded-lg text-[10px] font-bold">+0.25L</button>' +
+                        '<button onclick="addWater(0.5)" class="' + th.inputBg + ' border px-2 py-1 rounded-lg text-[10px] font-bold">+0.5L</button>' +
+                        '<button onclick="addWater(1.0)" class="' + th.inputBg + ' border px-2 py-1 rounded-lg text-[10px] font-bold">+1L</button>' +
+                        '<button onclick="addWater(0)" class="bg-rose-500/10 text-rose-500 px-2 py-1 rounded-lg text-[10px] font-bold ml-1">Reset</button>' +
                         '</div></div></div>';
 
-                    if (day.isEnded) {
-                        html += '<div class="bg-gradient-to-br from-emerald-500 to-teal-600 p-5 rounded-2xl text-white shadow-lg mb-4 text-center border-2 border-emerald-400/50 relative overflow-hidden">' +
-                            '<div class="absolute -right-4 -top-4 opacity-20 text-6xl">🏆</div>' +
-                            '<h3 class="font-black text-lg mb-1 relative z-10">Dzień Zakończony!</h3>' +
-                            '<p class="text-[10px] mb-4 opacity-90 relative z-10 font-medium">Świetna robota! Oto Twoje dzisiejsze wyniki:</p>' +
-                            '<div class="grid grid-cols-2 gap-2 mb-4 text-sm relative z-10">' +
-                            '<div class="bg-black/20 p-2.5 rounded-xl backdrop-blur-sm"><span class="text-[9px] uppercase font-bold opacity-70 block mb-0.5">Kcal Netto</span><b class="text-xl">' + Math.round(nettoKcal) + '</b></div>' +
-                            '<div class="bg-black/20 p-2.5 rounded-xl backdrop-blur-sm"><span class="text-[9px] uppercase font-bold opacity-70 block mb-0.5">Bilans Kcal</span><b class="text-xl">' + (left >= 0 ? '-'+Math.round(left) : '+'+Math.abs(Math.round(left))) + '</b></div>' +
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
+                        '<div class="flex justify-between items-center mb-2">' +
+                        '<h3 class="font-bold text-sm">🍽️ Posiłki</h3>' +
+                        '<button onclick="openAiModal()" class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-sm flex items-center space-x-1"><span>🤖 Zapytaj AI</span></button>' +
+                        '</div>' +
+                        '<div class="flex space-x-2 mb-3 relative"><div class="relative flex-1 min-w-0">' +
+                        '<input id="pSearchInp" placeholder="Wpisz produkt..." value="' + state.prodSearch + '" oninput="filterProductsDropdown(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs font-medium px-3 py-2 outline-none" />' +
+                        '<div id="prodDropdownList" class="absolute top-full left-0 w-full mt-1 ' + th.card + ' border shadow-xl rounded-lg max-h-48 overflow-y-auto z-50 hidden"></div>' +
+                        '</div><input id="inpW" type="number" placeholder="Waga(g)" value="' + state.inputWeight + '" oninput="state.inputWeight=this.value" class="w-16 ' + th.inputBg + ' border rounded-lg text-xs font-bold text-center outline-none shrink-0" />' +
+                        '<button onclick="addMeal()" class="' + th.btn + ' px-3.5 rounded-lg font-bold shadow-md shrink-0">+</button></div><div class="space-y-2 mb-3">';
+                    
+                    if (day.meals.length === 0) html += '<p class="text-[10px] opacity-50 text-center py-2">Brak posiłków</p>';
+                    
+                    day.meals.forEach(function(m, idx) {
+                        html += '<div class="flex justify-between items-center ' + th.inputBg + ' p-2 rounded-lg border">' +
+                            '<div class="flex flex-col items-center justify-center mr-2 space-y-1">' +
+                            '<button onclick="moveMeal(' + idx + ', -1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▲</button>' +
+                            '<button onclick="moveMeal(' + idx + ', 1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▼</button>' +
                             '</div>' +
-                            '<div class="flex justify-center space-x-2 text-[10px] font-bold mb-4 bg-black/10 rounded-lg p-2 relative z-10">' +
-                            '<span>B: ' + Math.round(eatenP) + 'g</span> • <span>T: ' + Math.round(eatenF) + 'g</span> • <span>W: ' + Math.round(eatenC) + 'g</span>' +
-                            '</div>' +
-                            '<button onclick="unlockDay()" class="w-full bg-white text-teal-800 hover:bg-gray-50 font-black px-4 py-2.5 rounded-xl text-xs shadow-md relative z-10 transition-transform active:scale-95">🔓 Odblokuj dzień, aby edytować</button>' +
-                            '</div>';
-                    } else {
-                        html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
-                            '<div class="flex justify-between items-center mb-2">' +
-                            '<h3 class="font-bold text-sm">🍽️ Posiłki</h3>' +
-                            '<button onclick="openAiModal()" class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-sm flex items-center space-x-1"><span>🤖 Zapytaj AI</span></button>' +
-                            '</div>' +
-                            '<div class="flex space-x-2 mb-3 relative"><div class="relative flex-1 min-w-0">' +
-                            '<input id="pSearchInp" placeholder="Wpisz produkt..." value="' + state.prodSearch + '" oninput="filterProductsDropdown(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs font-medium px-3 py-2 outline-none" />' +
-                            '<div id="prodDropdownList" class="absolute top-full left-0 w-full mt-1 ' + th.card + ' border shadow-xl rounded-lg max-h-48 overflow-y-auto z-50 hidden"></div>' +
-                            '</div><input id="inpW" type="number" placeholder="Waga(g)" value="' + state.inputWeight + '" oninput="state.inputWeight=this.value" class="w-16 ' + th.inputBg + ' border rounded-lg text-xs font-bold text-center outline-none shrink-0" />' +
-                            '<button onclick="addMeal()" class="' + th.btn + ' px-3.5 rounded-lg font-bold shadow-md shrink-0">+</button></div><div class="space-y-2 mb-3">';
-                        
-                        if (day.meals.length === 0) html += '<p class="text-[10px] opacity-50 text-center py-2">Brak posiłków</p>';
-                        
-                        day.meals.forEach(function(m, idx) {
-                            html += '<div class="flex justify-between items-center ' + th.inputBg + ' p-2 rounded-lg border">' +
-                                '<div class="flex flex-col items-center justify-center mr-2 space-y-1">' +
-                                '<button onclick="moveMeal(' + idx + ', -1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▲</button>' +
-                                '<button onclick="moveMeal(' + idx + ', 1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▼</button>' +
-                                '</div>' +
-                                '<div class="flex-1 pr-1 min-w-0"><p class="font-bold text-xs truncate"><span class="opacity-50 font-normal mr-1 text-[10px]">' + (idx + 1) + '.</span>' + m.name + '</p><p class="text-[9px] opacity-60 mt-0.5">' + m.weight + 'g | B:' + m.p + ' T:' + m.f + ' W:' + m.c + '</p></div>' +
-                                '<div class="flex items-center space-x-2 shrink-0"><span class="font-black text-xs">' + m.kcal + ' <span class="font-normal text-[9px] opacity-60">kcal</span></span><button onclick="promptEditMealWeight(' + m.id + ')" class="text-blue-500 font-bold px-1.5 text-xs" title="Edytuj wagę">✏️</button><button onclick="delMeal(' + m.id + ')" class="text-rose-400 font-bold px-1.5">✕</button></div></div>';
-                        });
-                        html += '</div>';
-
-                        if (day.meals.length > 0) {
-                            html += '<button onclick="endDay()" class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black py-2.5 rounded-xl text-xs shadow-md mt-2 transition-transform active:scale-95">✅ Zakończ dzień</button>';
-                        }
-                        html += '</div>';
-                    }
+                            '<div class="flex-1 pr-1 min-w-0"><p class="font-bold text-xs truncate"><span class="opacity-50 font-normal mr-1 text-[10px]">' + (idx + 1) + '.</span>' + m.name + '</p><p class="text-[9px] opacity-60 mt-0.5">' + m.weight + 'g | B:' + m.p + ' T:' + m.f + ' W:' + m.c + '</p></div>' +
+                            '<div class="flex items-center space-x-2 shrink-0"><span class="font-black text-xs">' + m.kcal + ' <span class="font-normal text-[9px] opacity-60">kcal</span></span><button onclick="promptEditMealWeight(' + m.id + ')" class="text-blue-500 font-bold px-1.5 text-xs" title="Edytuj wagę">✏️</button><button onclick="delMeal(' + m.id + ')" class="text-rose-400 font-bold px-1.5">✕</button></div></div>';
+                    });
+                    html += '</div></div>';
 
                     if (state.unknownProductModal) {
                         html += '<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">' +
@@ -1112,30 +1105,28 @@
                             '</div></div>';
                     }
 
-                    if (!day.isEnded) {
-                        html += '<div class="' + th.card + ' p-4 rounded-xl border">' +
-                            '<h3 class="font-bold text-sm text-orange-500 mb-2">🔥 Dodaj trening (Dzisiaj)</h3>' +
-                            '<div class="flex space-x-2 mb-3 relative"><div class="relative flex-1 min-w-0">' +
-                            '<input id="wNameInp" placeholder="Nazwa np. Bieganie" value="' + state.wSearch + '" oninput="searchWorkout(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs px-2 py-2 outline-none" />';
-                        
-                        if (state.wResults.length > 0) {
-                            html += '<div class="absolute top-full left-0 w-full mt-1 ' + th.card + ' border shadow-xl rounded-lg max-h-40 overflow-y-auto z-50">';
-                            state.wResults.forEach(function(w) {
-                                html += '<div onclick="selectWorkoutDrop(\'' + w.name + '\')" class="p-2 border-b border-gray-200/30 text-xs cursor-pointer"><span class="font-bold text-orange-500 block truncate">' + w.name + '</span><span class="text-[9px] opacity-60">' + w.time + ' min | ' + w.kcal + ' kcal</span></div>';
-                            });
-                            html += '</div>';
-                        }
-                        html += '</div><input id="wTime" type="number" placeholder="Min" value="' + state.wInputTime + '" oninput="state.wInputTime=this.value" class="w-12 ' + th.inputBg + ' border rounded-lg text-xs text-center font-bold outline-none shrink-0" />' +
-                            '<input id="wKcal" type="number" placeholder="Kcal" value="' + state.wInputKcal + '" oninput="state.wInputKcal=this.value" class="w-14 ' + th.inputBg + ' border rounded-lg text-xs text-center font-bold outline-none shrink-0" />' +
-                            '<button onclick="addWorkout()" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 rounded-lg font-bold shadow-md shrink-0">+</button></div><div class="space-y-2">';
-                        
-                        day.workouts.forEach(function(w) {
-                            html += '<div class="flex justify-between items-center bg-orange-500/10 p-2.5 rounded-lg border border-orange-500/20">' +
-                                '<span class="font-bold text-xs text-orange-600 truncate flex-1">' + w.name + ' <span class="font-normal opacity-75">(' + w.time + ' min)</span></span>' +
-                                '<div class="flex items-center space-x-3 shrink-0"><span class="font-black text-orange-500 text-sm">' + w.kcal + ' kcal</span><button onclick="delWorkout(' + w.id + ')" class="text-rose-400 font-bold px-2">✕</button></div></div>';
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border">' +
+                        '<h3 class="font-bold text-sm text-orange-500 mb-2">🔥 Dodaj trening (Dzisiaj)</h3>' +
+                        '<div class="flex space-x-2 mb-3 relative"><div class="relative flex-1 min-w-0">' +
+                        '<input id="wNameInp" placeholder="Nazwa np. Bieganie" value="' + state.wSearch + '" oninput="searchWorkout(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs px-2 py-2 outline-none" />';
+                    
+                    if (state.wResults.length > 0) {
+                        html += '<div class="absolute top-full left-0 w-full mt-1 ' + th.card + ' border shadow-xl rounded-lg max-h-40 overflow-y-auto z-50">';
+                        state.wResults.forEach(function(w) {
+                            html += '<div onclick="selectWorkoutDrop(\'' + w.name + '\')" class="p-2 border-b border-gray-200/30 text-xs cursor-pointer"><span class="font-bold text-orange-500 block truncate">' + w.name + '</span><span class="text-[9px] opacity-60">' + w.time + ' min | ' + w.kcal + ' kcal</span></div>';
                         });
-                        html += '</div></div>';
+                        html += '</div>';
                     }
+                    html += '</div><input id="wTime" type="number" placeholder="Min" value="' + state.wInputTime + '" oninput="state.wInputTime=this.value" class="w-12 ' + th.inputBg + ' border rounded-lg text-xs text-center font-bold outline-none shrink-0" />' +
+                        '<input id="wKcal" type="number" placeholder="Kcal" value="' + state.wInputKcal + '" oninput="state.wInputKcal=this.value" class="w-14 ' + th.inputBg + ' border rounded-lg text-xs text-center font-bold outline-none shrink-0" />' +
+                        '<button onclick="addWorkout()" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 rounded-lg font-bold shadow-md shrink-0">+</button></div><div class="space-y-2">';
+                    
+                    day.workouts.forEach(function(w) {
+                        html += '<div class="flex justify-between items-center bg-orange-500/10 p-2.5 rounded-lg border border-orange-500/20">' +
+                            '<span class="font-bold text-xs text-orange-600 truncate flex-1">' + w.name + ' <span class="font-normal opacity-75">(' + w.time + ' min)</span></span>' +
+                            '<div class="flex items-center space-x-3 shrink-0"><span class="font-black text-orange-500 text-sm">' + w.kcal + ' kcal</span><button onclick="delWorkout(' + w.id + ')" class="text-rose-400 font-bold px-2">✕</button></div></div>';
+                    });
+                    html += '</div></div>';
 
                 } else if (state.tab === 'trening') {
                     var parts = state.date.split('-');
@@ -1295,13 +1286,13 @@
                         '<div class="flex space-x-2"><button onclick="addProd()" class="flex-1 ' + th.btn + ' font-bold py-2 rounded-lg shadow-md text-xs">' + (edProd ? 'Zapisz zmiany' : 'Zapisz w bazie') + '</button>' +
                         (edProd ? '<button onclick="cancelEditProd()" class="bg-gray-300 text-gray-700 font-bold px-4 py-2 rounded-lg text-xs">Anuluj</button>' : '') + '</div></div>';
 
-                    // BAZA PRODUKTÓW (v54 - wyraźne kategorie i fizyczny przycisk ➕)
+                    // NOWA BAZA PRODUKTÓW Z KATEGORIAMI I PRZYCISKAMI
                     html += '<div class="' + th.card + ' p-3 rounded-xl border mb-6">' +
                         '<div class="flex justify-between items-center mb-1">' +
                         '<h3 class="font-bold text-sm">Baza Produktów (' + state.products.length + ')</h3>' +
                         '<button onclick="addCategory()" class="text-[10px] ' + th.btn + ' px-2 py-1 rounded-lg shadow-sm">➕ Kategoria</button>' +
                         '</div>' +
-                        '<p class="text-[10px] opacity-70 mb-2 font-medium">💡 Kliknij ➕ aby dodać posiłek. Przytrzymaj, by przenieść do innej kategorii!</p><div class="max-h-[60vh] overflow-y-auto pr-1 pb-4">';
+                        '<p class="text-[10px] opacity-70 mb-2 font-medium">💡 Kliknij ➕ aby dodać do dziennika. Kliknij 🗂️ by zmienić kategorię.</p><div class="max-h-[60vh] overflow-y-auto pr-1 pb-4">';
                     
                     var cats = state.settings.categories || DEFAULT_CATEGORIES;
                     var groupedProducts = {};
@@ -1319,19 +1310,34 @@
                     });
 
                     var allRenderCats = cats.concat(['Inne (Niesklasyfikowane)']);
-                    allRenderCats.forEach(function(cat) {
-                        if (groupedProducts[cat] && groupedProducts[cat].length > 0) {
-                            html += '<h4 class="font-black text-xs uppercase tracking-widest mt-5 mb-2 px-2 py-1.5 rounded-lg bg-blue-500/10 text-blue-700 border border-blue-500/20">' + cat + '</h4><div class="space-y-2">';
-                            groupedProducts[cat].forEach(function(p) {
-                                html += '<div oncontextmenu="event.preventDefault(); promptChangeCategory(\'' + p.id + '\');" ontouchstart="window.lpTimer=setTimeout(function(){ promptChangeCategory(\'' + p.id + '\'); }, 600);" ontouchend="clearTimeout(window.lpTimer);" onmousedown="window.lpTimer=setTimeout(function(){ promptChangeCategory(\'' + p.id + '\'); }, 600);" onmouseup="clearTimeout(window.lpTimer);" class="' + th.inputBg + ' border p-2.5 rounded-lg flex justify-between items-center cursor-pointer active:scale-[0.99] transition-transform">' +
-                                    '<div class="pr-2 min-w-0 flex-1"><p class="font-bold text-xs truncate">' + p.name + ' <span class="' + th.accent + ' font-normal">(' + p.baseWeight + 'g)</span></p><p class="text-[9px] opacity-60 font-bold">B:' + p.baseP + ' | T:' + p.baseF + ' | W:' + p.baseC + '</p></div>' +
-                                    '<div class="flex items-center space-x-2 shrink-0">' +
-                                    '<span class="font-bold text-emerald-500 text-xs w-10 text-right">' + p.baseKcal + ' kcal</span>' +
-                                    '<button onclick="event.stopPropagation(); promptAddProductFromList(\'' + p.id + '\')" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold px-2 py-1 rounded text-xs shadow-sm" title="Dodaj do dziennika">➕</button>' +
-                                    '<button onclick="event.stopPropagation(); startEditProd(\'' + p.id + '\')" class="opacity-60 hover:opacity-100 font-bold px-1 text-xs" title="Edytuj">✏️</button>' +
-                                    '<button onclick="event.stopPropagation(); delProd(\'' + p.id + '\')" class="text-rose-400 hover:text-rose-600 font-bold px-1 text-xs" title="Usuń">✕</button>' +
-                                    '</div></div>';
-                            });
+                    allRenderCats.forEach(function(cat, catIdx) {
+                        var isCustom = catIdx < cats.length; // "Inne" nie da się przesuwać
+                        if (groupedProducts[cat]) {
+                            html += '<div class="flex justify-between items-center mt-5 mb-2 px-2 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20">';
+                            html += '<h4 class="font-black text-[11px] uppercase tracking-widest text-blue-700">' + cat + '</h4>';
+                            if (isCustom) {
+                                html += '<div class="flex space-x-1">';
+                                html += '<button onclick="moveCat('+catIdx+', -1)" class="text-[10px] px-1.5 py-0.5 opacity-50 hover:opacity-100 bg-white rounded shadow-sm">▲</button>';
+                                html += '<button onclick="moveCat('+catIdx+', 1)" class="text-[10px] px-1.5 py-0.5 opacity-50 hover:opacity-100 bg-white rounded shadow-sm">▼</button>';
+                                html += '</div>';
+                            }
+                            html += '</div><div class="space-y-2">';
+
+                            if (groupedProducts[cat].length === 0) {
+                                html += '<p class="text-[10px] opacity-40 text-center py-2 italic border border-dashed rounded-lg">Brak produktów</p>';
+                            } else {
+                                groupedProducts[cat].forEach(function(p) {
+                                    html += '<div class="' + th.inputBg + ' border p-2 rounded-lg flex justify-between items-center transition-transform">' +
+                                        '<div class="pr-2 min-w-0 flex-1"><p class="font-bold text-xs truncate">' + p.name + ' <span class="' + th.accent + ' font-normal">(' + p.baseWeight + 'g)</span></p><p class="text-[9px] opacity-60 font-bold">B:' + p.baseP + ' | T:' + p.baseF + ' | W:' + p.baseC + '</p></div>' +
+                                        '<div class="flex items-center space-x-1 shrink-0">' +
+                                        '<span class="font-bold text-emerald-500 text-xs w-10 text-right mr-1">' + p.baseKcal + ' kcal</span>' +
+                                        '<button onclick="promptAddProductFromList(\'' + p.id + '\')" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold w-6 h-6 rounded text-xs shadow-sm flex items-center justify-center" title="Dodaj do dziennika">➕</button>' +
+                                        '<button onclick="promptChangeCategory(\'' + p.id + '\')" class="bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold w-6 h-6 rounded text-[10px] shadow-sm flex items-center justify-center" title="Zmień kategorię">🗂️</button>' +
+                                        '<button onclick="startEditProd(\'' + p.id + '\')" class="opacity-60 hover:opacity-100 font-bold w-6 h-6 flex items-center justify-center text-xs" title="Edytuj">✏️</button>' +
+                                        '<button onclick="delProd(\'' + p.id + '\')" class="text-rose-400 hover:text-rose-600 font-bold w-6 h-6 flex items-center justify-center text-xs" title="Usuń">✕</button>' +
+                                        '</div></div>';
+                                });
+                            }
                             html += '</div>';
                         }
                     });
@@ -1521,7 +1527,7 @@
 
                     html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                         '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                        '<p class="text-xs font-bold ' + th.accent + '">Wersja: v54 (Szybkie dodawanie i kategorie)</p>' +
+                        '<p class="text-xs font-bold ' + th.accent + '">Wersja: v55 (Animowany Ludzik, Naprawione Kategorie, Dokładne Statystyki)</p>' +
                         '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 27.10.2026</p>' +
                         '</div>';
                 }
@@ -1690,7 +1696,7 @@
         window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return x.id !== id; }); saveState(); render(); } };
 
         window.exportFullJson = function() {
-            var payload = { version: 54, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 55, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
@@ -1708,7 +1714,10 @@
                     if (data.products) { state.products = data.products; initLocalDefaults(); }
                     if (data.diaries) state.diaries = safeMergeDiaries(data.diaries, state.diaries);
                     if (data.users) state.users = data.users; 
-                    if (data.settings) state.settings = data.settings; 
+                    if (data.settings) {
+                        state.settings = data.settings;
+                        if(!state.settings.categories) state.settings.categories = DEFAULT_CATEGORIES.slice();
+                    }
                     if (data.workoutsDb) state.workoutsDb = data.workoutsDb;
                     if (data.theme) state.theme = data.theme;
                     state.isCloudSynced = true;
