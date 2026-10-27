@@ -32,12 +32,12 @@
         @keyframes arm-swing-rev { 0%, 100% { transform: rotate(20deg); } 50% { transform: rotate(-20deg); } }
         @keyframes fat-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-1px) rotate(1deg); } 75% { transform: translateX(1px) rotate(-1deg); } }
         
-        /* Nowy biegacz */
-        @keyframes runner-bounce { 0% { transform: translateY(0); } 100% { transform: translateY(-4px); } }
-        @keyframes runner-arm-f { 0% { transform: rotate(-30deg); } 100% { transform: rotate(30deg); } }
-        @keyframes runner-arm-b { 0% { transform: rotate(30deg); } 100% { transform: rotate(-30deg); } }
-        @keyframes runner-leg-f { 0% { transform: rotate(-20deg); } 100% { transform: rotate(40deg); } }
-        @keyframes runner-leg-b { 0% { transform: rotate(40deg); } 100% { transform: rotate(-20deg); } }
+        /* Płynna animacja biegacza (v60) */
+        @keyframes runner-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+        @keyframes runner-arm-f { 0% { transform: rotate(-30deg); } 50% { transform: rotate(30deg); } 100% { transform: rotate(-30deg); } }
+        @keyframes runner-arm-b { 0% { transform: rotate(30deg); } 50% { transform: rotate(-30deg); } 100% { transform: rotate(30deg); } }
+        @keyframes runner-leg-f { 0% { transform: rotate(-20deg); } 50% { transform: rotate(40deg); } 100% { transform: rotate(-20deg); } }
+        @keyframes runner-leg-b { 0% { transform: rotate(40deg); } 50% { transform: rotate(-20deg); } 100% { transform: rotate(40deg); } }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans pb-24 select-none">
@@ -145,7 +145,7 @@
             isCloudSynced: false,
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v59_theme') || 'classic',
+            theme: localStorage.getItem('diet_v60_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             workingModelPath: localStorage.getItem('diet_working_model_v44') || '',
             products: localProducts, workoutsDb: [], diaries: localDiaries, 
@@ -154,7 +154,7 @@
                 measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ],
                 categories: DEFAULT_CATEGORIES.slice()
             },
-            date: dzis, summaryView: 'tydzien', summaryOffset: 0, importMode: 'full', statusMsg: '',
+            date: dzis, summaryView: 'tydzien', summaryOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
             wSearch: '', wResults: [], wInputTime: '', wInputKcal: '', editProdId: null,
             isScanning: false, scannedBarcodeInput: '', scannedProductData: null,
@@ -254,7 +254,7 @@
                 localStorage.setItem('diet_local_diaries_vault', JSON.stringify(state.diaries));
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_v15_curr_user', state.userId);
-                localStorage.setItem('diet_v59_theme', state.theme);
+                localStorage.setItem('diet_v60_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             } catch(e) {}
 
@@ -745,9 +745,14 @@
             saveState(); render();
         };
 
-        // NOWE OKNO MODALU DLA KATEGORII (v59)
+        window.promptChangeCategory = function(prodId) {
+            var p = state.products.find(function(x) { return x.id === prodId; });
+            if (!p) return;
+            openCatModal([p.id]);
+        };
+
         window.openCatModal = function(ids) {
-            if (!ids || ids.length === 0) return alert('Brak produktów do przeniesienia.');
+            if (!ids || ids.length === 0) return;
             state.catModalTargetIds = ids;
             state.catModalOpen = true;
             render();
@@ -836,7 +841,7 @@
         };
 
         window.promptBulkMove = function() {
-            var ids = Object.keys(state.selectedProds);
+            var ids = Object.keys(state.selectedProds).filter(function(id) { return state.selectedProds[id]; });
             if(ids.length === 0) return alert('Nie zaznaczono żadnych produktów.');
             openCatModal(ids);
         };
@@ -1006,14 +1011,6 @@
             saveState(); render();
         };
 
-        window.addCategory = function() {
-            var c = prompt('Podaj nazwę nowej kategorii (np. Suplementy):');
-            if (c && c.trim() && !state.settings.categories.includes(c.trim())) {
-                state.settings.categories.push(c.trim());
-                saveState(); render();
-            }
-        };
-
         window.changeWeight = function(w) { 
             getDayData().weight = w; 
             saveState(); 
@@ -1031,7 +1028,7 @@
         };
 
         window.exportFullJson = function() {
-            var payload = { version: 59, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 60, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })); a.download = 'dieta_' + state.date + '.json'; a.click();
             state.settings.lastBackup = new Date().toISOString().split('T')[0]; saveState(); state.statusMsg = 'Pobrano plik kopii zapasowej!'; render();
         };
