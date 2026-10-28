@@ -24,37 +24,39 @@
         .theme-sunset-bg { background: linear-gradient(180deg, #fff7ed 0%, #ffedd5 50%, #fce7f3 100%); }
         .theme-dark-bg { background-color: #0f172a; color: #f1f5f9; }
 
-        /* ZAAWANSOWANE ANIMACJE AWATARÓW - V62 */
-        /* Chudy (Spacer, rozglądanie, pajacyki) */
-        @keyframes thin-arm-l { 0%, 20% { transform: rotate(20deg); } 10% { transform: rotate(-20deg); } 30%, 70% { transform: rotate(0deg); } 80%, 90% { transform: rotate(-130deg); } 85%, 95% { transform: rotate(0deg); } 100% { transform: rotate(0deg); } }
-        @keyframes thin-arm-r { 0%, 20% { transform: rotate(-20deg); } 10% { transform: rotate(20deg); } 30%, 70% { transform: rotate(0deg); } 80%, 90% { transform: rotate(130deg); } 85%, 95% { transform: rotate(0deg); } 100% { transform: rotate(0deg); } }
-        @keyframes thin-leg-l { 0%, 20% { transform: rotate(20deg); } 10% { transform: rotate(-20deg); } 30%, 70% { transform: rotate(0deg); } 80%, 90% { transform: rotate(30deg); } 85%, 95% { transform: rotate(0deg); } 100% { transform: rotate(0deg); } }
-        @keyframes thin-leg-r { 0%, 20% { transform: rotate(-20deg); } 10% { transform: rotate(20deg); } 30%, 70% { transform: rotate(0deg); } 80%, 90% { transform: rotate(-30deg); } 85%, 95% { transform: rotate(0deg); } 100% { transform: rotate(0deg); } }
-        @keyframes thin-head { 0%, 40% { transform: rotate(0deg); } 45% { transform: rotate(-15deg); } 55% { transform: rotate(15deg); } 60%, 100% { transform: rotate(0deg); } }
-
-        /* Normalny (Oddychanie, machanie, napinanie mięśni) */
-        @keyframes norm-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
-        @keyframes norm-arm-r { 0%, 30% { transform: rotate(0deg); } 35%, 45% { transform: rotate(-130deg); } 38%, 42% { transform: rotate(-110deg); } 50%, 65% { transform: rotate(0deg); } 70%, 80% { transform: rotate(-100deg); } 85%, 100% { transform: rotate(0deg); } }
-        @keyframes norm-arm-l { 0%, 65% { transform: rotate(0deg); } 70%, 80% { transform: rotate(100deg); } 85%, 100% { transform: rotate(0deg); } }
-        @keyframes norm-head { 0%, 30% { transform: rotate(0deg); } 35%, 45% { transform: rotate(12deg); } 50%, 100% { transform: rotate(0deg); } }
-        @keyframes norm-leg-l { 0%, 65% { transform: rotate(0deg); } 70%, 80% { transform: rotate(10deg); } 85%, 100% { transform: rotate(0deg); } }
-        @keyframes norm-leg-r { 0%, 65% { transform: rotate(0deg); } 70%, 80% { transform: rotate(-10deg); } 85%, 100% { transform: rotate(0deg); } }
-
-        /* Gruby (Ciężki oddech, masowanie brzucha, zasypianie Zzz) */
-        @keyframes fat-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
-        @keyframes fat-arm-l { 0%, 30% { transform: rotate(0deg); } 35%, 50% { transform: rotate(65deg); } 40%, 45% { transform: rotate(55deg); } 55%, 100% { transform: rotate(0deg); } }
-        @keyframes fat-arm-r { 0%, 70% { transform: rotate(0deg); } 75%, 90% { transform: rotate(-25deg); } 95%, 100% { transform: rotate(0deg); } }
-        @keyframes fat-head { 0%, 70% { transform: rotate(0deg); } 75%, 90% { transform: rotate(20deg) translateY(3px); } 92% { transform: rotate(-10deg); } 94% { transform: rotate(10deg); } 100% { transform: rotate(0deg); } }
-        @keyframes fat-zzz { 0%, 70% { opacity: 0; transform: translateY(0); } 75%, 85% { opacity: 1; transform: translateY(-10px); } 90%, 100% { opacity: 0; transform: translateY(-20px); } }
-
-        /* Treningi */
+        /* Wewnętrzne animacje rąk/nóg */
         @keyframes lift-squat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
+        @keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        @keyframes walk { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+        @keyframes arm-swing { 0%, 100% { transform: rotate(-20deg); } 50% { transform: rotate(20deg); } }
+        @keyframes arm-swing-rev { 0%, 100% { transform: rotate(20deg); } 50% { transform: rotate(-20deg); } }
+        @keyframes fat-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-1px) rotate(1deg); } 75% { transform: translateX(1px) rotate(-1deg); } }
+        
         @keyframes runner-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
         @keyframes runner-arm-f { 0% { transform: rotate(-30deg); } 50% { transform: rotate(30deg); } 100% { transform: rotate(-30deg); } }
         @keyframes runner-arm-b { 0% { transform: rotate(30deg); } 50% { transform: rotate(-30deg); } 100% { transform: rotate(30deg); } }
         @keyframes runner-leg-f { 0% { transform: rotate(-20deg); } 50% { transform: rotate(40deg); } 100% { transform: rotate(-20deg); } }
         @keyframes runner-leg-b { 0% { transform: rotate(40deg); } 50% { transform: rotate(-20deg); } 100% { transform: rotate(40deg); } }
         @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        /* Animacje z nudów (Wędrowanie po pustym pasku) */
+        @keyframes avatar-roam-thin {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-50px); }
+            40% { transform: translateX(10px); }
+            60% { transform: translateX(-30px); }
+            80% { transform: translateX(20px); }
+        }
+        @keyframes avatar-roam-norm {
+            0%, 100% { transform: translateX(0); }
+            30% { transform: translateX(30px); }
+            70% { transform: translateX(-20px); }
+        }
+        @keyframes avatar-roam-fat {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans pb-24 select-none">
@@ -89,8 +91,8 @@
         const DEFAULT_CATEGORIES = ['Białkowe i Nabiał', 'Węglowodany', 'Tłuszcze', 'Owoce i Warzywa', 'Gotowe Posiłki', 'Inne'];
 
         const FULL_PRODUCTS = [
-            { id: "c1", category: "Gotowe Posiłki", name: "Kanapki z łososiem wędzonym i serkiem (chleb niski IG)", baseWeight: 190, baseKcal: 380, baseP: 24.0, baseF: 10.0, baseC: 48.0 },
-            { id: "c2", category: "Gotowe Posiłki", name: "Domowa zupa pomidorowa z makaronem i marchewką", baseWeight: 500, baseKcal: 280, baseP: 9.0, baseF: 6.0, baseC: 47.0 },
+            { id: "c1", category: "Gotowe Posiłki", name: "Kanapki z łososiem wędzonym i serkiem", baseWeight: 190, baseKcal: 380, baseP: 24.0, baseF: 10.0, baseC: 48.0 },
+            { id: "c2", category: "Gotowe Posiłki", name: "Domowa zupa pomidorowa z makaronem", baseWeight: 500, baseKcal: 280, baseP: 9.0, baseF: 6.0, baseC: 47.0 },
             { id: "c3", category: "Gotowe Posiłki", name: "Lunch box gyros", baseWeight: 270, baseKcal: 450, baseP: 32.0, baseF: 18.0, baseC: 40.0 },
             { id: "c4", category: "Gotowe Posiłki", name: "Tort urodzinowy (kawałek)", baseWeight: 150, baseKcal: 417, baseP: 5.8, baseF: 31.6, baseC: 27.4 },
             { id: "c5", category: "Białkowe i Nabiał", name: "Go Active Protein Kaszka (200g)", baseWeight: 200, baseKcal: 170, baseP: 8.0, baseF: 4.0, baseC: 18.0 },
@@ -101,7 +103,7 @@
             { id: "w3", category: "Gotowe Posiłki", name: "Jajka sadzone z awokado (porcja)", baseWeight: 250, baseKcal: 385, baseP: 26.8, baseF: 30, baseC: 5.5 },
             { id: "w4", category: "Gotowe Posiłki", name: "Krupnik domowy (talerz)", baseWeight: 460, baseKcal: 345, baseP: 14, baseF: 11, baseC: 48 },
             { id: "w5", category: "Gotowe Posiłki", name: "Zestaw obiadowy (kurczak/ziemniaki)", baseWeight: 450, baseKcal: 575, baseP: 35.3, baseF: 18.5, baseC: 65 },
-            { id: "w6", category: "Gotowe Posiłki", name: "KFC Zestaw (4 wings, 2 strips, 2 kaw.)", baseWeight: 460, baseKcal: 1082, baseP: 69, baseF: 57, baseC: 56 },
+            { id: "w6", category: "Gotowe Posiłki", name: "KFC Zestaw (4 wings, 2 strips)", baseWeight: 460, baseKcal: 1082, baseP: 69, baseF: 57, baseC: 56 },
             { id: "hb1", category: "Białkowe i Nabiał", name: "Fruvita Skyr naturalny (150g)", baseWeight: 150, baseKcal: 98, baseP: 18, baseF: 0, baseC: 6.2 },
             { id: "hb2", category: "Białkowe i Nabiał", name: "Fruvita Skyr pitny (360g)", baseWeight: 360, baseKcal: 225, baseP: 36, baseF: 1, baseC: 16 },
             { id: "hb3", category: "Białkowe i Nabiał", name: "Fruvita Skyr owocowy (150g)", baseWeight: 150, baseKcal: 129, baseP: 14.4, baseF: 0, baseC: 18 },
@@ -160,7 +162,7 @@
             isCloudSynced: false,
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v62_theme') || 'classic',
+            theme: localStorage.getItem('diet_v63_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             workingModelPath: localStorage.getItem('diet_working_model_v44') || '',
             products: localProducts, workoutsDb: [], diaries: localDiaries, 
@@ -169,7 +171,7 @@
                 measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ],
                 categories: DEFAULT_CATEGORIES.slice()
             },
-            date: dzis, summaryView: 'tydzien', summaryOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
+            date: dzis, summaryView: 'tydzien', summaryOffset: 0, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
             wSearch: '', wResults: [], wInputTime: '', wInputKcal: '', editProdId: null,
             isScanning: false, scannedBarcodeInput: '', scannedProductData: null,
@@ -185,16 +187,18 @@
             }
             try {
                 if (!state.products || !Array.isArray(state.products)) state.products = [];
-                FULL_PRODUCTS.forEach(function(bp) {
-                    if (!state.products.some(function(p) { return p.name.trim().toLowerCase() === bp.name.trim().toLowerCase(); })) {
-                        state.products.push(bp);
-                    }
-                });
+                // Jeśli aplikacja jest świeżo uruchamiana (baza jest pusta)
+                if (state.products.length === 0 && !localStorage.getItem('diet_init_defaults_v63')) {
+                    FULL_PRODUCTS.forEach(function(bp) {
+                        state.products.push(JSON.parse(JSON.stringify(bp)));
+                    });
+                    localStorage.setItem('diet_init_defaults_v63', 'true');
+                }
                 state.products.forEach(function(p) {
                     if (!p.category) p.category = 'Inne';
                 });
             } catch(e) {
-                state.products = FULL_PRODUCTS.slice(); 
+                if (state.products.length === 0) state.products = FULL_PRODUCTS.slice(); 
             }
         }
         initLocalDefaults();
@@ -266,7 +270,7 @@
                 localStorage.setItem('diet_local_diaries_vault', JSON.stringify(state.diaries));
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_v15_curr_user', state.userId);
-                localStorage.setItem('diet_v62_theme', state.theme);
+                localStorage.setItem('diet_v63_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             } catch(e) {}
 
@@ -494,40 +498,21 @@
                         '<div class="w-24 ' + th.card + ' p-2 rounded-xl border shrink-0"><label class="text-[10px] font-bold opacity-60 uppercase mb-0.5 flex items-center justify-between">Waga (kg)' + wIcon + '</label><input type="number" step="0.1" value="' + day.weight + '" onchange="changeWeight(this.value)" class="w-full text-xs font-bold text-center bg-transparent outline-none" /></div>' +
                         '</div>';
 
-                    // SYSTEM AWATARÓW - Z ZAAWANSOWANYMI RUTYNAMI ZACHOWAŃ
+                    // ANIMOWANE AWATARY Z WĘDROWANIEM PO PASKU
                     var ludzikHtml = '';
                     var overlimitMsg = '';
+                    var animClass = '';
                     var ratio = day.goals.kcal > 0 ? (nettoKcal / day.goals.kcal) : 0;
                     
                     if (ratio < 0.33) {
-                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-blue-500 drop-shadow-md">' +
-                            '<line x1="50" y1="30" x2="50" y2="65" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>' +
-                            '<circle cx="50" cy="20" r="10" fill="currentColor" style="animation: thin-head 12s infinite; transform-origin: 50% 30%;"/>' +
-                            '<path d="M 50 35 L 35 55" stroke="currentColor" stroke-width="4" stroke-linecap="round" style="animation: thin-arm-l 12s infinite; transform-origin: 50% 35%;"/>' +
-                            '<path d="M 50 35 L 65 55" stroke="currentColor" stroke-width="4" stroke-linecap="round" style="animation: thin-arm-r 12s infinite; transform-origin: 50% 35%;"/>' +
-                            '<path d="M 50 65 L 40 95" stroke="currentColor" stroke-width="4" stroke-linecap="round" style="animation: thin-leg-l 12s infinite; transform-origin: 50% 65%;"/>' +
-                            '<path d="M 50 65 L 60 95" stroke="currentColor" stroke-width="4" stroke-linecap="round" style="animation: thin-leg-r 12s infinite; transform-origin: 50% 65%;"/>' +
-                            '</svg>';
+                        animClass = 'avatar-roam-thin';
+                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-blue-500 drop-shadow-md"><g style="animation: walk 1.5s ease-in-out infinite transform-origin: center;"><line x1="50" y1="30" x2="50" y2="65" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><circle cx="50" cy="20" r="10" fill="currentColor" style="animation: thin-head 12s infinite; transform-origin: 50% 30%;"/><path d="M 50 35 L 35 55" stroke="currentColor" stroke-width="4" stroke-linecap="round" style="animation: thin-arm-l 12s infinite; transform-origin: 50% 35%;"/><path d="M 50 35 L 65 55" stroke="currentColor" stroke-width="4" stroke-linecap="round" style="animation: thin-arm-r 12s infinite; transform-origin: 50% 35%;"/><path d="M 50 65 L 40 95" stroke="currentColor" stroke-width="4" stroke-linecap="round" style="animation: thin-leg-l 12s infinite; transform-origin: 50% 65%;"/><path d="M 50 65 L 60 95" stroke="currentColor" stroke-width="4" stroke-linecap="round" style="animation: thin-leg-r 12s infinite; transform-origin: 50% 65%;"/></g></svg>';
                     } else if (ratio <= 1.0) {
-                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-emerald-500 drop-shadow-md">' +
-                            '<circle cx="50" cy="20" r="12" fill="currentColor" style="animation: norm-head 14s infinite; transform-origin: 50% 32%;"/>' +
-                            '<rect x="40" y="32" width="20" height="35" rx="5" fill="currentColor" style="animation: norm-breathe 4s infinite alternate; transform-origin: 50% 50%;"/>' +
-                            '<path d="M 40 40 L 25 50" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: norm-arm-l 14s infinite; transform-origin: 40% 40%;"/>' +
-                            '<path d="M 60 40 L 75 50" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: norm-arm-r 14s infinite; transform-origin: 60% 40%;"/>' +
-                            '<path d="M 45 67 L 35 95" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: norm-leg-l 14s infinite; transform-origin: 45% 67%;"/>' +
-                            '<path d="M 55 67 L 65 95" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: norm-leg-r 14s infinite; transform-origin: 55% 67%;"/>' +
-                            '</svg>';
+                        animClass = 'avatar-roam-norm';
+                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-emerald-500 drop-shadow-md"><circle cx="50" cy="20" r="12" fill="currentColor" style="animation: norm-head 14s infinite; transform-origin: 50% 32%;"/><rect x="40" y="32" width="20" height="35" rx="5" fill="currentColor" style="animation: norm-breathe 4s infinite alternate; transform-origin: 50% 50%;"/><path d="M 40 40 L 25 50" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: norm-arm-l 14s infinite; transform-origin: 40% 40%;"/><path d="M 60 40 L 75 50" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: norm-arm-r 14s infinite; transform-origin: 60% 40%;"/><path d="M 45 67 L 35 95" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: norm-leg-l 14s infinite; transform-origin: 45% 67%;"/><path d="M 55 67 L 65 95" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: norm-leg-r 14s infinite; transform-origin: 55% 67%;"/></svg>';
                     } else {
-                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-rose-500 drop-shadow-md">' +
-                            '<circle cx="50" cy="15" r="12" fill="currentColor" style="animation: fat-head 10s infinite; transform-origin: 50% 25%;"/>' +
-                            '<text x="65" y="15" font-size="12" font-weight="bold" fill="currentColor" style="animation: fat-zzz 10s infinite; opacity: 0;">Z</text>' +
-                            '<text x="75" y="5" font-size="16" font-weight="bold" fill="currentColor" style="animation: fat-zzz 10s infinite 0.2s; opacity: 0;">z</text>' +
-                            '<circle cx="50" cy="50" r="26" fill="currentColor" style="animation: fat-breathe 3s infinite alternate; transform-origin: 50% 50%;"/>' +
-                            '<path d="M 26 40 L 12 50" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: fat-arm-l 10s infinite; transform-origin: 26% 40%;"/>' +
-                            '<path d="M 74 40 L 88 50" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: fat-arm-r 10s infinite; transform-origin: 74% 40%;"/>' +
-                            '<path d="M 40 73 L 30 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>' +
-                            '<path d="M 60 73 L 70 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/>' +
-                            '</svg>';
+                        animClass = 'avatar-roam-fat';
+                        ludzikHtml = '<svg viewBox="0 0 100 100" class="w-12 h-12 text-rose-500 drop-shadow-md"><g style="animation: fat-shake 0.5s infinite;"><circle cx="50" cy="15" r="12" fill="currentColor" style="animation: fat-head 10s infinite; transform-origin: 50% 25%;"/><text x="65" y="15" font-size="12" font-weight="bold" fill="currentColor" style="animation: fat-zzz 10s infinite; opacity: 0;">Z</text><text x="75" y="5" font-size="16" font-weight="bold" fill="currentColor" style="animation: fat-zzz 10s infinite 0.2s; opacity: 0;">z</text><circle cx="50" cy="50" r="26" fill="currentColor" style="animation: fat-breathe 3s infinite alternate; transform-origin: 50% 50%;"/><path d="M 26 40 L 12 50" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: fat-arm-l 10s infinite; transform-origin: 26% 40%;"/><path d="M 74 40 L 88 50" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: fat-arm-r 10s infinite; transform-origin: 74% 40%;"/><path d="M 40 73 L 30 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 60 73 L 70 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></g></svg>';
                         if (day.goals.kcal > 0) {
                             overlimitMsg = '<div class="absolute -top-3 -right-6 bg-rose-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-lg z-10 animate-bounce whitespace-nowrap">Przestań żreć !</div>';
                         }
@@ -543,9 +528,9 @@
                         '<div class="text-center w-1/3 border-x border-gray-200/40"><p class="text-[9px] font-bold text-orange-500 uppercase">Spalone</p><p class="text-lg font-black text-orange-500">-' + burned + '</p></div>' +
                         '<div class="text-center w-1/3"><p class="text-[9px] font-bold opacity-60 uppercase">Kcal Netto</p><p class="text-lg font-black ' + (nettoKcal < 0 ? 'text-orange-500' : th.accent) + '">' + Math.round(nettoKcal) + '</p></div>' +
                         '</div>' +
-                        '<div class="' + th.inputBg + ' border rounded-lg p-2.5 flex justify-between items-center mb-3 relative">' +
+                        '<div class="' + th.inputBg + ' border rounded-lg p-2.5 flex justify-between items-center mb-3 relative overflow-visible">' +
                         '<div><span class="text-[10px] font-bold opacity-75 uppercase block">' + statusLabel + ' (' + day.goals.kcal + ')</span><span class="text-xl font-black ' + statusColor + '">' + Math.abs(Math.round(left)) + ' kcal</span></div>' +
-                        '<div class="mr-6 relative">' + overlimitMsg + ludzikHtml + '</div>' + 
+                        '<div class="mr-6 relative z-10" style="animation: ' + animClass + ' 16s ease-in-out infinite;">' + overlimitMsg + ludzikHtml + '</div>' + 
                         '</div>' +
                         '<div class="grid grid-cols-3 gap-2 mb-3">' +
                         '<div class="bg-blue-500/10 text-blue-600 py-1 rounded text-center text-[10px] font-bold">B: ' + Math.round(eatenP) + '/' + day.goals.p + 'g</div>' +
@@ -632,8 +617,7 @@
                     var workoutSvg = '';
                     if (day.workouts.length > 0) {
                         if (isRunning) {
-                            workoutSvg = '<svg viewBox="0 0 100 100" class="w-6 h-6 text-orange-500 ml-1 inline-block drop-shadow-md">' +
-                                '<g style="animation: runner-bounce 0.6s linear infinite;"><circle cx="65" cy="20" r="10" fill="currentColor"/><path d="M 60 30 L 45 60" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 45 40 L 25 40 M 55 40 L 75 50" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: runner-arm-f 0.6s infinite alternate transform-origin: 45% 40%;"/><path d="M 45 60 L 25 80 M 45 60 L 65 90" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: runner-leg-f 0.6s infinite alternate transform-origin: 45% 60%;"/></g></svg>';
+                            workoutSvg = '<svg viewBox="0 0 100 100" class="w-6 h-6 text-orange-500 ml-1 inline-block drop-shadow-md"><g style="animation: runner-bounce 0.6s linear infinite;"><circle cx="65" cy="20" r="10" fill="currentColor"/><path d="M 60 30 L 45 60" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 45 40 L 25 40 M 55 40 L 75 50" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: runner-arm-f 0.6s infinite alternate transform-origin: 45% 40%;"/><path d="M 45 60 L 25 80 M 45 60 L 65 90" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: runner-leg-f 0.6s infinite alternate transform-origin: 45% 60%;"/></g></svg>';
                         } else {
                             workoutSvg = '<svg viewBox="0 0 100 100" class="w-6 h-6 text-orange-500 ml-1 inline-block drop-shadow-md"><path d="M 50 70 L 35 95 M 50 70 L 65 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><g style="animation: lift-squat 1s ease-in-out infinite;"><circle cx="50" cy="30" r="10" fill="currentColor"/><line x1="50" y1="40" x2="50" y2="70" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 50 45 L 25 15 M 50 45 L 75 15" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><line x1="15" y1="15" x2="85" y2="15" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><circle cx="15" cy="15" r="7" fill="currentColor"/><circle cx="85" cy="15" r="7" fill="currentColor"/></g></svg>';
                         }
@@ -820,7 +804,6 @@
                         '<div class="flex space-x-2"><button onclick="addProd()" class="flex-1 ' + th.btn + ' font-bold py-2 rounded-lg shadow-md text-xs">' + (edProd ? 'Zapisz zmiany' : 'Zapisz w bazie') + '</button>' +
                         (edProd ? '<button onclick="cancelEditProd()" class="bg-gray-300 text-gray-700 font-bold px-4 py-2 rounded-lg text-xs">Anuluj</button>' : '') + '</div></div>';
 
-                    // BAZA PRODUKTÓW Z MULTI-SELECT I KATEGORIAMI (v61)
                     html += '<div class="' + th.card + ' p-3 rounded-xl border mb-24">' +
                         '<div class="flex justify-between items-center mb-1">' +
                         '<h3 class="font-bold text-sm">Baza (' + state.products.length + ')</h3>' +
@@ -1089,12 +1072,11 @@
 
                     html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
                         '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                        '<p class="text-xs font-bold ' + th.accent + '">Wersja: v62 (Fail-Safe, Pełne Drzewko Kategorii, Szybkie Animacje Awatarów)</p>' +
-                        '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 27.10.2026</p>' +
+                        '<p class="text-xs font-bold ' + th.accent + '">Wersja: v63 (Płynny Swipe + Naprawa Zapisów + Nowy Skaner)</p>' +
+                        '<p class="text-[10px] opacity-60 mt-1">Ostatnia aktualizacja: 28.10.2026</p>' +
                         '</div>';
                 }
 
-                // RENDEROWANIE DRZEWKA KATEGORII (MODAL)
                 if (state.catModalOpen) {
                     html += '<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-end justify-center pb-6 px-2">' +
                             '<div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-[slideUp_0.2s_ease-out]">' +
@@ -1110,7 +1092,7 @@
                     var inCount = state.products.filter(function(p) { return (p.category || 'Inne') === 'Inne'; }).length;
                     html += '<button onclick="moveToCategory(\'Inne\')" class="w-full text-left p-3 rounded-xl hover:bg-blue-50 font-bold text-sm text-gray-800 border border-transparent hover:border-blue-200 transition-colors flex justify-between items-center"><span>📂 Inne (Niesklasyfikowane)</span> <span class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md text-xs">' + inCount + '</span></button>';
                     
-                    html += '<button onclick="addNewCategoryFromModal()" class="w-full mt-3 bg-blue-100 text-blue-700 hover:bg-blue-200 font-black p-3.5 rounded-xl text-xs shadow-sm transition-transform active:scale-95">➕ Dodaj nową kategorię</button>';
+                    html += '<button onclick="addNewCategoryFromModal()" class="w-full mt-3 bg-blue-100 text-blue-700 hover:bg-blue-200 font-black p-3.5 rounded-xl text-xs shadow-sm transition-transform active:scale-95">➕ Dodaj zupełnie nową kategorię</button>';
                     
                     html += '</div></div></div>';
                 }
@@ -1127,137 +1109,62 @@
                 html += '</div>';
                 app.innerHTML = html;
             } catch(globalErr) {
-                // GLOBAL FAIL-SAFE: Jeśli coś pójdzie nie tak, aplikacja nie zatrzyma się na ładowaniu!
                 document.getElementById('app').innerHTML = '<div class="p-6 text-center text-rose-600 mt-20"><h2 class="font-black text-xl mb-2">Wystąpił błąd wyświetlania</h2><p class="text-xs mb-4">Kod zatrzymał się z powodu: ' + globalErr.message + '</p><button onclick="localStorage.clear(); location.reload();" class="bg-rose-500 text-white font-bold py-2 px-4 rounded-xl">Wyczyść pamięć i napraw</button></div>';
             }
         };
 
         window.switchTab = function(t) { if (state.tab === 'baza' && t !== 'baza' && state.isScanning) { stopBarcodeScanner(); } state.tab = t; state.statusMsg = ''; state.prodResults = []; state.wResults = []; render(); };
         window.switchUser = function(u) { state.userId = u; saveState(); render(); };
-        window.changeDate = function(d) { state.date = d; render(); };
-        window.toggleGoals = function() { state.isEditingGoals = !state.isEditingGoals; render(); };
-        window.changeStartOfWeek = function(val) { state.settings.startOfWeek = parseInt(val); saveState(); render(); };
-        window.addWater = function(amount) { if (amount === 0) getDayData().water = 0; else getDayData().water = (parseFloat(getDayData().water) || 0) + amount; saveState(); render(); };
-        window.updateMeasurement = function(id, val) { getDayData().measurements[id] = val; saveState(); render(); };
-        window.promptAddMeasurement = function() { var name = prompt('Podaj nazwę nowego pomiaru (np. Łydka):'); if(name && name.trim()) { state.settings.measurements.push({ id: 'm_' + Date.now(), name: name.trim() }); saveState(); render(); } };
-        window.removeMeasurement = function(id) { if(confirm('Usunąć ten pomiar?')) { state.settings.measurements = state.settings.measurements.filter(function(m) { return m.id !== id; }); saveState(); render(); } };
         
-        window.addMeal = function() {
-            var query = state.prodSearch.trim();
-            var w = parseFloat(state.inputWeight);
-            if (!query || !w) return alert('Wpisz nazwę posiłku i wagę!');
+        window.startBarcodeScanner = function() {
+            if (typeof Html5Qrcode === 'undefined') return alert('Biblioteka się ładuje...');
+            state.isScanning = true; state.statusMsg = '📷 Uruchamiam aparat...'; render();
+            
+            setTimeout(function() {
+                var readerEl = document.getElementById("reader");
+                if (!readerEl) return;
+                function runScanner() {
+                    html5QrCode = new Html5Qrcode("reader");
+                    var config = { fps: 10, qrbox: { width: 240, height: 120 }, aspectRatio: 1.5 };
+                    var onScan = function(decodedText) {
+                        if (!state.isScanning) return;
+                        state.isScanning = false; state.scannedBarcodeInput = decodedText;
+                        var scannerRef = html5QrCode; html5QrCode = null;
+                        if (scannerRef) {
+                            scannerRef.stop().then(function() { try { scannerRef.clear(); } catch(e){} fetchProductByBarcode(decodedText); })
+                            .catch(function() { fetchProductByBarcode(decodedText); });
+                        } else { fetchProductByBarcode(decodedText); }
+                    };
+                    html5QrCode.start({ facingMode: "environment" }, config, onScan, function(){})
+                    .catch(function(err1) {
+                        html5QrCode.start({ facingMode: "user" }, config, onScan, function(){})
+                        .catch(function(err2) {
+                            state.isScanning = false; state.statusMsg = ''; alert('Nie można uzyskać dostępu do kamery.'); render();
+                        });
+                    });
+                }
+                if (html5QrCode) html5QrCode.stop().then(runScanner).catch(runScanner); else runScanner();
+            }, 250);
+        };
 
-            var p = state.products.find(function(x) { return String(x.id) === String(state.selectedProdId); }) || 
-                    state.products.find(function(x) { return x.name.toLowerCase() === query.toLowerCase(); });
-
-            if (!p) {
-                state.unknownProductModal = true;
-                state.unknownName = query;
-                state.unknownWeight = w;
-                render();
-                return;
+        // POPRAWIONA, ZAAWANSOWANA OBSŁUGA GESTU SWIPE (v63)
+        var touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
+        var tabsOrder = ['dziennik', 'baza', 'trening', 'podsumowanie', 'kopia'];
+        window.addEventListener('touchstart', function(e) { 
+            touchStartX = e.changedTouches[0].screenX; 
+            touchStartY = e.changedTouches[0].screenY; 
+        }, {passive: true});
+        window.addEventListener('touchend', function(e) {
+            touchEndX = e.changedTouches[0].screenX;
+            touchEndY = e.changedTouches[0].screenY;
+            var diffX = touchEndX - touchStartX;
+            var diffY = touchEndY - touchStartY;
+            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 60) {
+                var idx = tabsOrder.indexOf(state.tab);
+                if (diffX < 0 && idx < tabsOrder.length - 1) { switchTab(tabsOrder[idx + 1]); }
+                else if (diffX > 0 && idx > 0) { switchTab(tabsOrder[idx - 1]); }
             }
-
-            var r = w / p.baseWeight;
-            getDayData().meals.push({ 
-                id: Date.now(), name: p.name, weight: w, 
-                kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10, 
-                f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 
-            });
-            state.prodSearch = ''; state.inputWeight = ''; state.selectedProdId = ''; 
-            saveState(); render();
-        };
-
-        window.confirmAddUnknownProduct = function() {
-            var name = state.unknownName;
-            var baseW = state.unknownWeight;
-            var kcal = parseFloat(document.getElementById('unkKcal').value) || 0;
-            var p = parseFloat(document.getElementById('unkP').value) || 0;
-            var f = parseFloat(document.getElementById('unkF').value) || 0;
-            var c = parseFloat(document.getElementById('unkC').value) || 0;
-
-            if (!kcal) return alert('Podaj przynajmniej kalorie!');
-
-            state.products.unshift({
-                id: String(Date.now()), name: name, baseWeight: baseW, baseKcal: kcal, baseP: p, baseF: f, baseC: c, category: "Inne"
-            });
-
-            getDayData().meals.push({
-                id: Date.now(), name: name, weight: baseW, kcal: kcal, p: p, f: f, c: c
-            });
-
-            state.unknownProductModal = false;
-            state.prodSearch = ''; state.inputWeight = ''; state.selectedProdId = '';
-            state.statusMsg = 'Dodano nowy produkt do bazy i dziennika!';
-            saveState(); render();
-        };
-
-        window.delMeal = function(id) { getDayData().meals = getDayData().meals.filter(function(x) { return String(x.id) !== String(id); }); saveState(); render(); };
-
-        window.searchWorkout = function(val) {
-            state.wSearch = val;
-            if (val.trim().length > 0) state.wResults = state.workoutsDb.filter(function(w) { return w.name.toLowerCase().includes(val.trim().toLowerCase()); }).slice(0, 5);
-            else state.wResults = [];
-            render(); setTimeout(function() { var el = document.getElementById('wNameInp'); if (el) { el.focus(); el.setSelectionRange(val.length, val.length); } }, 0);
-        };
-
-        window.selectWorkoutDrop = function(name) {
-            var w = state.workoutsDb.find(function(x) { return x.name === name; });
-            if (w) { state.wSearch = w.name; state.wInputTime = w.time; state.wInputKcal = w.kcal; state.wResults = []; render(); }
-        };
-
-        window.addWorkout = function() {
-            var name = state.wSearch.trim(), time = parseInt(state.wInputTime) || 0, kcal = parseInt(state.wInputKcal) || 0;
-            if (!name || !kcal) return alert('Podaj nazwę i spalone kalorie!');
-            if (!state.workoutsDb.find(function(w) { return w.name.toLowerCase() === name.toLowerCase(); })) state.workoutsDb.push({ name: name, time: time, kcal: kcal });
-            getDayData().workouts.push({ id: Date.now(), name: name, time: time, kcal: kcal });
-            state.wSearch = ''; state.wInputTime = ''; state.wInputKcal = ''; state.wResults = []; saveState(); render();
-        };
-
-        window.delWorkout = function(id) { getDayData().workouts = getDayData().workouts.filter(function(x) { return String(x.id) !== String(id); }); saveState(); render(); };
-        
-        window.startEditProd = function(id) { 
-            state.editProdId = id; 
-            render(); 
-            setTimeout(function() { 
-                var el = document.getElementById('prodForm'); 
-                if(el) el.scrollIntoView({behavior: 'smooth'}); 
-            }, 100); 
-        };
-        window.cancelEditProd = function() { state.editProdId = null; render(); };
-
-        window.addProd = function() {
-            var nameElem = document.getElementById('pName');
-            var catElem = document.getElementById('pCat');
-            var wElem = document.getElementById('pW');
-            var kElem = document.getElementById('pK');
-            var pElem = document.getElementById('pP');
-            var fElem = document.getElementById('pF');
-            var cElem = document.getElementById('pC');
-
-            var name = nameElem ? nameElem.value.trim() : '';
-            var cat = catElem ? catElem.value : 'Inne';
-            var w = wElem ? parseFloat(wElem.value) || 100 : 100;
-            var p = pElem ? parseFloat(pElem.value) || 0 : 0;
-            var fVal = fElem ? parseFloat(fElem.value) || 0 : 0;
-            var cVal = cElem ? parseFloat(cElem.value) || 0 : 0;
-            var kcal = (kElem && kElem.value !== '') ? parseFloat(kElem.value) : Math.round(p * 4 + cVal * 4 + fVal * 9);
-
-            if (!name) return alert('Podaj nazwę produktu!');
-
-            if(state.editProdId) {
-                var prod = state.products.find(function(x) { return String(x.id) === String(state.editProdId); });
-                if(prod) { prod.name = name; prod.category = cat; prod.baseWeight = w; prod.baseKcal = kcal; prod.baseP = p; prod.baseF = fVal; prod.baseC = cVal; }
-                state.editProdId = null;
-                state.statusMsg = 'Zaktualizowano produkt!';
-            } else { 
-                state.products.unshift({ id: String(Date.now()), name: name, category: cat, baseWeight: w, baseKcal: kcal, baseP: p, baseF: fVal, baseC: cVal }); 
-                state.statusMsg = 'Dodano nowy produkt do bazy!';
-            }
-            saveState(); render();
-        };
-
-        window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return String(x.id) !== String(id); }); saveState(); render(); } };
+        }, {passive: true});
 
         render();
     </script>
