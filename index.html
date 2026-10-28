@@ -25,14 +25,12 @@
         .theme-dark-bg { background-color: #0f172a; color: #f1f5f9; }
 
         /* ZAAWANSOWANE ANIMACJE AWATARÓW - V62 */
-        /* Chudy (Spacer, rozglądanie, pajacyki) */
         @keyframes thin-arm-l { 0%, 20% { transform: rotate(20deg); } 10% { transform: rotate(-20deg); } 30%, 70% { transform: rotate(0deg); } 80%, 90% { transform: rotate(-130deg); } 85%, 95% { transform: rotate(0deg); } 100% { transform: rotate(0deg); } }
         @keyframes thin-arm-r { 0%, 20% { transform: rotate(-20deg); } 10% { transform: rotate(20deg); } 30%, 70% { transform: rotate(0deg); } 80%, 90% { transform: rotate(130deg); } 85%, 95% { transform: rotate(0deg); } 100% { transform: rotate(0deg); } }
         @keyframes thin-leg-l { 0%, 20% { transform: rotate(20deg); } 10% { transform: rotate(-20deg); } 30%, 70% { transform: rotate(0deg); } 80%, 90% { transform: rotate(30deg); } 85%, 95% { transform: rotate(0deg); } 100% { transform: rotate(0deg); } }
         @keyframes thin-leg-r { 0%, 20% { transform: rotate(-20deg); } 10% { transform: rotate(20deg); } 30%, 70% { transform: rotate(0deg); } 80%, 90% { transform: rotate(-30deg); } 85%, 95% { transform: rotate(0deg); } 100% { transform: rotate(0deg); } }
         @keyframes thin-head { 0%, 40% { transform: rotate(0deg); } 45% { transform: rotate(-15deg); } 55% { transform: rotate(15deg); } 60%, 100% { transform: rotate(0deg); } }
 
-        /* Normalny (Oddychanie, machanie, napinanie mięśni) */
         @keyframes norm-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
         @keyframes norm-arm-r { 0%, 30% { transform: rotate(0deg); } 35%, 45% { transform: rotate(-130deg); } 38%, 42% { transform: rotate(-110deg); } 50%, 65% { transform: rotate(0deg); } 70%, 80% { transform: rotate(-100deg); } 85%, 100% { transform: rotate(0deg); } }
         @keyframes norm-arm-l { 0%, 65% { transform: rotate(0deg); } 70%, 80% { transform: rotate(100deg); } 85%, 100% { transform: rotate(0deg); } }
@@ -40,14 +38,12 @@
         @keyframes norm-leg-l { 0%, 65% { transform: rotate(0deg); } 70%, 80% { transform: rotate(10deg); } 85%, 100% { transform: rotate(0deg); } }
         @keyframes norm-leg-r { 0%, 65% { transform: rotate(0deg); } 70%, 80% { transform: rotate(-10deg); } 85%, 100% { transform: rotate(0deg); } }
 
-        /* Gruby (Ciężki oddech, masowanie brzucha, zasypianie Zzz) */
         @keyframes fat-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
         @keyframes fat-arm-l { 0%, 30% { transform: rotate(0deg); } 35%, 50% { transform: rotate(65deg); } 40%, 45% { transform: rotate(55deg); } 55%, 100% { transform: rotate(0deg); } }
         @keyframes fat-arm-r { 0%, 70% { transform: rotate(0deg); } 75%, 90% { transform: rotate(-25deg); } 95%, 100% { transform: rotate(0deg); } }
         @keyframes fat-head { 0%, 70% { transform: rotate(0deg); } 75%, 90% { transform: rotate(20deg) translateY(3px); } 92% { transform: rotate(-10deg); } 94% { transform: rotate(10deg); } 100% { transform: rotate(0deg); } }
         @keyframes fat-zzz { 0%, 70% { opacity: 0; transform: translateY(0); } 75%, 85% { opacity: 1; transform: translateY(-10px); } 90%, 100% { opacity: 0; transform: translateY(-20px); } }
 
-        /* Treningi */
         @keyframes lift-squat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
         @keyframes runner-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
         @keyframes runner-arm-f { 0% { transform: rotate(-30deg); } 50% { transform: rotate(30deg); } 100% { transform: rotate(-30deg); } }
@@ -138,7 +134,6 @@
 
         var dzis = new Date().toISOString().split('T')[0];
 
-        // BEZPIECZNE ŁADOWANIE Z PAMIĘCI
         var localDiaries = {};
         var localProducts = [];
         try {
@@ -169,6 +164,7 @@
                 measurements: [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ],
                 categories: DEFAULT_CATEGORIES.slice()
             },
+            collapsedCategories: {},
             date: dzis, summaryView: 'tydzien', summaryOffset: 0, isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
             wSearch: '', wResults: [], wInputTime: '', wInputKcal: '', editProdId: null,
@@ -295,7 +291,6 @@
         window.setTheme = function(th) { state.theme = th; saveState(); render(); };
         window.saveGeminiKey = function(key) { state.geminiApiKey = key.trim(); state.workingModelPath = ''; localStorage.removeItem('diet_working_model_v44'); saveState(); state.statusMsg = 'Zapisano klucz AI!'; render(); };
 
-        // DRZEWKO KATEGORII MODAL LOGIC
         window.openCatModal = function(ids) {
             if (!ids || ids.length === 0) return alert('Brak produktów do przeniesienia.');
             state.catModalTargetIds = ids;
@@ -494,7 +489,6 @@
                         '<div class="w-24 ' + th.card + ' p-2 rounded-xl border shrink-0"><label class="text-[10px] font-bold opacity-60 uppercase mb-0.5 flex items-center justify-between">Waga (kg)' + wIcon + '</label><input type="number" step="0.1" value="' + day.weight + '" onchange="changeWeight(this.value)" class="w-full text-xs font-bold text-center bg-transparent outline-none" /></div>' +
                         '</div>';
 
-                    // SYSTEM AWATARÓW - Z ZAAWANSOWANYMI RUTYNAMI ZACHOWAŃ
                     var ludzikHtml = '';
                     var overlimitMsg = '';
                     var ratio = day.goals.kcal > 0 ? (nettoKcal / day.goals.kcal) : 0;
@@ -820,14 +814,13 @@
                         '<div class="flex space-x-2"><button onclick="addProd()" class="flex-1 ' + th.btn + ' font-bold py-2 rounded-lg shadow-md text-xs">' + (edProd ? 'Zapisz zmiany' : 'Zapisz w bazie') + '</button>' +
                         (edProd ? '<button onclick="cancelEditProd()" class="bg-gray-300 text-gray-700 font-bold px-4 py-2 rounded-lg text-xs">Anuluj</button>' : '') + '</div></div>';
 
-                    // BAZA PRODUKTÓW Z MULTI-SELECT I KATEGORIAMI (v61)
                     html += '<div class="' + th.card + ' p-3 rounded-xl border mb-24">' +
                         '<div class="flex justify-between items-center mb-1">' +
                         '<h3 class="font-bold text-sm">Baza (' + state.products.length + ')</h3>' +
                         '<div class="space-x-1">' +
                         '<button onclick="toggleMultiSelect()" class="text-[10px] ' + (state.multiSelect ? 'bg-rose-500 text-white' : 'bg-gray-200 text-gray-700') + ' px-2 py-1 rounded-lg shadow-sm font-bold">☑️ Zaznacz</button>' +
                         '</div></div>' +
-                        '<p class="text-[10px] opacity-70 mb-2 font-medium">💡 Zaznacz produkty, by zarchiwizować grupę. Kliknij 🗂️ by zmienić kategorię pojedynczo.</p><div class="overflow-y-auto pr-1 pb-4">';
+                        '<p class="text-[10px] opacity-70 mb-2 font-medium">💡 Kliknij nagłówek kategorii, aby zwinąć/rozwinąć foldery.</p><div class="overflow-y-auto pr-1 pb-4">';
                     
                     var cats = state.settings.categories || DEFAULT_CATEGORIES;
                     var groupedProducts = {};
@@ -848,38 +841,47 @@
                     allRenderCats.forEach(function(cat, catIdx) {
                         var isCustom = catIdx < cats.length; 
                         var count = groupedProducts[cat] ? groupedProducts[cat].length : 0;
+                        var isCollapsed = state.collapsedCategories[cat];
+                        
                         if (groupedProducts[cat]) {
-                            html += '<div class="flex justify-between items-center mt-5 mb-2 px-2 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20">';
+                            html += '<div onclick="toggleCategoryCollapse(\'' + cat + '\')" class="flex justify-between items-center mt-5 mb-2 px-2 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/25 cursor-pointer hover:bg-blue-500/20 transition-colors">';
+                            html += '<div class="flex items-center space-x-2">';
+                            html += '<span class="text-xs font-bold">' + (isCollapsed ? '▶' : '▼') + '</span>';
                             html += '<h4 class="font-black text-[11px] uppercase tracking-widest text-blue-700">' + cat + ' <span class="opacity-60 text-[9px]">(' + count + ')</span></h4>';
+                            html += '</div>';
+                            
                             if (isCustom) {
-                                html += '<div class="flex space-x-1">';
+                                html += '<div class="flex space-x-1" onclick="event.stopPropagation()">';
                                 html += '<button onclick="moveCat('+catIdx+', -1)" class="text-[10px] px-1.5 py-0.5 opacity-50 hover:opacity-100 bg-white rounded shadow-sm">▲</button>';
                                 html += '<button onclick="moveCat('+catIdx+', 1)" class="text-[10px] px-1.5 py-0.5 opacity-50 hover:opacity-100 bg-white rounded shadow-sm">▼</button>';
                                 html += '<button onclick="editCat('+catIdx+')" class="text-[10px] px-1.5 py-0.5 opacity-50 hover:opacity-100 bg-white rounded shadow-sm text-blue-600" title="Edytuj">✏️</button>';
                                 html += '<button onclick="delCat('+catIdx+')" class="text-[10px] px-1.5 py-0.5 opacity-50 hover:opacity-100 bg-white rounded shadow-sm text-rose-500" title="Usuń">✕</button>';
                                 html += '</div>';
                             }
-                            html += '</div><div class="space-y-2">';
-
-                            if (groupedProducts[cat].length === 0) {
-                                html += '<p class="text-[10px] opacity-40 text-center py-2 italic border border-dashed rounded-lg">Brak produktów</p>';
-                            } else {
-                                groupedProducts[cat].forEach(function(p) {
-                                    var selCheckbox = state.multiSelect ? '<div class="mr-2"><input type="checkbox" ' + (state.selectedProds[p.id] ? 'checked' : '') + ' class="w-4 h-4 accent-blue-600" onclick="event.stopPropagation(); toggleProdSelect(\'' + p.id + '\')" /></div>' : '';
-                                    var rowClick = state.multiSelect ? 'toggleProdSelect(\'' + p.id + '\')' : '';
-                                    
-                                    html += '<div ' + (state.multiSelect ? 'onclick="'+rowClick+'"' : '') + ' class="' + th.inputBg + ' border p-2 rounded-lg flex justify-between items-center transition-transform ' + (state.multiSelect ? 'cursor-pointer hover:bg-gray-100' : '') + '">' + selCheckbox +
-                                        '<div class="pr-2 min-w-0 flex-1"><p class="font-bold text-xs truncate">' + p.name + ' <span class="' + th.accent + ' font-normal">(' + p.baseWeight + 'g)</span></p><p class="text-[9px] opacity-60 font-bold">B:' + p.baseP + ' | T:' + p.baseF + ' | W:' + p.baseC + '</p></div>' +
-                                        '<div class="flex items-center space-x-1 shrink-0">' +
-                                        '<span class="font-bold text-emerald-500 text-xs w-10 text-right mr-1">' + p.baseKcal + ' kcal</span>' +
-                                        '<button onclick="event.stopPropagation(); promptAddProductFromList(\'' + p.id + '\')" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold w-6 h-6 rounded text-xs shadow-sm flex items-center justify-center" title="Dodaj do dziennika">➕</button>' +
-                                        '<button onclick="event.stopPropagation(); promptChangeCategory(\'' + p.id + '\')" class="bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold w-6 h-6 rounded text-[10px] shadow-sm flex items-center justify-center" title="Zmień kategorię">🗂️</button>' +
-                                        '<button onclick="event.stopPropagation(); startEditProd(\'' + p.id + '\')" class="opacity-60 hover:opacity-100 font-bold w-6 h-6 flex items-center justify-center text-xs" title="Edytuj">✏️</button>' +
-                                        '<button onclick="event.stopPropagation(); delProd(\'' + p.id + '\')" class="text-rose-400 hover:text-rose-600 font-bold w-6 h-6 flex items-center justify-center text-xs" title="Usuń">✕</button>' +
-                                        '</div></div>';
-                                });
-                            }
                             html += '</div>';
+
+                            if (!isCollapsed) {
+                                html += '<div class="space-y-2">';
+                                if (groupedProducts[cat].length === 0) {
+                                    html += '<p class="text-[10px] opacity-40 text-center py-2 italic border border-dashed rounded-lg">Brak produktów</p>';
+                                } else {
+                                    groupedProducts[cat].forEach(function(p) {
+                                        var selCheckbox = state.multiSelect ? '<div class="mr-2"><input type="checkbox" ' + (state.selectedProds[p.id] ? 'checked' : '') + ' class="w-4 h-4 accent-blue-600" onclick="event.stopPropagation(); toggleProdSelect(\'' + p.id + '\')" /></div>' : '';
+                                        var rowClick = state.multiSelect ? 'toggleProdSelect(\'' + p.id + '\')' : '';
+                                        
+                                        html += '<div ' + (state.multiSelect ? 'onclick="'+rowClick+'"' : '') + ' class="' + th.inputBg + ' border p-2 rounded-lg flex justify-between items-center transition-transform ' + (state.multiSelect ? 'cursor-pointer hover:bg-gray-100' : '') + '">' + selCheckbox +
+                                            '<div class="pr-2 min-w-0 flex-1"><p class="font-bold text-xs truncate">' + p.name + ' <span class="' + th.accent + ' font-normal">(' + p.baseWeight + 'g)</span></p><p class="text-[9px] opacity-60 font-bold">B:' + p.baseP + ' | T:' + p.baseF + ' | W:' + p.baseC + '</p></div>' +
+                                            '<div class="flex items-center space-x-1 shrink-0">' +
+                                            '<span class="font-bold text-emerald-500 text-xs w-10 text-right mr-1">' + p.baseKcal + ' kcal</span>' +
+                                            '<button onclick="event.stopPropagation(); promptAddProductFromList(\'' + p.id + '\')" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold w-6 h-6 rounded text-xs shadow-sm flex items-center justify-center" title="Dodaj do dziennika">➕</button>' +
+                                            '<button onclick="event.stopPropagation(); promptChangeCategory(\'' + p.id + '\')" class="bg-blue-100 hover:bg-blue-200 text-blue-700 font-bold w-6 h-6 rounded text-[10px] shadow-sm flex items-center justify-center" title="Zmień kategorię">🗂️</button>' +
+                                            '<button onclick="event.stopPropagation(); startEditProd(\'' + p.id + '\')" class="opacity-60 hover:opacity-100 font-bold w-6 h-6 flex items-center justify-center text-xs" title="Edytuj">✏️</button>' +
+                                            '<button onclick="event.stopPropagation(); delProd(\'' + p.id + '\')" class="text-rose-400 hover:text-rose-600 font-bold w-6 h-6 flex items-center justify-center text-xs" title="Usuń">✕</button>' +
+                                            '</div></div>';
+                                    });
+                                }
+                                html += '</div>';
+                            }
                         }
                     });
                     
@@ -1094,7 +1096,6 @@
                         '</div>';
                 }
 
-                // RENDEROWANIE DRZEWKA KATEGORII (MODAL)
                 if (state.catModalOpen) {
                     html += '<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-end justify-center pb-6 px-2">' +
                             '<div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-[slideUp_0.2s_ease-out]">' +
@@ -1127,7 +1128,6 @@
                 html += '</div>';
                 app.innerHTML = html;
             } catch(globalErr) {
-                // GLOBAL FAIL-SAFE: Jeśli coś pójdzie nie tak, aplikacja nie zatrzyma się na ładowaniu!
                 document.getElementById('app').innerHTML = '<div class="p-6 text-center text-rose-600 mt-20"><h2 class="font-black text-xl mb-2">Wystąpił błąd wyświetlania</h2><p class="text-xs mb-4">Kod zatrzymał się z powodu: ' + globalErr.message + '</p><button onclick="localStorage.clear(); location.reload();" class="bg-rose-500 text-white font-bold py-2 px-4 rounded-xl">Wyczyść pamięć i napraw</button></div>';
             }
         };
@@ -1142,10 +1142,22 @@
         window.promptAddMeasurement = function() { var name = prompt('Podaj nazwę nowego pomiaru (np. Łydka):'); if(name && name.trim()) { state.settings.measurements.push({ id: 'm_' + Date.now(), name: name.trim() }); saveState(); render(); } };
         window.removeMeasurement = function(id) { if(confirm('Usunąć ten pomiar?')) { state.settings.measurements = state.settings.measurements.filter(function(m) { return m.id !== id; }); saveState(); render(); } };
         
+        // --- POPRAWIONE I NOWE FUNKCJE ---
+
+        window.changeWeight = function(val) {
+            getDayData().weight = val;
+            saveState();
+            render();
+        };
+
         window.addMeal = function() {
-            var query = state.prodSearch.trim();
-            var w = parseFloat(state.inputWeight);
-            if (!query || !w) return alert('Wpisz nazwę posiłku i wagę!');
+            var searchInp = document.getElementById('pSearchInp');
+            var weightInp = document.getElementById('inpW');
+            
+            var query = searchInp ? searchInp.value.trim() : state.prodSearch.trim();
+            var w = parseFloat(weightInp ? weightInp.value : state.inputWeight);
+
+            if (!query || isNaN(w) || w <= 0) return alert('Wpisz nazwę posiłku i prawidłową wagę!');
 
             var p = state.products.find(function(x) { return String(x.id) === String(state.selectedProdId); }) || 
                     state.products.find(function(x) { return x.name.toLowerCase() === query.toLowerCase(); });
@@ -1164,8 +1176,13 @@
                 kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10, 
                 f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 
             });
+            
             state.prodSearch = ''; state.inputWeight = ''; state.selectedProdId = ''; 
-            saveState(); render();
+            if(searchInp) searchInp.value = '';
+            if(weightInp) weightInp.value = '';
+            
+            saveState(); 
+            render();
         };
 
         window.confirmAddUnknownProduct = function() {
@@ -1193,6 +1210,46 @@
         };
 
         window.delMeal = function(id) { getDayData().meals = getDayData().meals.filter(function(x) { return String(x.id) !== String(id); }); saveState(); render(); };
+
+        window.promptEditMealWeight = function(id) {
+            var meal = getDayData().meals.find(function(m) { return String(m.id) === String(id); });
+            if(!meal) return;
+            var newW = prompt('Podaj nową wagę w gramach dla: ' + meal.name, meal.weight);
+            if(newW && !isNaN(parseFloat(newW))) {
+                var w = parseFloat(newW);
+                var r = w / meal.weight;
+                meal.weight = w; meal.kcal = Math.round(meal.kcal * r);
+                meal.p = Math.round(meal.p * r * 10) / 10; meal.f = Math.round(meal.f * r * 10) / 10; meal.c = Math.round(meal.c * r * 10) / 10;
+                saveState(); render();
+            }
+        };
+
+        window.moveMeal = function(idx, dir) {
+            var meals = getDayData().meals;
+            if (idx + dir >= 0 && idx + dir < meals.length) {
+                var tmp = meals[idx];
+                meals[idx] = meals[idx + dir];
+                meals[idx + dir] = tmp;
+                saveState(); render();
+            }
+        };
+
+        window.promptAddProductFromList = function(id) {
+            var p = state.products.find(function(x) { return String(x.id) === String(id); });
+            if(!p) return;
+            var w = prompt('Podaj wagę (g) dla: ' + p.name, p.baseWeight);
+            if(w && !isNaN(parseFloat(w))) {
+                var weight = parseFloat(w);
+                var r = weight / p.baseWeight;
+                getDayData().meals.push({ 
+                    id: Date.now(), name: p.name, weight: weight, 
+                    kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10, 
+                    f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 
+                });
+                state.statusMsg = 'Dodano: ' + p.name;
+                saveState(); render();
+            }
+        };
 
         window.searchWorkout = function(val) {
             state.wSearch = val;
@@ -1257,96 +1314,26 @@
             saveState(); render();
         };
 
-        window.delProd = function(id) { if (confirm('Usunąć ten produkt z bazy?')) { state.products = state.products.filter(function(x) { return String(x.id) !== String(id); }); saveState(); render(); } };
-        // ---------------------------------------------------------
-        // BRAKUJĄCE FUNKCJE NAPRAWIAJĄCE BŁĘDY (WAGA, POSIŁKI, APARAT)
-        // ---------------------------------------------------------
-
-        // 1. Zapisywanie wagi w dzienniku
-        window.changeWeight = function(val) {
-            getDayData().weight = val;
-            saveState();
-            render();
-        };
-
-        // 2. Poprawione dodawanie posiłku (czyta bezpośrednio z inputów)
-        window.addMeal = function() {
-            var searchInp = document.getElementById('pSearchInp');
-            var weightInp = document.getElementById('inpW');
-            
-            var query = searchInp ? searchInp.value.trim() : state.prodSearch.trim();
-            var w = parseFloat(weightInp ? weightInp.value : state.inputWeight);
-
-            if (!query || isNaN(w) || w <= 0) return alert('Wpisz nazwę posiłku i prawidłową wagę!');
-
-            var p = state.products.find(function(x) { return String(x.id) === String(state.selectedProdId); }) || 
-                    state.products.find(function(x) { return x.name.toLowerCase() === query.toLowerCase(); });
-
-            if (!p) {
-                state.unknownProductModal = true;
-                state.unknownName = query;
-                state.unknownWeight = w;
-                render();
-                return;
-            }
-
-            var r = w / p.baseWeight;
-            getDayData().meals.push({ 
-                id: Date.now(), name: p.name, weight: w, 
-                kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10, 
-                f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 
-            });
-            
-            state.prodSearch = ''; state.inputWeight = ''; state.selectedProdId = ''; 
-            if(searchInp) searchInp.value = '';
-            if(weightInp) weightInp.value = '';
-            
-            saveState(); 
-            render();
-        };
-
-        // Funkcje pomocnicze do posiłków na liście (edycja i przenoszenie)
-        window.promptEditMealWeight = function(id) {
-            var meal = getDayData().meals.find(function(m) { return String(m.id) === String(id); });
-            if(!meal) return;
-            var newW = prompt('Podaj nową wagę w gramach dla: ' + meal.name, meal.weight);
-            if(newW && !isNaN(parseFloat(newW))) {
-                var w = parseFloat(newW);
-                var r = w / meal.weight;
-                meal.weight = w; meal.kcal = Math.round(meal.kcal * r);
-                meal.p = Math.round(meal.p * r * 10) / 10; meal.f = Math.round(meal.f * r * 10) / 10; meal.c = Math.round(meal.c * r * 10) / 10;
-                saveState(); render();
-            }
-        };
-
-        window.moveMeal = function(idx, dir) {
-            var meals = getDayData().meals;
-            if (idx + dir >= 0 && idx + dir < meals.length) {
-                var tmp = meals[idx];
-                meals[idx] = meals[idx + dir];
-                meals[idx + dir] = tmp;
-                saveState(); render();
-            }
-        };
-
-        window.promptAddProductFromList = function(id) {
-            var p = state.products.find(function(x) { return String(x.id) === String(id); });
-            if(!p) return;
-            var w = prompt('Podaj wagę (g) dla: ' + p.name, p.baseWeight);
-            if(w && !isNaN(parseFloat(w))) {
-                var weight = parseFloat(w);
-                var r = weight / p.baseWeight;
-                getDayData().meals.push({ 
-                    id: Date.now(), name: p.name, weight: weight, 
-                    kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10, 
-                    f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 
+        window.delProd = function(id) {
+            if (confirm('Czy na pewno chcesz permanentnie usunąć ten produkt z bazy?')) {
+                state.products = state.products.filter(function(x) { 
+                    return String(x.id) !== String(id); 
                 });
-                state.statusMsg = 'Dodano: ' + p.name;
-                saveState(); render();
+                saveState(); 
+                state.statusMsg = 'Usunięto produkt z bazy.';
+                render();
             }
         };
 
-        // 3. Skaner kodów kreskowych (Aparat)
+        window.toggleCategoryCollapse = function(catName) {
+            if (state.collapsedCategories[catName]) {
+                delete state.collapsedCategories[catName];
+            } else {
+                state.collapsedCategories[catName] = true;
+            }
+            render();
+        };
+
         window.startBarcodeScanner = function() {
             state.isScanning = true;
             state.scannedProductData = null;
@@ -1366,7 +1353,7 @@
                             fetchProductByBarcode();
                         });
                     },
-                    function onScanFailure(error) { /* ignorujemy klatki bez kodu */ }
+                    function onScanFailure(error) { }
                 ).catch(function(err) {
                     alert("Błąd aparatu. Sprawdź uprawnienia. (" + err + ")");
                     state.isScanning = false;
@@ -1389,7 +1376,6 @@
             var code = (state.scannedBarcodeInput || '').trim();
             if (!code) return alert('Brak kodu!');
             
-            // Proste zapytanie do darmowej bazy OpenFoodFacts
             fetch('https://world.openfoodfacts.org/api/v0/product/' + code + '.json')
                 .then(function(res) { return res.json(); })
                 .then(function(data) {
@@ -1398,7 +1384,7 @@
                         var nut = p.nutriments || {};
                         state.scannedProductData = {
                             name: p.product_name || 'Zeskanowany produkt',
-                            baseWeight: 100, // OFF domyślnie podaje na 100g
+                            baseWeight: 100,
                             baseKcal: nut['energy-kcal_100g'] || 0,
                             baseP: nut['proteins_100g'] || 0,
                             baseF: nut['fat_100g'] || 0,
@@ -1465,18 +1451,16 @@
             saveState(); render();
         };
 
-        // Minimalne funkcje zarządzania (żeby aplikacja nie wyrzucała błędu po wciśnięciu)
         window.promptRenameUser = function(id) {
             var u = state.users.find(function(x) { return x.id === id; });
             if(u) { var n = prompt('Nowe imię profilu:', u.name); if(n && n.trim()) { u.name = n.trim(); saveState(); render(); } }
         };
-        window.moveCat = function(idx, dir) {}; // Zastępcze zabezpieczenie przed błędem
-        window.editCat = function(idx) {};      // Zastępcze zabezpieczenie przed błędem
-        window.delCat = function(idx) {};       // Zastępcze zabezpieczenie przed błędem
+        window.moveCat = function(idx, dir) {};
+        window.editCat = function(idx) {};
+        window.delCat = function(idx) {};
         window.openAiModal = function() { state.aiModalOpen = true; render(); };
         window.closeAiModal = function() { state.aiModalOpen = false; render(); };
         window.getGeminiDailyAdvice = function() { alert("Podłącz klucz w ustawieniach i aktywuj AI!"); };
-
 
         render();
     </script>
