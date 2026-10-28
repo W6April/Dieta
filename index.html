@@ -188,7 +188,6 @@
             try {
                 if (!state.products || !Array.isArray(state.products)) state.products = [];
                 
-                // Dodawaj domyślne produkty TYLKO jeśli nie ma ich w stanie ORAZ nie zostały przez użytkownika skasowane
                 FULL_PRODUCTS.forEach(function(bp) {
                     var isDeleted = (state.deletedProductIds || []).includes(String(bp.id));
                     var existsInCustom = state.products.some(function(p) { return String(p.id) === String(bp.id) || p.name.trim().toLowerCase() === bp.name.trim().toLowerCase(); });
@@ -245,7 +244,6 @@
                         }));
                     }
                     if (data.products && data.products.length > 0) { 
-                        // Filtruj chmurę z uwzględnieniem skasowanych lokalnie ID
                         state.products = data.products.filter(function(p) {
                             return !(state.deletedProductIds || []).includes(String(p.id));
                         });
@@ -431,7 +429,7 @@
             var minW = Math.min.apply(null, last14.map(function(w) { return w.val; })); 
             var maxW = Math.max.apply(null, last14.map(function(w) { return w.val; }));
             var range = (maxW - minW) || 1; var w = 340, h = 100, padX = 20, padY = 20; var stepX = (w - padX * 2) / (last14.length - 1);
-            var points = last14.map(function(pt, i) { return (padX + (i * stepX)) + ',' + (h - padY - (((pt.val - minW) / range) * (h - padY * 2)); }).join(' ');
+            var points = last14.map(function(pt, i) { return (padX + (i * stepX)) + ',' + (h - padY - (((pt.val - minW) / range) * (h - padY * 2))); }).join(' ');
 
             var circles = last14.map(function(pt, i) {
                 var x = padX + (i * stepX), y = h - padY - (((pt.val - minW) / range) * (h - padY * 2));
@@ -1334,11 +1332,9 @@
         window.delProd = function(id) {
             if (confirm('Czy na pewno chcesz permanentnie usunąć ten produkt z bazy?')) {
                 var stringId = String(id);
-                // Dodaj ID do tablicy skasowanych, żeby skrypt nie przywrócił go przy kolejnym uruchomieniu
                 if (!state.deletedProductIds.includes(stringId)) {
                     state.deletedProductIds.push(stringId);
                 }
-                // Usuń z aktualnej listy produktów w stanie
                 state.products = state.products.filter(function(x) { 
                     return String(x.id) !== stringId; 
                 });
