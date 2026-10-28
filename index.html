@@ -50,11 +50,11 @@
 </head>
 <body class="bg-gray-100 text-gray-800 font-sans pb-24 select-none">
     <div id="app" class="max-w-md w-full mx-auto min-h-screen shadow-xl relative overflow-x-hidden flex flex-col transition-colors duration-300">
-        <div class="p-6 text-center text-blue-600 mt-20 font-bold">Weryfikacja danych i uruchamianie...</div>
+        <div class="p-6 text-center text-blue-600 mt-20 font-bold">Ładowanie aplikacji i odzyskiwanie danych...</div>
     </div>
 
     <script>
-        const CURRENT_APP_VERSION = "v64-full-features-rollback";
+        const CURRENT_APP_VERSION = "v66-scanner-and-colors";
         try {
             var codeHistory = JSON.parse(localStorage.getItem('diet_code_versions_history') || '[]');
             var pageHtmlSource = document.documentElement.outerHTML;
@@ -78,7 +78,7 @@
         try {
             firebase.initializeApp(firebaseConfig);
             var db = firebase.firestore();
-        } catch(e) { console.log("Błąd inicjalizacji Firebase:", e); }
+        } catch(e) {}
 
         const THEMES = {
             classic: { name: "💧 Klasyczny Niebieski", appBg: "bg-gray-50 text-gray-800", header: "bg-gradient-to-r from-blue-600 to-indigo-600 text-white", headerSub: "bg-blue-800/60", card: "bg-white border-gray-100 shadow-sm text-gray-800", softBox: "bg-blue-50/80 border-blue-200 text-blue-900", btn: "bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200", accent: "text-blue-600", nav: "bg-white/95 border-gray-200", tabActive: "text-blue-600 bg-blue-50/80", inputBg: "bg-gray-50 border-gray-200 text-gray-800" },
@@ -144,8 +144,11 @@
         var localProducts = [];
         var localDeletedProducts = [];
         try {
-            var savedD = localStorage.getItem('diet_local_diaries_vault');
-            if (savedD && savedD !== "null" && savedD !== "undefined") localDiaries = JSON.parse(savedD) || {};
+            var savedD = localStorage.getItem('diet_local_diaries_vault') || localStorage.getItem('diet_previous_auto_backup') || localStorage.getItem('diet_emergency_snapshot');
+            if (savedD && savedD !== "null" && savedD !== "undefined") {
+                var parsedD = JSON.parse(savedD);
+                localDiaries = parsedD.diaries ? parsedD.diaries : parsedD;
+            }
             var savedP = localStorage.getItem('diet_local_products_vault');
             if (savedP && savedP !== "null" && savedP !== "undefined") localProducts = JSON.parse(savedP) || [];
             var savedDel = localStorage.getItem('diet_local_deleted_products');
@@ -383,7 +386,7 @@
             if (!val || val.trim().length === 0) { dropdown.innerHTML = ''; dropdown.classList.add('hidden'); return; }
             var results = state.products.filter(function(p) { return p.name.toLowerCase().includes(val.trim().toLowerCase()); }).slice(0, 15);
             if (results.length === 0) { dropdown.innerHTML = '<div class="p-2.5 text-xs text-gray-400 text-center">Brak produktów w bazie</div>'; dropdown.classList.remove('hidden'); return; }
-            var html = ''; results.forEach(function(p) { html += '<div onclick="selectProdDrop(\'' + p.id + '\')" class="p-2.5 border-b border-gray-50 text-xs cursor-pointer hover:bg-gray-100"><span class="font-bold block truncate">' + p.name + '</span><span class="text-[9px] opacity-60">' + p.baseWeight + 'g opakowanie = ' + p.baseKcal + ' kcal</span></div>'; });
+            var html = ''; results.forEach(function(p) { html += '<div onclick="selectProdDrop(\'' + p.id + '\')" class="p-2.5 border-b border-gray-50 text-xs cursor-pointer hover:bg-gray-100" title="' + p.name + '"><span class="font-bold block truncate">' + p.name + '</span><span class="text-[9px] opacity-60">' + p.baseWeight + 'g opakowanie = ' + p.baseKcal + ' kcal</span></div>'; });
             dropdown.innerHTML = html; dropdown.classList.remove('hidden');
         };
 
@@ -523,7 +526,7 @@
                     if (day.meals.length === 0) html += '<p class="text-[10px] opacity-50 text-center py-2">Brak posiłków</p>';
                     
                     day.meals.forEach(function(m, idx) {
-                        html += '<div class="flex justify-between items-center ' + th.inputBg + ' p-2 rounded-lg border">' +
+                        html += '<div class="flex justify-between items-center ' + th.inputBg + ' p-2 rounded-lg border" title="' + m.name + '">' +
                             '<div class="flex flex-col items-center justify-center mr-2 space-y-1">' +
                             '<button onclick="moveMeal(' + idx + ', -1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▲</button>' +
                             '<button onclick="moveMeal(' + idx + ', 1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▼</button>' +
@@ -593,6 +596,46 @@
                     var edProd = state.editProdId ? state.products.find(function(p) { return String(p.id) === String(state.editProdId); }) : null;
                     if (state.statusMsg) html += '<div class="bg-indigo-500/20 border border-indigo-500/40 text-indigo-700 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
 
+                    // SKANER KODÓW KRESKOWYCH W BAZIE
+                    html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
+                        '<h3 class="font-black mb-2 text-sm text-center">📷 Skaner Produktów (Inteligentny)</h3>' +
+                        '<div class="flex space-x-2 mb-2">' +
+                        '<input id="barcodeInput" placeholder="Wpisz kod EAN..." value="' + (state.scannedBarcodeInput || '') + '" oninput="state.scannedBarcodeInput=this.value" class="flex-1 p-2 ' + th.card + ' border rounded-lg text-xs font-bold outline-none" />' +
+                        '<button onclick="fetchProductByBarcode()" class="' + th.btn + ' font-bold px-3 py-2 rounded-lg text-xs shadow">Szukaj</button>' +
+                        '</div>';
+
+                    if (!state.isScanning) {
+                        html += '<button onclick="startBarcodeScanner()" class="w-full ' + th.btn + ' font-bold py-2.5 rounded-xl shadow text-xs">📷 Włącz aparat i skanuj kod</button>';
+                    } else {
+                        html += '<div id="reader" class="w-full mb-2 overflow-hidden rounded-lg border bg-black min-h-[220px]"></div>' +
+                                '<button onclick="stopBarcodeScanner()" class="w-full bg-rose-500 text-white font-bold py-2.5 rounded-xl text-xs shadow">❌ Zamknij aparat</button>';
+                    }
+
+                    if (state.scannedProductData) {
+                        var sp = state.scannedProductData;
+                        var existing = state.products.find(function(prod) { return prod.name.toLowerCase() === sp.name.toLowerCase(); });
+                        html += '<div class="mt-3 p-3.5 bg-white border-2 border-indigo-300 rounded-xl shadow-md text-gray-900">' +
+                            '<p class="text-xs font-black text-indigo-900 mb-1">📦 ' + sp.name + '</p>' +
+                            '<div class="grid grid-cols-2 gap-2 mb-2 text-xs">' +
+                            '<div><label class="font-bold text-[9px] text-gray-500">Waga (g):</label><input id="scannedPkgWeightInput" type="number" value="' + sp.baseWeight + '" class="w-full p-1 border rounded font-bold text-center" /></div>' +
+                            '<div><label class="font-bold text-[9px] text-gray-500">Kcal:</label><input id="scannedPkgKcalInput" type="number" value="' + sp.baseKcal + '" class="w-full p-1 border rounded font-bold text-center" /></div>' +
+                            '<div><label class="font-bold text-[9px] text-gray-500">Białko:</label><input id="scannedPkgPInput" type="number" step="0.1" value="' + sp.baseP + '" class="w-full p-1 border rounded font-bold text-center" /></div>' +
+                            '<div><label class="font-bold text-[9px] text-gray-500">Tłuszcz:</label><input id="scannedPkgFInput" type="number" step="0.1" value="' + sp.baseF + '" class="w-full p-1 border rounded font-bold text-center" /></div>' +
+                            '<div class="col-span-2"><label class="font-bold text-[9px] text-gray-500">Węglowodany:</label><input id="scannedPkgCInput" type="number" step="0.1" value="' + sp.baseC + '" class="w-full p-1 border rounded font-bold text-center" /></div>' +
+                            '</div>' +
+                            '<div class="mb-3 flex items-center space-x-2 bg-gray-50 p-2 rounded-lg border">' +
+                            '<label class="text-[10px] font-bold text-gray-700">Waga zjedzona teraz (g):</label>' +
+                            '<input id="scannedWeightInput" type="number" value="' + sp.addWeight + '" class="w-20 p-1 bg-white border rounded text-xs font-bold text-center outline-none" />' +
+                            '</div>' +
+                            '<div class="grid grid-cols-2 gap-2 mb-2">' +
+                            '<button onclick="addScannedDirectlyToDiary(\'scannedWeightInput\')" class="bg-indigo-600 text-white font-bold py-1.5 rounded text-[10px]">🍽️ Do dziennika</button>' +
+                            '<button onclick="confirmAddScannedProduct(' + (existing ? 'true' : 'false') + ')" class="bg-emerald-600 text-white font-bold py-1.5 rounded text-[10px]">💾 Zapisz w bazie</button>' +
+                            '</div>' +
+                            '<button onclick="state.scannedProductData=null; render();" class="w-full bg-gray-300 text-gray-700 py-1 rounded text-[10px] font-bold">Anuluj</button>' +
+                            '</div>';
+                    }
+                    html += '</div>';
+
                     html += '<div class="' + th.card + ' border p-4 rounded-xl mb-4" id="prodForm">' +
                         '<h3 class="font-bold text-sm mb-3">' + (edProd ? '✏️ Edytuj produkt' : '➕ Dodaj własny produkt') + '</h3>' +
                         '<input id="pName" placeholder="Nazwa produktu" value="' + (edProd ? edProd.name : '') + '" class="w-full mb-2 p-2 text-xs rounded-lg border ' + th.inputBg + ' font-bold outline-none" />' +
@@ -616,7 +659,7 @@
 
                     html += '<div class="' + th.card + ' p-3 rounded-xl border mb-24">' +
                         '<div class="flex justify-between items-center mb-1"><h3 class="font-bold text-sm">Baza (' + state.products.length + ')</h3></div>' +
-                        '<p class="text-[10px] opacity-70 mb-2 font-medium">💡 Użyj przycisków ▲ ▼ w nagłówkach kategorii, aby je przesuwać góra/dół.</p><div class="overflow-y-auto pr-1 pb-4">';
+                        '<p class="text-[10px] opacity-70 mb-2 font-medium">💡 Przytrzymaj kursor lub dotknij produktu, aby zobaczyć pełną nazwę.</p><div class="overflow-y-auto pr-1 pb-4">';
                     
                     var cats = state.settings.categories || DEFAULT_CATEGORIES;
                     var groupedProducts = {};
@@ -660,7 +703,7 @@
                                     html += '<p class="text-[10px] opacity-40 text-center py-2 italic border border-dashed rounded-lg">Brak produktów</p>';
                                 } else {
                                     groupedProducts[cat].forEach(function(p) {
-                                        html += '<div class="' + th.inputBg + ' border p-2 rounded-lg flex justify-between items-center">' +
+                                        html += '<div class="' + th.inputBg + ' border p-2 rounded-lg flex justify-between items-center" title="' + p.name + '">' +
                                             '<div class="pr-2 min-w-0 flex-1"><p class="font-bold text-xs truncate">' + p.name + ' <span class="' + th.accent + ' font-normal">(' + p.baseWeight + 'g)</span></p><p class="text-[9px] opacity-60 font-bold">B:' + p.baseP + ' | T:' + p.baseF + ' | W:' + p.baseC + '</p></div>' +
                                             '<div class="flex items-center space-x-1 shrink-0">' +
                                             '<span class="font-bold text-emerald-500 text-xs w-10 text-right mr-1">' + p.baseKcal + ' kcal</span>' +
@@ -677,33 +720,143 @@
                     html += '</div></div>';
 
                 } else if (state.tab === 'podsumowanie') {
+                    var view = state.summaryView || 'tydzien';
+                    var offset = state.summaryOffset || 0;
+                    var todayParts = state.date.split('-');
+                    var baseD = new Date(parseInt(todayParts[0]), parseInt(todayParts[1]) - 1, parseInt(todayParts[2]));
+                    
+                    var datesToProcess = [];
+                    var periodLabel = "";
+                    var userDiary = state.diaries[state.userId] || {};
+                    var allDates = Object.keys(userDiary).sort();
+
+                    if (view === 'ogolne') {
+                        datesToProcess = allDates;
+                        periodLabel = "Od początku";
+                    } else if (view === 'rok') {
+                        var y = baseD.getFullYear() + offset;
+                        datesToProcess = allDates.filter(function(d) { return d.startsWith(y.toString()); });
+                        periodLabel = "Rok " + y;
+                    } else if (view === 'miesiac') {
+                        var mDate = new Date(baseD.getFullYear(), baseD.getMonth() + offset, 1);
+                        var yStr = mDate.getFullYear();
+                        var mStr = String(mDate.getMonth() + 1).padStart(2, '0');
+                        var prefix = yStr + '-' + mStr;
+                        datesToProcess = allDates.filter(function(d) { return d.startsWith(prefix); });
+                        var months = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
+                        periodLabel = months[mDate.getMonth()] + " " + yStr;
+                    } else {
+                        var curr = new Date(baseD.getFullYear(), baseD.getMonth(), baseD.getDate());
+                        curr.setDate(curr.getDate() + (offset * 7));
+                        var dayOfWeek = curr.getDay();
+                        var wOffset = state.settings.startOfWeek === 1 ? (dayOfWeek === 0 ? -6 : 1 - dayOfWeek) : -dayOfWeek;
+                        curr.setDate(curr.getDate() + wOffset);
+                        for (var i = 0; i < 7; i++) { 
+                            var n = new Date(curr.getFullYear(), curr.getMonth(), curr.getDate() + i); 
+                            datesToProcess.push(n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0')); 
+                        }
+                        periodLabel = datesToProcess[0] + " — " + datesToProcess[6];
+                    }
+
+                    var tKcal = 0, tBurned = 0, dCount = 0, weightsForPeriod = [];
+                    var tP = 0, tF = 0, tC = 0, totalTarget = 0;
+
+                    datesToProcess.forEach(function(d) {
+                        var dObj = userDiary[d] || null;
+                        var dayGoal = (dObj && dObj.goals && dObj.goals.kcal) ? dObj.goals.kcal : (user.id === 'u1' ? 2500 : 2000);
+                        var e = 0, p = 0, f = 0, c = 0, b = 0;
+                        
+                        if (dObj) {
+                            (dObj.meals || []).forEach(function(m) { e += m.kcal; p += m.p; f += m.f; c += m.c; });
+                            (dObj.workouts || []).forEach(function(w) { b += w.kcal; });
+                            if (dObj.weight && !isNaN(parseFloat(dObj.weight))) weightsForPeriod.push({date: d, val: parseFloat(dObj.weight)});
+                        }
+
+                        if (e > 0) { 
+                            tKcal += e; tP += p; tF += f; tC += c; 
+                            tBurned += b; 
+                            totalTarget += dayGoal;
+                            dCount++; 
+                        } else if (b > 0) {
+                            tBurned += b;
+                        }
+                    });
+
+                    weightsForPeriod.sort(function(a,b){ return new Date(a.date) - new Date(b.date); });
+                    var wDiff = weightsForPeriod.length >= 2 ? (weightsForPeriod[weightsForPeriod.length - 1].val - weightsForPeriod[0].val) : 0;
+                    var wDiffStr = (wDiff > 0 ? '+' : '') + wDiff.toFixed(1);
+                    var netKcal = tKcal - tBurned;
+                    var balanceVsZero = netKcal - totalTarget;
+
+                    html += '<div class="flex space-x-1 mb-3 ' + th.inputBg + ' p-1 rounded-lg border">';
+                    ['tydzien', 'miesiac', 'rok', 'ogolne'].forEach(function(v, idx) {
+                        var labels = ['Tydzień', 'Miesiąc', 'Rok', 'Ogólne'];
+                        var activeCls = (view === v) ? th.btn + ' shadow text-white' : 'opacity-60 text-xs font-bold';
+                        html += '<button onclick="state.summaryView=\'' + v + '\'; state.summaryOffset=0; render();" class="flex-1 py-1.5 rounded-md text-[10px] uppercase font-black transition-colors ' + activeCls + '">' + labels[idx] + '</button>';
+                    });
+                    html += '</div>';
+
+                    if (view !== 'ogolne') {
+                        html += '<div class="' + th.card + ' p-2.5 rounded-xl border flex items-center justify-between mb-4 shadow-sm">' +
+                            '<button onclick="state.summaryOffset-=1; render();" class="bg-gradient-to-r from-blue-500 to-indigo-500 text-white border px-3 py-1.5 rounded-lg text-xs font-black shadow">◀ Wstecz</button>' +
+                            '<span class="text-xs font-black text-indigo-600 px-2 py-1 uppercase text-center leading-tight">' + periodLabel + '</span>' +
+                            '<button onclick="state.summaryOffset+=1; render();" class="bg-gradient-to-r from-blue-500 to-indigo-500 text-white border px-3 py-1.5 rounded-lg text-xs font-black shadow">Dalej ▶</button>' +
+                            '</div>';
+                    } else {
+                        html += '<div class="' + th.card + ' p-2.5 rounded-xl border flex items-center justify-center mb-4 bg-indigo-50">' +
+                            '<span class="text-xs font-black text-indigo-700 uppercase">' + periodLabel + '</span>' +
+                            '</div>';
+                    }
+
+                    // KOLOROWE KAFELKI W PODSUMOWANIU
+                    html += '<div class="bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white border p-4 rounded-2xl mb-4 shadow-lg">' +
+                        '<h3 class="font-black text-base mb-3 text-center tracking-wide drop-shadow">📊 Statystyki z ' + dCount + ' dni</h3>' +
+                        '<div class="grid grid-cols-2 gap-2 mb-3">' +
+                        '<div class="bg-white/15 backdrop-blur-md p-3 rounded-xl border border-white/20 text-center"><p class="text-[9px] font-bold text-indigo-100 uppercase mb-1">Średnio Kcal/dzień</p><p class="text-2xl font-black text-white drop-shadow">' + (dCount > 0 ? Math.round(tKcal / dCount) : 0) + '</p></div>' +
+                        '<div class="bg-white/15 backdrop-blur-md p-3 rounded-xl border border-white/20 text-center"><p class="text-[9px] font-bold text-amber-200 uppercase mb-1">Spalone w sumie</p><p class="text-2xl font-black text-amber-300 drop-shadow">🔥 ' + tBurned + '</p></div>' +
+                        '</div>' +
+                        '<div class="bg-black/20 backdrop-blur-md p-3 rounded-xl border border-white/20 grid grid-cols-3 gap-1 text-center mb-3 shadow-inner">' +
+                        '<div><p class="text-[9px] font-bold text-blue-200 uppercase">Śr. Białko</p><p class="font-black text-sm text-blue-300">' + (dCount > 0 ? Math.round(tP / dCount) : 0) + 'g</p></div>' +
+                        '<div><p class="text-[9px] font-bold text-amber-200 uppercase">Śr. Tłuszcz</p><p class="font-black text-sm text-amber-300">' + (dCount > 0 ? Math.round(tF / dCount) : 0) + 'g</p></div>' +
+                        '<div><p class="text-[9px] font-bold text-emerald-200 uppercase">Śr. Węglo</p><p class="font-black text-sm text-emerald-300">' + (dCount > 0 ? Math.round(tC / dCount) : 0) + 'g</p></div>' +
+                        '</div>' +
+                        '<div class="bg-white/15 backdrop-blur-md p-3 rounded-xl border border-white/20 flex justify-between items-center mb-3">' +
+                        '<div><span class="text-[10px] font-bold text-white uppercase block">Bilans względem zera:</span>' +
+                        '<span class="text-[9px] text-purple-200">Całkowity deficyt/nadwyżka</span></div>' +
+                        '<span class="text-lg font-black ' + (balanceVsZero <= 0 ? 'text-emerald-300' : 'text-rose-300') + '">' + 
+                        (balanceVsZero > 0 ? '+' + Math.round(balanceVsZero) : Math.round(balanceVsZero)) + ' kcal</span></div>' +
+                        '<div class="bg-white/20 backdrop-blur-md p-3 rounded-xl border border-white/20 flex justify-between items-center"><p class="text-[10px] font-bold text-white uppercase">Zmiana wagi:</p><p class="text-xl font-black ' + (wDiff > 0 ? 'text-rose-300' : 'text-emerald-300') + '">' + wDiffStr + ' kg</p></div>' +
+                        '</div>';
+
                     html += '<div class="' + th.card + ' p-4 rounded-xl border"><h3 class="font-black text-sm mb-3">📈 Wykres Wagi (Ostatnie 14 wpisów)</h3>' + renderWeightChart() + '</div>';
 
                 } else if (state.tab === 'kopia') {
                     if (state.statusMsg) html += '<div class="bg-emerald-500/20 border border-emerald-500/40 text-emerald-700 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
 
-                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4"><h3 class="font-black mb-3 text-sm">👤 Zarządzanie Profilami</h3>' +
-                        '<div class="flex space-x-2 p-1.5 rounded-lg">';
-                    var profileColors = ['from-blue-500 to-indigo-500', 'from-emerald-400 to-teal-500', 'from-orange-400 to-rose-400', 'from-purple-500 to-fuchsia-500'];
+                    // KOLOROWY PANEL PROFILI
+                    html += '<div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-2xl shadow-lg mb-4"><h3 class="font-black mb-3 text-sm flex items-center space-x-1"><span>👤 Zarządzanie Profilami</span></h3>' +
+                        '<div class="flex space-x-2 p-1 rounded-lg">';
+                    var profileColors = ['bg-white text-blue-900 shadow-md', 'bg-white text-emerald-900 shadow-md', 'bg-white text-orange-900 shadow-md'];
                     state.users.forEach(function(u, idx) {
-                        var bgClass = profileColors[idx % profileColors.length];
-                        var activeCls = (state.userId === u.id) ? 'bg-gradient-to-r ' + bgClass + ' text-white ring-2 ring-offset-2 ring-blue-400 shadow-md scale-105' : 'bg-gray-200 text-gray-700 hover:bg-gray-300 border border-gray-300';
-                        html += '<button onclick="switchUser(\'' + u.id + '\')" class="flex-1 py-2 rounded-xl text-xs font-black transition-all truncate ' + activeCls + '">' + u.name + '</button>';
+                        var activeCls = (state.userId === u.id) ? 'bg-white text-indigo-900 font-black ring-4 ring-white/30 scale-105' : 'bg-white/20 text-white font-bold hover:bg-white/30';
+                        html += '<button onclick="switchUser(\'' + u.id + '\')" class="flex-1 py-2.5 rounded-xl text-xs transition-all truncate ' + activeCls + '">' + u.name + '</button>';
                     });
                     html += '</div></div>';
 
-                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4"><h3 class="font-black mb-3 text-sm">🎯 Cel Dzienny (' + user.name + ')</h3>';
-                    html += '<div class="grid grid-cols-2 gap-3 mb-2">' +
-                        '<div><label class="text-[10px] font-bold opacity-80 block mb-1">Kcal (limit)</label><input type="number" value="' + day.goals.kcal + '" onchange="updateGoal(\'kcal\', this.value)" class="w-full p-2 text-xs rounded-lg border font-bold text-center ' + th.inputBg + '" /></div>' +
-                        '<div><label class="text-[10px] font-bold opacity-80 block mb-1">Białko (g)</label><input type="number" value="' + day.goals.p + '" onchange="updateGoal(\'p\', this.value)" class="w-full p-2 text-xs rounded-lg border font-bold text-center ' + th.inputBg + '" /></div>' +
-                        '<div><label class="text-[10px] font-bold opacity-80 block mb-1">Tłuszcz (g)</label><input type="number" value="' + day.goals.f + '" onchange="updateGoal(\'f\', this.value)" class="w-full p-2 text-xs rounded-lg border font-bold text-center ' + th.inputBg + '" /></div>' +
-                        '<div><label class="text-[10px] font-bold opacity-80 block mb-1">Węglo (g)</label><input type="number" value="' + day.goals.c + '" onchange="updateGoal(\'c\', this.value)" class="w-full p-2 text-xs rounded-lg border font-bold text-center ' + th.inputBg + '" /></div>' +
+                    // KOLOROWY PANEL CELÓW
+                    html += '<div class="bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-4 rounded-2xl shadow-lg mb-4"><h3 class="font-black mb-3 text-sm">🎯 Cel Dzienny (' + user.name + ')</h3>';
+                    html += '<div class="grid grid-cols-2 gap-3 mb-2 text-gray-900">' +
+                        '<div><label class="text-[10px] font-bold text-emerald-100 block mb-1">Kcal (limit)</label><input type="number" value="' + day.goals.kcal + '" onchange="updateGoal(\'kcal\', this.value)" class="w-full p-2 text-xs rounded-xl border font-bold text-center bg-white/90 outline-none" /></div>' +
+                        '<div><label class="text-[10px] font-bold text-emerald-100 block mb-1">Białko (g)</label><input type="number" value="' + day.goals.p + '" onchange="updateGoal(\'p\', this.value)" class="w-full p-2 text-xs rounded-xl border font-bold text-center bg-white/90 outline-none" /></div>' +
+                        '<div><label class="text-[10px] font-bold text-emerald-100 block mb-1">Tłuszcz (g)</label><input type="number" value="' + day.goals.f + '" onchange="updateGoal(\'f\', this.value)" class="w-full p-2 text-xs rounded-xl border font-bold text-center bg-white/90 outline-none" /></div>' +
+                        '<div><label class="text-[10px] font-bold text-emerald-100 block mb-1">Węglo (g)</label><input type="number" value="' + day.goals.c + '" onchange="updateGoal(\'c\', this.value)" class="w-full p-2 text-xs rounded-xl border font-bold text-center bg-white/90 outline-none" /></div>' +
                         '</div></div>';
 
-                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
+                    // KOLOROWY PANEL AI
+                    html += '<div class="bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white p-4 rounded-2xl shadow-lg mb-4">' +
                         '<h3 class="font-black mb-2 text-sm text-center">🧠 Konfiguracja AI (Gemini)</h3>' +
-                        '<input type="password" id="aiKeyInput" placeholder="AQ... lub AIzaSy..." value="' + state.geminiApiKey + '" class="w-full p-2.5 ' + th.inputBg + ' border rounded-lg text-xs font-medium outline-none mb-2 text-center" />' +
-                        '<button onclick="saveGeminiKey(document.getElementById(\'aiKeyInput\').value)" class="w-full ' + th.btn + ' font-bold py-2.5 rounded-xl shadow-md text-xs">💾 Zapisz klucz AI</button>' +
+                        '<input type="password" id="aiKeyInput" placeholder="AQ... lub AIzaSy..." value="' + state.geminiApiKey + '" class="w-full p-2.5 bg-white/15 border border-white/30 rounded-xl text-xs font-medium outline-none mb-2 text-center text-white placeholder-purple-200" />' +
+                        '<button onclick="saveGeminiKey(document.getElementById(\'aiKeyInput\').value)" class="w-full bg-white text-purple-900 hover:bg-purple-50 font-bold py-2.5 rounded-xl shadow-md text-xs">💾 Zapisz klucz AI</button>' +
                         '</div>';
 
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4"><div><label class="text-[10px] font-bold opacity-60 uppercase block mb-1">Pierwszy dzień tyg. statystyk</label><select onchange="changeStartOfWeek(this.value)" class="w-full p-2 ' + th.inputBg + ' border rounded-lg text-xs font-bold outline-none"><option value="1" ' + (state.settings.startOfWeek === 1 ? 'selected' : '') + '>Poniedziałek</option><option value="0" ' + (state.settings.startOfWeek === 0 ? 'selected' : '') + '>Niedziela</option></select></div></div>';
@@ -721,7 +874,6 @@
                     });
                     html += '</div></div>';
 
-                    // MNIEJSZY PRZYCISK AWARYJNEGO ODZYSKIWANIA NA SAMYM DOLE ZAKŁADKI USTAWIENIA
                     html += '<div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-center mb-6">' +
                         '<p class="text-[10px] font-bold text-rose-900 mb-1.5">Coś poszło nie tak po aktualizacji?</p>' +
                         '<button onclick="rollbackToPreviousVersion()" class="bg-rose-500 hover:bg-rose-600 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] shadow">↩️ Cofnij do poprzedniej wersji kodu</button>' +
@@ -744,7 +896,7 @@
             }
         };
 
-        window.switchTab = function(t) { state.tab = t; state.statusMsg = ''; render(); };
+        window.switchTab = function(t) { if (state.tab === 'baza' && t !== 'baza' && state.isScanning) { stopBarcodeScanner(); } state.tab = t; state.statusMsg = ''; render(); };
         window.switchUser = function(u) { state.userId = u; saveState(); render(); };
         window.changeDate = function(d) { state.date = d; render(); };
         window.changeStartOfWeek = function(val) { state.settings.startOfWeek = parseInt(val); saveState(); render(); };
@@ -869,6 +1021,96 @@
             if (state.collapsedCategories[catName]) delete state.collapsedCategories[catName];
             else state.collapsedCategories[catName] = true;
             render();
+        };
+
+        // SKANER KODÓW KRESKOWYCH (APARAT)
+        window.startBarcodeScanner = function() {
+            state.isScanning = true;
+            state.scannedProductData = null;
+            render(); 
+            setTimeout(function() {
+                if (!window.html5QrcodeScanner) {
+                    window.html5QrcodeScanner = new Html5Qrcode("reader");
+                }
+                window.html5QrcodeScanner.start(
+                    { facingMode: "environment" },
+                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    function onScanSuccess(decodedText) {
+                        window.html5QrcodeScanner.stop().then(function() {
+                            state.isScanning = false;
+                            state.scannedBarcodeInput = decodedText;
+                            fetchProductByBarcode();
+                        });
+                    },
+                    function onScanFailure(error) {}
+                ).catch(function(err) {
+                    alert("Błąd aparatu: " + err);
+                    state.isScanning = false; render();
+                });
+            }, 300);
+        };
+
+        window.stopBarcodeScanner = function() {
+            if (window.html5QrcodeScanner) {
+                window.html5QrcodeScanner.stop().then(function() {
+                    state.isScanning = false; render();
+                }).catch(function() { state.isScanning = false; render(); });
+            } else {
+                state.isScanning = false; render();
+            }
+        };
+
+        window.fetchProductByBarcode = function() {
+            var code = (state.scannedBarcodeInput || '').trim();
+            if (!code) return alert('Wpisz kod EAN!');
+            fetch('https://world.openfoodfacts.org/api/v0/product/' + code + '.json')
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    if (data.status === 1 && data.product) {
+                        var p = data.product; var nut = p.nutriments || {};
+                        state.scannedProductData = {
+                            name: p.product_name || 'Zeskanowany produkt',
+                            baseWeight: 100,
+                            baseKcal: nut['energy-kcal_100g'] || 0,
+                            baseP: nut['proteins_100g'] || 0,
+                            baseF: nut['fat_100g'] || 0,
+                            baseC: nut['carbohydrates_100g'] || 0,
+                            addWeight: 100
+                        };
+                    } else {
+                        alert('Nie znaleziono w bazie OpenFoodFacts. Wprowadź dane ręcznie.');
+                        state.scannedProductData = { name: 'Produkt (' + code + ')', baseWeight: 100, baseKcal: 0, baseP: 0, baseF: 0, baseC: 0, addWeight: 100 };
+                    }
+                    render();
+                }).catch(function(err) { alert('Błąd pobierania danych.'); });
+        };
+
+        window.addScannedDirectlyToDiary = function(inputId) {
+            var w = parseFloat(document.getElementById(inputId).value);
+            if(!w || isNaN(w)) return alert('Podaj wagę!');
+            var sp = state.scannedProductData; var r = w / sp.baseWeight;
+            getDayData().meals.push({
+                id: Date.now(), name: sp.name, weight: w,
+                kcal: Math.round(sp.baseKcal * r), p: Math.round(sp.baseP * r * 10)/10,
+                f: Math.round(sp.baseF * r * 10)/10, c: Math.round(sp.baseC * r * 10)/10
+            });
+            state.scannedProductData = null; state.isScanning = false;
+            saveState(); render();
+        };
+
+        window.confirmAddScannedProduct = function(isUpdate) {
+            var sp = state.scannedProductData;
+            sp.baseWeight = parseFloat(document.getElementById('scannedPkgWeightInput').value) || 100;
+            sp.baseKcal = parseFloat(document.getElementById('scannedPkgKcalInput').value) || 0;
+            sp.baseP = parseFloat(document.getElementById('scannedPkgPInput').value) || 0;
+            sp.baseF = parseFloat(document.getElementById('scannedPkgFInput').value) || 0;
+            sp.baseC = parseFloat(document.getElementById('scannedPkgCInput').value) || 0;
+            state.products.unshift({
+                id: String(Date.now()), name: sp.name, category: 'Inne',
+                baseWeight: sp.baseWeight, baseKcal: sp.baseKcal, baseP: sp.baseP, baseF: sp.baseF, baseC: sp.baseC
+            });
+            state.scannedProductData = null; state.isScanning = false;
+            saveState(); render();
         };
 
         window.openAiModal = function() { state.aiModalOpen = true; render(); };
