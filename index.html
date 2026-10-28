@@ -12,8 +12,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <style>
-        html, body { overflow-x: hidden; width: 100%; position: relative; }
-        body { -webkit-tap-highlight-color: transparent; touch-action: pan-y; }
+        html, body { overflow-x: hidden; width: 100%; position: relative; -webkit-tap-highlight-color: transparent; }
         @supports (padding-bottom: env(safe-area-inset-bottom)) { .pb-safe { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); } }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
@@ -45,6 +44,10 @@
 
         @keyframes lift-squat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(6px); } }
         @keyframes runner-bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+        @keyframes runner-arm-f { 0% { transform: rotate(-30deg); } 50% { transform: rotate(30deg); } 100% { transform: rotate(-30deg); } }
+        @keyframes runner-arm-b { 0% { transform: rotate(30deg); } 50% { transform: rotate(-30deg); } 100% { transform: rotate(30deg); } }
+        @keyframes runner-leg-f { 0% { transform: rotate(-20deg); } 50% { transform: rotate(40deg); } 100% { transform: rotate(-20deg); } }
+        @keyframes runner-leg-b { 0% { transform: rotate(40deg); } 50% { transform: rotate(-20deg); } 100% { transform: rotate(40deg); } }
         @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     </style>
 </head>
@@ -54,7 +57,7 @@
     </div>
 
     <script>
-        const CURRENT_APP_VERSION = "v66-scanner-and-colors";
+        const CURRENT_APP_VERSION = "v68-workouts-and-scanner-restored";
         try {
             var codeHistory = JSON.parse(localStorage.getItem('diet_code_versions_history') || '[]');
             var pageHtmlSource = document.documentElement.outerHTML;
@@ -266,6 +269,32 @@
         window.setTheme = function(th) { state.theme = th; saveState(); render(); };
         window.saveGeminiKey = function(key) { state.geminiApiKey = key.trim(); saveState(); state.statusMsg = 'Zapisano klucz AI!'; render(); };
 
+        // --- FUNKCJE MULTI-SELECT ---
+        window.toggleMultiSelect = function() { state.multiSelect = !state.multiSelect; state.selectedProds = {}; render(); };
+        window.toggleProdSelect = function(id) { if (state.selectedProds[id]) delete state.selectedProds[id]; else state.selectedProds[id] = true; render(); };
+        
+        window.promptBulkMove = function() {
+            var ids = Object.keys(state.selectedProds).filter(function(id) { return state.selectedProds[id]; });
+            if(ids.length === 0) return alert('Nie zaznaczono żadnych produktów.');
+            openCatModal(ids);
+        };
+
+        window.promptBulkDelete = function() {
+            var ids = Object.keys(state.selectedProds).filter(function(id) { return state.selectedProds[id]; });
+            if(ids.length === 0) return alert('Nie zaznaczono żadnych produktów.');
+            if (confirm('Trwale usunąć zaznaczone produkty (' + ids.length + ')?')) {
+                ids.forEach(function(id) {
+                    var sId = String(id);
+                    if (!state.deletedProductIds.includes(sId)) state.deletedProductIds.push(sId);
+                    state.products = state.products.filter(function(x) { return String(x.id) !== sId; });
+                });
+                state.multiSelect = false;
+                state.selectedProds = {};
+                saveState(); render();
+            }
+        };
+
+        // --- KATEGORIE ---
         window.moveCat = function(idx, dir) {
             var cats = state.settings.categories;
             var targetIdx = idx + dir;
@@ -295,6 +324,46 @@
                 cats.splice(idx, 1);
                 saveState(); render();
             }
+        };
+
+        window.openCatModal = function(ids) {
+            if (!ids || ids.length === 0) return alert('Brak produktów do przeniesienia.');
+            state.catModalTargetIds = ids;
+            state.catModalOpen = true;
+            render();
+        };
+
+        window.closeCatModal = function() {
+            state.catModalOpen = false;
+            state.catModalTargetIds = [];
+            render();
+        };
+
+        window.moveToCategory = function(catName) {
+            if (!state.settings.categories.includes(catName) && catName !== 'Inne') {
+                state.settings.categories.push(catName);
+            }
+            state.products.forEach(function(p) {
+                if (state.catModalTargetIds.includes(String(p.id))) {
+                    p.category = catName;
+                }
+            });
+            state.multiSelect = false;
+            state.selectedProds = {};
+            state.catModalOpen = false;
+            state.catModalTargetIds = [];
+            saveState(); render();
+        };
+
+        window.addNewCategoryFromModal = function() {
+            var c = prompt('Podaj nazwę nowej kategorii (np. Napoje):');
+            if (c && c.trim()) moveToCategory(c.trim());
+        };
+
+        window.promptChangeCategory = function(prodId) {
+            var p = state.products.find(function(x) { return String(x.id) === String(prodId); });
+            if (!p) return;
+            openCatModal([String(p.id)]);
         };
 
         window.rollbackToPreviousVersion = function() {
@@ -424,7 +493,7 @@
                     '<div class="flex items-center space-x-1 ' + th.headerSub + ' px-2.5 py-1 rounded-full shadow-inner text-xs font-bold">' +
                     '<span>Dzień:</span><input type="number" value="' + getDietDaysCounter() + '" onchange="setDayCounter(this.value)" class="w-12 bg-transparent text-white text-center outline-none border-b border-white/40 font-black" />' +
                     '</div></div>' +
-                    '</div><div class="p-3 w-full flex-1 overflow-x-hidden relative">';
+                    '</div><div class="p-3 w-full flex-1 relative">';
 
                 if (state.tab === 'dziennik') {
                     var dayName = getFormattedDayName(state.date);
@@ -538,6 +607,57 @@
                     });
                     html += '</div></div>';
 
+                    if (state.unknownProductModal) {
+                        html += '<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">' +
+                            '<div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border text-gray-900">' +
+                            '<h3 class="font-black text-sm text-indigo-900 mb-1">🔍 Brak produktu w bazie</h3>' +
+                            '<p class="text-[10px] text-gray-500 mb-3">Produkt <b>„' + state.unknownName + '”</b> nie istnieje. Podaj jego skład (na <b>' + state.unknownWeight + 'g</b> lub całe opakowanie):</p>' +
+                            '<div class="space-y-2 text-xs mb-3">' +
+                            '<div><label class="font-bold text-[9px] text-gray-500 block">Kcal:</label><input id="unkKcal" type="number" placeholder="np. 350" class="w-full p-2 border rounded font-bold text-center outline-none bg-gray-50" /></div>' +
+                            '<div class="grid grid-cols-3 gap-2">' +
+                            '<div><label class="font-bold text-[9px] text-gray-500 block">Białko (g):</label><input id="unkP" type="number" step="0.1" placeholder="0" class="w-full p-2 border rounded font-bold text-center outline-none bg-gray-50" /></div>' +
+                            '<div><label class="font-bold text-[9px] text-gray-500 block">Tłuszcz (g):</label><input id="unkF" type="number" step="0.1" placeholder="0" class="w-full p-2 border rounded font-bold text-center outline-none bg-gray-50" /></div>' +
+                            '<div><label class="font-bold text-[9px] text-gray-500 block">Węglo (g):</label><input id="unkC" type="number" step="0.1" placeholder="0" class="w-full p-2 border rounded font-bold text-center outline-none bg-gray-50" /></div>' +
+                            '</div></div>' +
+                            '<button onclick="confirmAddUnknownProduct()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow mb-2">💾 Dodaj do bazy i dziennika</button>' +
+                            '<button onclick="state.unknownProductModal=false; render();" class="w-full bg-gray-200 text-gray-700 font-bold py-2 rounded-xl text-xs">Anuluj</button>' +
+                            '</div></div>';
+                    }
+
+                    var isRunning = day.workouts.some(function(w) { return w.name.toLowerCase().includes('bieg'); });
+                    var workoutSvg = '';
+                    if (day.workouts.length > 0) {
+                        if (isRunning) {
+                            workoutSvg = '<svg viewBox="0 0 100 100" class="w-6 h-6 text-orange-500 ml-1 inline-block drop-shadow-md">' +
+                                '<g style="animation: runner-bounce 0.6s linear infinite;"><circle cx="65" cy="20" r="10" fill="currentColor"/><path d="M 60 30 L 45 60" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 45 40 L 25 40 M 55 40 L 75 50" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: runner-arm-f 0.6s infinite alternate transform-origin: 45% 40%;"/><path d="M 45 60 L 25 80 M 45 60 L 65 90" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: runner-leg-f 0.6s infinite alternate transform-origin: 45% 60%;"/></g></svg>';
+                        } else {
+                            workoutSvg = '<svg viewBox="0 0 100 100" class="w-6 h-6 text-orange-500 ml-1 inline-block drop-shadow-md"><path d="M 50 70 L 35 95 M 50 70 L 65 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><g style="animation: lift-squat 1s ease-in-out infinite;"><circle cx="50" cy="30" r="10" fill="currentColor"/><line x1="50" y1="40" x2="50" y2="70" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 50 45 L 25 15 M 50 45 L 75 15" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><line x1="15" y1="15" x2="85" y2="15" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><circle cx="15" cy="15" r="7" fill="currentColor"/><circle cx="85" cy="15" r="7" fill="currentColor"/></g></svg>';
+                        }
+                    }
+
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border">' +
+                        '<h3 class="font-bold text-sm text-orange-500 mb-2 flex items-center">🔥 Dodaj trening ' + workoutSvg + '</h3>' +
+                        '<div class="flex space-x-2 mb-3 relative"><div class="relative flex-1 min-w-0">' +
+                        '<input id="wNameInp" placeholder="Nazwa np. Bieganie" value="' + state.wSearch + '" oninput="searchWorkout(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs px-2 py-2 outline-none" />';
+                    
+                    if (state.wResults.length > 0) {
+                        html += '<div class="absolute top-full left-0 w-full mt-1 ' + th.card + ' border shadow-xl rounded-lg max-h-40 overflow-y-auto z-50">';
+                        state.wResults.forEach(function(w) {
+                            html += '<div onclick="selectWorkoutDrop(\'' + w.name + '\')" class="p-2 border-b border-gray-200/30 text-xs cursor-pointer"><span class="font-bold text-orange-500 block truncate">' + w.name + '</span><span class="text-[9px] opacity-60">' + w.time + ' min | ' + w.kcal + ' kcal</span></div>';
+                        });
+                        html += '</div>';
+                    }
+                    html += '</div><input id="wTime" type="number" placeholder="Min" value="' + state.wInputTime + '" oninput="state.wInputTime=this.value" class="w-12 ' + th.inputBg + ' border rounded-lg text-xs text-center font-bold outline-none shrink-0" />' +
+                        '<input id="wKcal" type="number" placeholder="Kcal" value="' + state.wInputKcal + '" oninput="state.wInputKcal=this.value" class="w-14 ' + th.inputBg + ' border rounded-lg text-xs text-center font-bold outline-none shrink-0" />' +
+                        '<button onclick="addWorkout()" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 rounded-lg font-bold shadow-md shrink-0">+</button></div><div class="space-y-2">';
+                    
+                    day.workouts.forEach(function(w) {
+                        html += '<div class="flex justify-between items-center bg-orange-500/10 p-2.5 rounded-lg border border-orange-500/20">' +
+                            '<span class="font-bold text-xs text-orange-600 truncate flex-1">' + w.name + ' <span class="font-normal opacity-75">(' + w.time + ' min)</span></span>' +
+                            '<div class="flex items-center space-x-3 shrink-0"><span class="font-black text-orange-500 text-sm">' + w.kcal + ' kcal</span><button onclick="delWorkout(\'' + w.id + '\')" class="text-rose-400 font-bold px-2">✕</button></div></div>';
+                    });
+                    html += '</div></div>';
+
                 } else if (state.tab === 'trening') {
                     var parts = state.date.split('-');
                     var curr = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
@@ -596,9 +716,8 @@
                     var edProd = state.editProdId ? state.products.find(function(p) { return String(p.id) === String(state.editProdId); }) : null;
                     if (state.statusMsg) html += '<div class="bg-indigo-500/20 border border-indigo-500/40 text-indigo-700 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
 
-                    // SKANER KODÓW KRESKOWYCH W BAZIE
                     html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
-                        '<h3 class="font-black mb-2 text-sm text-center">📷 Skaner Produktów (Inteligentny)</h3>' +
+                        '<h3 class="font-black mb-2 text-sm text-center">📷 Skaner Produktów</h3>' +
                         '<div class="flex space-x-2 mb-2">' +
                         '<input id="barcodeInput" placeholder="Wpisz kod EAN..." value="' + (state.scannedBarcodeInput || '') + '" oninput="state.scannedBarcodeInput=this.value" class="flex-1 p-2 ' + th.card + ' border rounded-lg text-xs font-bold outline-none" />' +
                         '<button onclick="fetchProductByBarcode()" class="' + th.btn + ' font-bold px-3 py-2 rounded-lg text-xs shadow">Szukaj</button>' +
@@ -658,7 +777,10 @@
                         (edProd ? '<button onclick="cancelEditProd()" class="bg-gray-300 text-gray-700 font-bold px-4 py-2 rounded-lg text-xs">Anuluj</button>' : '') + '</div></div>';
 
                     html += '<div class="' + th.card + ' p-3 rounded-xl border mb-24">' +
-                        '<div class="flex justify-between items-center mb-1"><h3 class="font-bold text-sm">Baza (' + state.products.length + ')</h3></div>' +
+                        '<div class="flex justify-between items-center mb-1">' +
+                        '<h3 class="font-bold text-sm">Baza (' + state.products.length + ')</h3>' +
+                        '<button onclick="toggleMultiSelect()" class="text-[10px] ' + (state.multiSelect ? 'bg-rose-500 text-white' : 'bg-gray-200 text-gray-700') + ' px-2 py-1 rounded-lg shadow-sm font-bold">☑️ Zaznacz</button>' +
+                        '</div>' +
                         '<p class="text-[10px] opacity-70 mb-2 font-medium">💡 Przytrzymaj kursor lub dotknij produktu, aby zobaczyć pełną nazwę.</p><div class="overflow-y-auto pr-1 pb-4">';
                     
                     var cats = state.settings.categories || DEFAULT_CATEGORIES;
@@ -703,13 +825,18 @@
                                     html += '<p class="text-[10px] opacity-40 text-center py-2 italic border border-dashed rounded-lg">Brak produktów</p>';
                                 } else {
                                     groupedProducts[cat].forEach(function(p) {
-                                        html += '<div class="' + th.inputBg + ' border p-2 rounded-lg flex justify-between items-center" title="' + p.name + '">' +
+                                        var selCheckbox = state.multiSelect ? '<div class="mr-2"><input type="checkbox" ' + (state.selectedProds[p.id] ? 'checked' : '') + ' class="w-5 h-5 accent-blue-600 cursor-pointer" onclick="event.stopPropagation(); toggleProdSelect(\'' + p.id + '\')" /></div>' : '';
+                                        var rowClick = state.multiSelect ? 'toggleProdSelect(\'' + p.id + '\')' : '';
+                                        
+                                        html += '<div ' + (state.multiSelect ? 'onclick="'+rowClick+'"' : '') + ' class="' + th.inputBg + ' border p-2 rounded-lg flex justify-between items-center transition-transform ' + (state.multiSelect ? 'cursor-pointer hover:bg-gray-100' : '') + '" title="' + p.name + '">' +
+                                            selCheckbox +
                                             '<div class="pr-2 min-w-0 flex-1"><p class="font-bold text-xs truncate">' + p.name + ' <span class="' + th.accent + ' font-normal">(' + p.baseWeight + 'g)</span></p><p class="text-[9px] opacity-60 font-bold">B:' + p.baseP + ' | T:' + p.baseF + ' | W:' + p.baseC + '</p></div>' +
                                             '<div class="flex items-center space-x-1 shrink-0">' +
                                             '<span class="font-bold text-emerald-500 text-xs w-10 text-right mr-1">' + p.baseKcal + ' kcal</span>' +
-                                            '<button onclick="promptAddProductFromList(\'' + p.id + '\')" class="bg-indigo-500 text-white font-bold w-6 h-6 rounded text-xs flex items-center justify-center" title="Dodaj">➕</button>' +
-                                            '<button onclick="startEditProd(\'' + p.id + '\')" class="opacity-60 font-bold w-6 h-6 flex items-center justify-center text-xs" title="Edytuj">✏️</button>' +
-                                            '<button onclick="delProd(\'' + p.id + '\')" class="text-rose-400 font-bold w-6 h-6 flex items-center justify-center text-xs" title="Usuń">✕</button>' +
+                                            '<button onclick="event.stopPropagation(); promptAddProductFromList(\'' + p.id + '\')" class="bg-indigo-500 text-white font-bold w-6 h-6 rounded text-xs flex items-center justify-center" title="Dodaj">➕</button>' +
+                                            '<button onclick="event.stopPropagation(); promptChangeCategory(\'' + p.id + '\')" class="bg-blue-100 text-blue-700 font-bold w-6 h-6 rounded text-[10px] flex items-center justify-center" title="Zmień kategorię">🗂️</button>' +
+                                            '<button onclick="event.stopPropagation(); startEditProd(\'' + p.id + '\')" class="opacity-60 font-bold w-6 h-6 flex items-center justify-center text-xs" title="Edytuj">✏️</button>' +
+                                            '<button onclick="event.stopPropagation(); delProd(\'' + p.id + '\')" class="text-rose-400 font-bold w-6 h-6 flex items-center justify-center text-xs" title="Usuń">✕</button>' +
                                             '</div></div>';
                                     });
                                 }
@@ -718,6 +845,14 @@
                         }
                     });
                     html += '</div></div>';
+
+                    if (state.multiSelect) {
+                        html += '<div class="fixed bottom-14 left-1/2 transform -translate-x-1/2 w-full max-w-md p-3 bg-white shadow-[0_-4px_15px_rgba(0,0,0,0.1)] border-t flex justify-between z-[60]">' +
+                                '<button onclick="promptBulkDelete()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-md">🗑️ Usuń</button>' +
+                                '<button onclick="promptBulkMove()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-md">🗂️ Przenieś</button>' +
+                                '<button onclick="toggleMultiSelect()" class="bg-gray-200 text-gray-700 font-bold px-3 py-2 rounded-xl text-xs">Anuluj</button>' +
+                                '</div>';
+                    }
 
                 } else if (state.tab === 'podsumowanie') {
                     var view = state.summaryView || 'tydzien';
@@ -808,7 +943,6 @@
                             '</div>';
                     }
 
-                    // KOLOROWE KAFELKI W PODSUMOWANIU
                     html += '<div class="bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white border p-4 rounded-2xl mb-4 shadow-lg">' +
                         '<h3 class="font-black text-base mb-3 text-center tracking-wide drop-shadow">📊 Statystyki z ' + dCount + ' dni</h3>' +
                         '<div class="grid grid-cols-2 gap-2 mb-3">' +
@@ -833,17 +967,14 @@
                 } else if (state.tab === 'kopia') {
                     if (state.statusMsg) html += '<div class="bg-emerald-500/20 border border-emerald-500/40 text-emerald-700 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
 
-                    // KOLOROWY PANEL PROFILI
                     html += '<div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-2xl shadow-lg mb-4"><h3 class="font-black mb-3 text-sm flex items-center space-x-1"><span>👤 Zarządzanie Profilami</span></h3>' +
                         '<div class="flex space-x-2 p-1 rounded-lg">';
-                    var profileColors = ['bg-white text-blue-900 shadow-md', 'bg-white text-emerald-900 shadow-md', 'bg-white text-orange-900 shadow-md'];
                     state.users.forEach(function(u, idx) {
                         var activeCls = (state.userId === u.id) ? 'bg-white text-indigo-900 font-black ring-4 ring-white/30 scale-105' : 'bg-white/20 text-white font-bold hover:bg-white/30';
                         html += '<button onclick="switchUser(\'' + u.id + '\')" class="flex-1 py-2.5 rounded-xl text-xs transition-all truncate ' + activeCls + '">' + u.name + '</button>';
                     });
                     html += '</div></div>';
 
-                    // KOLOROWY PANEL CELÓW
                     html += '<div class="bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-4 rounded-2xl shadow-lg mb-4"><h3 class="font-black mb-3 text-sm">🎯 Cel Dzienny (' + user.name + ')</h3>';
                     html += '<div class="grid grid-cols-2 gap-3 mb-2 text-gray-900">' +
                         '<div><label class="text-[10px] font-bold text-emerald-100 block mb-1">Kcal (limit)</label><input type="number" value="' + day.goals.kcal + '" onchange="updateGoal(\'kcal\', this.value)" class="w-full p-2 text-xs rounded-xl border font-bold text-center bg-white/90 outline-none" /></div>' +
@@ -852,7 +983,6 @@
                         '<div><label class="text-[10px] font-bold text-emerald-100 block mb-1">Węglo (g)</label><input type="number" value="' + day.goals.c + '" onchange="updateGoal(\'c\', this.value)" class="w-full p-2 text-xs rounded-xl border font-bold text-center bg-white/90 outline-none" /></div>' +
                         '</div></div>';
 
-                    // KOLOROWY PANEL AI
                     html += '<div class="bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white p-4 rounded-2xl shadow-lg mb-4">' +
                         '<h3 class="font-black mb-2 text-sm text-center">🧠 Konfiguracja AI (Gemini)</h3>' +
                         '<input type="password" id="aiKeyInput" placeholder="AQ... lub AIzaSy..." value="' + state.geminiApiKey + '" class="w-full p-2.5 bg-white/15 border border-white/30 rounded-xl text-xs font-medium outline-none mb-2 text-center text-white placeholder-purple-200" />' +
@@ -878,6 +1008,26 @@
                         '<p class="text-[10px] font-bold text-rose-900 mb-1.5">Coś poszło nie tak po aktualizacji?</p>' +
                         '<button onclick="rollbackToPreviousVersion()" class="bg-rose-500 hover:bg-rose-600 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] shadow">↩️ Cofnij do poprzedniej wersji kodu</button>' +
                         '</div>';
+                }
+
+                if (state.catModalOpen) {
+                    html += '<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-end justify-center pb-6 px-2">' +
+                            '<div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-[slideUp_0.2s_ease-out]">' +
+                            '<div class="p-4 bg-gray-50 border-b flex justify-between items-center"><h3 class="font-black text-sm text-blue-900">🗂️ Wybierz kategorię</h3><button onclick="closeCatModal()" class="text-gray-400 hover:text-rose-500 font-black text-lg w-8 h-8 flex justify-center items-center">✕</button></div>' +
+                            '<div class="max-h-[60vh] overflow-y-auto p-3 space-y-1">';
+                    
+                    var allCats = state.settings.categories || DEFAULT_CATEGORIES;
+                    allCats.forEach(function(c) {
+                        var count = state.products.filter(function(p) { return (p.category || 'Inne') === c; }).length;
+                        html += '<button onclick="moveToCategory(\'' + c + '\')" class="w-full text-left p-3 rounded-xl hover:bg-blue-50 font-bold text-sm text-gray-800 border border-transparent hover:border-blue-200 transition-colors flex justify-between items-center"><span>📂 ' + c + '</span> <span class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md text-xs">' + count + '</span></button>';
+                    });
+                    
+                    var inCount = state.products.filter(function(p) { return (p.category || 'Inne') === 'Inne'; }).length;
+                    html += '<button onclick="moveToCategory(\'Inne\')" class="w-full text-left p-3 rounded-xl hover:bg-blue-50 font-bold text-sm text-gray-800 border border-transparent hover:border-blue-200 transition-colors flex justify-between items-center"><span>📂 Inne (Niesklasyfikowane)</span> <span class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md text-xs">' + inCount + '</span></button>';
+                    
+                    html += '<button onclick="addNewCategoryFromModal()" class="w-full mt-3 bg-blue-100 text-blue-700 hover:bg-blue-200 font-black p-3.5 rounded-xl text-xs shadow-sm transition-transform active:scale-95">➕ Dodaj nową kategorię</button>';
+                    
+                    html += '</div></div></div>';
                 }
 
                 var tabs = ['dziennik', 'baza', 'trening', 'podsumowanie', 'kopia'];
@@ -907,6 +1057,7 @@
         
         window.changeWeight = function(val) { getDayData().weight = val; saveState(); render(); };
 
+        // --- POSIŁKI ---
         window.addMeal = function() {
             var searchInp = document.getElementById('pSearchInp');
             var weightInp = document.getElementById('inpW');
@@ -984,7 +1135,51 @@
             }
         };
 
-        window.startEditProd = function(id) { state.editProdId = id; render(); };
+        // --- TRENINGI (PRZYWRÓCONE) ---
+        window.searchWorkout = function(val) {
+            state.wSearch = val;
+            if (val.trim().length > 0) state.wResults = state.workoutsDb.filter(function(w) { return w.name.toLowerCase().includes(val.trim().toLowerCase()); }).slice(0, 5);
+            else state.wResults = [];
+            render(); 
+            setTimeout(function() { var el = document.getElementById('wNameInp'); if (el) { el.focus(); el.setSelectionRange(val.length, val.length); } }, 0);
+        };
+
+        window.selectWorkoutDrop = function(name) {
+            var w = state.workoutsDb.find(function(x) { return x.name === name; });
+            if (w) { state.wSearch = w.name; state.wInputTime = w.time; state.wInputKcal = w.kcal; state.wResults = []; render(); }
+        };
+
+        window.addWorkout = function() {
+            var nameInp = document.getElementById('wNameInp');
+            var timeInp = document.getElementById('wTime');
+            var kcalInp = document.getElementById('wKcal');
+
+            var name = nameInp ? nameInp.value.trim() : state.wSearch.trim();
+            var time = parseInt(timeInp ? timeInp.value : state.wInputTime) || 0;
+            var kcal = parseInt(kcalInp ? kcalInp.value : state.wInputKcal) || 0;
+
+            if (!name || !kcal) return alert('Podaj nazwę treningu i spalone kalorie!');
+            
+            if (!state.workoutsDb.find(function(w) { return w.name.toLowerCase() === name.toLowerCase(); })) {
+                state.workoutsDb.push({ name: name, time: time, kcal: kcal });
+            }
+            
+            getDayData().workouts.push({ id: Date.now(), name: name, time: time, kcal: kcal });
+            state.wSearch = ''; state.wInputTime = ''; state.wInputKcal = ''; state.wResults = []; 
+            saveState(); render();
+        };
+
+        window.delWorkout = function(id) { 
+            getDayData().workouts = getDayData().workouts.filter(function(x) { return String(x.id) !== String(id); }); 
+            saveState(); render(); 
+        };
+
+        // --- ZARZĄDZANIE PRODUKTAMI W BAZIE ---
+        window.startEditProd = function(id) { 
+            state.editProdId = id; 
+            render(); 
+            setTimeout(function() { var el = document.getElementById('prodForm'); if(el) el.scrollIntoView({behavior: 'smooth'}); }, 100); 
+        };
         window.cancelEditProd = function() { state.editProdId = null; render(); };
 
         window.addProd = function() {
@@ -1023,7 +1218,7 @@
             render();
         };
 
-        // SKANER KODÓW KRESKOWYCH (APARAT)
+        // --- SKANER KODÓW KRESKOWYCH (PRZYWRÓCONY) ---
         window.startBarcodeScanner = function() {
             state.isScanning = true;
             state.scannedProductData = null;
