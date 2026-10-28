@@ -54,14 +54,13 @@
     </div>
 
     <script>
-        // SYSTEM WERSJONOWANIA I HISTORII KODU (Wielu użytkowników traci wersje, więc zapisujemy je lokalnie)
-        const CURRENT_APP_VERSION = "v63-rollback-supported";
+        const CURRENT_APP_VERSION = "v64-full-features-rollback";
         try {
             var codeHistory = JSON.parse(localStorage.getItem('diet_code_versions_history') || '[]');
             var pageHtmlSource = document.documentElement.outerHTML;
             if (codeHistory.length === 0 || codeHistory[codeHistory.length - 1].version !== CURRENT_APP_VERSION) {
                 codeHistory.push({ version: CURRENT_APP_VERSION, time: new Date().toLocaleString(), html: pageHtmlSource });
-                if (codeHistory.length > 5) codeHistory.shift(); // trzymaj max 5 ostatnich wersji
+                if (codeHistory.length > 5) codeHistory.shift();
                 localStorage.setItem('diet_code_versions_history', JSON.stringify(codeHistory));
             }
         } catch(e) {}
@@ -264,16 +263,12 @@
         window.setTheme = function(th) { state.theme = th; saveState(); render(); };
         window.saveGeminiKey = function(key) { state.geminiApiKey = key.trim(); saveState(); state.statusMsg = 'Zapisano klucz AI!'; render(); };
 
-        // NOWE FUNKCJE PRZESUWANIA KATEGORII (GÓRA - DÓŁ)
         window.moveCat = function(idx, dir) {
             var cats = state.settings.categories;
             var targetIdx = idx + dir;
             if (targetIdx >= 0 && targetIdx < cats.length) {
-                var tmp = cats[idx];
-                cats[idx] = cats[targetIdx];
-                cats[targetIdx] = tmp;
-                saveState();
-                render();
+                var tmp = cats[idx]; cats[idx] = cats[targetIdx]; cats[targetIdx] = tmp;
+                saveState(); render();
             }
         };
 
@@ -284,40 +279,30 @@
             if (newName && newName.trim() && newName.trim() !== oldName) {
                 var trimmed = newName.trim();
                 cats[idx] = trimmed;
-                state.products.forEach(function(p) {
-                    if (p.category === oldName) p.category = trimmed;
-                });
-                saveState();
-                render();
+                state.products.forEach(function(p) { if (p.category === oldName) p.category = trimmed; });
+                saveState(); render();
             }
         };
 
         window.delCat = function(idx) {
             var cats = state.settings.categories;
             var catToDel = cats[idx];
-            if (confirm('Usunąć kategorię „' + catToDel + '”? Produkty z tej kategorii zostaną przeniesione do „Inne”.')) {
-                state.products.forEach(function(p) {
-                    if (p.category === catToDel) p.category = 'Inne';
-                });
+            if (confirm('Usunąć kategorię „' + catToDel + '”? Produkty zostaną przeniesione do „Inne”.')) {
+                state.products.forEach(function(p) { if (p.category === catToDel) p.category = 'Inne'; });
                 cats.splice(idx, 1);
-                saveState();
-                render();
+                saveState(); render();
             }
         };
 
-        // FUNKCJA PRZYWRACANIA POPRZEDNIEJ WERSJI KODU
         window.rollbackToPreviousVersion = function() {
             try {
                 var history = JSON.parse(localStorage.getItem('diet_code_versions_history') || '[]');
                 if (history.length < 2) return alert('Brak starszych wersji w pamięci przeglądarki.');
-                
                 var prevVersion = history[history.length - 2];
                 if (confirm('Czy na pewno chcesz przywrócić wersję z ' + prevVersion.time + '?')) {
-                    document.open();
-                    document.write(prevVersion.html);
-                    document.close();
+                    document.open(); document.write(prevVersion.html); document.close();
                 }
-            } catch(e) { alert('Błąd przywracania wersji: ' + e.message); }
+            } catch(e) { alert('Błąd: ' + e.message); }
         };
 
         window.getDayData = function(customDate) {
@@ -365,7 +350,6 @@
             render();
         };
         window.changeDate = function(newDateStr) { if (newDateStr) { state.date = newDateStr; render(); } };
-
         window.getFormattedDayName = function(dateStr) {
             var parts = dateStr.split('-');
             var d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
@@ -698,13 +682,6 @@
                 } else if (state.tab === 'kopia') {
                     if (state.statusMsg) html += '<div class="bg-emerald-500/20 border border-emerald-500/40 text-emerald-700 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
 
-                    // NOWY PANEL BEZPIECZEŃSTWA - WERSJE I ROLLBACK
-                    html += '<div class="bg-rose-50 border-2 border-rose-300 text-rose-950 p-4 rounded-xl mb-4 shadow-sm">' +
-                        '<h3 class="font-black mb-1 text-sm text-center">🔄 Przywracanie Poprzedniej Wersji (Rollback)</h3>' +
-                        '<p class="text-[10px] opacity-80 mb-3 text-center">Jeśli aktualizacja popsuła działanie aplikacji, kliknij przycisk poniżej, aby cofnąć ją do poprzedniego stabilnego stanu:</p>' +
-                        '<button onclick="rollbackToPreviousVersion()" class="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-xl shadow text-xs">↩️ Cofnij do poprzedniej wersji kodu</button>' +
-                        '</div>';
-
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4"><h3 class="font-black mb-3 text-sm">👤 Zarządzanie Profilami</h3>' +
                         '<div class="flex space-x-2 p-1.5 rounded-lg">';
                     var profileColors = ['from-blue-500 to-indigo-500', 'from-emerald-400 to-teal-500', 'from-orange-400 to-rose-400', 'from-purple-500 to-fuchsia-500'];
@@ -715,9 +692,39 @@
                     });
                     html += '</div></div>';
 
-                    html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6">' +
-                        '<h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ Informacje o aplikacji</h4>' +
-                        '<p class="text-xs font-bold ' + th.accent + '">Wersja: v63 (Zabezpieczenie Rollback + Przesuwanie Kategorii)</p>' +
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4"><h3 class="font-black mb-3 text-sm">🎯 Cel Dzienny (' + user.name + ')</h3>';
+                    html += '<div class="grid grid-cols-2 gap-3 mb-2">' +
+                        '<div><label class="text-[10px] font-bold opacity-80 block mb-1">Kcal (limit)</label><input type="number" value="' + day.goals.kcal + '" onchange="updateGoal(\'kcal\', this.value)" class="w-full p-2 text-xs rounded-lg border font-bold text-center ' + th.inputBg + '" /></div>' +
+                        '<div><label class="text-[10px] font-bold opacity-80 block mb-1">Białko (g)</label><input type="number" value="' + day.goals.p + '" onchange="updateGoal(\'p\', this.value)" class="w-full p-2 text-xs rounded-lg border font-bold text-center ' + th.inputBg + '" /></div>' +
+                        '<div><label class="text-[10px] font-bold opacity-80 block mb-1">Tłuszcz (g)</label><input type="number" value="' + day.goals.f + '" onchange="updateGoal(\'f\', this.value)" class="w-full p-2 text-xs rounded-lg border font-bold text-center ' + th.inputBg + '" /></div>' +
+                        '<div><label class="text-[10px] font-bold opacity-80 block mb-1">Węglo (g)</label><input type="number" value="' + day.goals.c + '" onchange="updateGoal(\'c\', this.value)" class="w-full p-2 text-xs rounded-lg border font-bold text-center ' + th.inputBg + '" /></div>' +
+                        '</div></div>';
+
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
+                        '<h3 class="font-black mb-2 text-sm text-center">🧠 Konfiguracja AI (Gemini)</h3>' +
+                        '<input type="password" id="aiKeyInput" placeholder="AQ... lub AIzaSy..." value="' + state.geminiApiKey + '" class="w-full p-2.5 ' + th.inputBg + ' border rounded-lg text-xs font-medium outline-none mb-2 text-center" />' +
+                        '<button onclick="saveGeminiKey(document.getElementById(\'aiKeyInput\').value)" class="w-full ' + th.btn + ' font-bold py-2.5 rounded-xl shadow-md text-xs">💾 Zapisz klucz AI</button>' +
+                        '</div>';
+
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4"><div><label class="text-[10px] font-bold opacity-60 uppercase block mb-1">Pierwszy dzień tyg. statystyk</label><select onchange="changeStartOfWeek(this.value)" class="w-full p-2 ' + th.inputBg + ' border rounded-lg text-xs font-bold outline-none"><option value="1" ' + (state.settings.startOfWeek === 1 ? 'selected' : '') + '>Poniedziałek</option><option value="0" ' + (state.settings.startOfWeek === 0 ? 'selected' : '') + '>Niedziela</option></select></div></div>';
+
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
+                        '<h3 class="font-black mb-3 text-sm text-center">🎨 Wybierz Szatę Graficzną</h3>' +
+                        '<div class="grid grid-cols-1 gap-2">';
+                    Object.keys(THEMES).forEach(function(key) {
+                        var t = THEMES[key]; var isSelected = state.theme === key;
+                        var borderCls = isSelected ? 'border-2 border-pink-500 ring-2 ring-pink-300/50' : 'border opacity-85';
+                        html += '<div onclick="setTheme(\'' + key + '\')" class="p-3 rounded-xl cursor-pointer flex justify-between items-center transition-all ' + th.inputBg + ' ' + borderCls + '">' +
+                            '<span class="text-xs font-bold">' + t.name + '</span>' +
+                            '<div class="w-6 h-6 rounded-full ' + t.header + ' flex items-center justify-center text-white text-xs shadow">' + (isSelected ? '✓' : '') + '</div>' +
+                            '</div>';
+                    });
+                    html += '</div></div>';
+
+                    // MNIEJSZY PRZYCISK AWARYJNEGO ODZYSKIWANIA NA SAMYM DOLE ZAKŁADKI USTAWIENIA
+                    html += '<div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-center mb-6">' +
+                        '<p class="text-[10px] font-bold text-rose-900 mb-1.5">Coś poszło nie tak po aktualizacji?</p>' +
+                        '<button onclick="rollbackToPreviousVersion()" class="bg-rose-500 hover:bg-rose-600 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] shadow">↩️ Cofnij do poprzedniej wersji kodu</button>' +
                         '</div>';
                 }
 
@@ -740,6 +747,7 @@
         window.switchTab = function(t) { state.tab = t; state.statusMsg = ''; render(); };
         window.switchUser = function(u) { state.userId = u; saveState(); render(); };
         window.changeDate = function(d) { state.date = d; render(); };
+        window.changeStartOfWeek = function(val) { state.settings.startOfWeek = parseInt(val); saveState(); render(); };
         window.addWater = function(amount) { if (amount === 0) getDayData().water = 0; else getDayData().water = (parseFloat(getDayData().water) || 0) + amount; saveState(); render(); };
         window.updateMeasurement = function(id, val) { getDayData().measurements[id] = val; saveState(); render(); };
         window.promptAddMeasurement = function() { var name = prompt('Podaj nazwę nowego pomiaru:'); if(name && name.trim()) { state.settings.measurements.push({ id: 'm_' + Date.now(), name: name.trim() }); saveState(); render(); } };
@@ -824,25 +832,6 @@
             }
         };
 
-        window.searchWorkout = function(val) {
-            state.wSearch = val;
-            state.wResults = val.trim().length > 0 ? state.workoutsDb.filter(function(w) { return w.name.toLowerCase().includes(val.trim().toLowerCase()); }).slice(0, 5) : [];
-            render();
-        };
-
-        window.selectWorkoutDrop = function(name) {
-            var w = state.workoutsDb.find(function(x) { return x.name === name; });
-            if (w) { state.wSearch = w.name; state.wInputTime = w.time; state.wInputKcal = w.kcal; state.wResults = []; render(); }
-        };
-
-        window.addWorkout = function() {
-            var name = state.wSearch.trim(), time = parseInt(state.wInputTime) || 0, kcal = parseInt(state.wInputKcal) || 0;
-            if (!name || !kcal) return alert('Podaj nazwę i kalorie!');
-            getDayData().workouts.push({ id: Date.now(), name: name, time: time, kcal: kcal });
-            state.wSearch = ''; state.wInputTime = ''; state.wInputKcal = ''; state.wResults = []; saveState(); render();
-        };
-
-        window.delWorkout = function(id) { getDayData().workouts = getDayData().workouts.filter(function(x) { return String(x.id) !== String(id); }); saveState(); render(); };
         window.startEditProd = function(id) { state.editProdId = id; render(); };
         window.cancelEditProd = function() { state.editProdId = null; render(); };
 
@@ -884,7 +873,6 @@
 
         window.openAiModal = function() { state.aiModalOpen = true; render(); };
         window.closeAiModal = function() { state.aiModalOpen = false; render(); };
-        window.getGeminiDailyAdvice = function() { alert("Podłącz klucz w ustawieniach i aktywuj AI!"); };
 
         render();
     </script>
