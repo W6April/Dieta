@@ -57,7 +57,7 @@
     </div>
 
     <script>
-        const CURRENT_APP_VERSION = "v71-supplements-edit-workout-cleaned";
+        const CURRENT_APP_VERSION = "v72-full-report-measurements-edit";
         try {
             var codeHistory = JSON.parse(localStorage.getItem('diet_code_versions_history') || '[]');
             var pageHtmlSource = document.documentElement.outerHTML;
@@ -242,21 +242,90 @@
         window.setTheme = function(th) { state.theme = th; saveState(); render(); };
         window.saveGeminiKey = function(key) { state.geminiApiKey = key.trim(); saveState(); state.statusMsg = 'Zapisano klucz AI!'; render(); };
 
-        // --- SCHOWEK PRZEGLĄDARKI ---
+        // --- ZAAWANSOWANE KOPIOWANIE DZIENNIKA ---
         window.copyMealsToClipboard = function() {
             var day = getDayData();
-            if(!day.meals || day.meals.length === 0) return alert('Brak posiłków do skopiowania.');
-            
-            var text = "Posiłki (Data: " + state.date + "):\n";
-            day.meals.forEach(function(m, i) {
-                text += (i+1) + ". " + m.name + " - " + m.weight + "g (" + m.kcal + " kcal)\n";
-            });
-            text += "Razem: " + day.meals.reduce(function(acc, m){ return acc + m.kcal; }, 0) + " kcal";
+            var text = "Raport dnia: " + state.date + "\n\n";
 
-            navigator.clipboard.writeText(text).then(function() {
-                alert('Posiłki skopiowane do schowka! Możesz je teraz wkleić w Wiadomości czy Notatniku.');
+            if(day.meals && day.meals.length > 0) {
+                text += "🍽️ POSIŁKI:\n";
+                var tKcal = 0, tP = 0, tF = 0, tC = 0;
+                day.meals.forEach(function(m, i) {
+                    text += (i+1) + ". " + m.name + " - " + m.weight + "g (" + m.kcal + " kcal | B:" + m.p + "g T:" + m.f + "g W:" + m.c + "g)\n";
+                    tKcal += m.kcal; tP += m.p; tF += m.f; tC += m.c;
+                });
+                text += "➔ Razem zjedzono: " + tKcal + " kcal (B: " + Math.round(tP) + "g | T: " + Math.round(tF) + "g | W: " + Math.round(tC) + "g)\n\n";
+            } else {
+                text += "🍽️ Brak wpisanych posiłków.\n\n";
+            }
+
+            if(day.workouts && day.workouts.length > 0) {
+                text += "💪 AKTYWNOŚCI:\n";
+                var wKcal = 0, wTime = 0;
+                day.workouts.forEach(function(w, i) {
+                    text += "- " + w.name + " (" + w.time + " min, spalono " + w.kcal + " kcal)\n";
+                    wKcal += w.kcal; wTime += w.time;
+                });
+                text += "➔ Razem treningi: " + wTime + " min, spalono: " + wKcal + " kcal\n\n";
+            }
+
+            if(day.weight) {
+                text += "⚖️ Waga: " + day.weight + " kg\n";
+            }
+
+            navigator.clipboard.writeText(text.trim()).then(function() {
+                alert('Pełny raport z tego dnia (posiłki i treningi) został skopiowany!');
             }).catch(function() { alert('Nie udało się skopiować.'); });
         };
+
+        window.generateFullReport = function() {
+            var userDiary = state.diaries[state.userId] || {};
+            var allDates = Object.keys(userDiary).sort();
+            if(allDates.length === 0) return alert('Brak danych w dzienniku.');
+
+            var user = state.users.find(function(u) { return u.id === state.userId; }) || state.users[0];
+            var text = "=== PEŁNY RAPORT (" + user.name + ") ===\n";
+            text += "Okres: " + allDates[0] + " do " + allDates[allDates.length-1] + "\n\n";
+
+            allDates.forEach(function(d) {
+                var dObj = userDiary[d];
+                var hasMeals = dObj.meals && dObj.meals.length > 0;
+                var hasWorkouts = dObj.workouts && dObj.workouts.length > 0;
+                var hasWeight = !!dObj.weight;
+
+                if (hasMeals || hasWorkouts || hasWeight) {
+                    text += "📅 DATA: " + d + "\n";
+                    if (hasWeight) text += "  ⚖️ Waga: " + dObj.weight + " kg\n";
+
+                    if (hasMeals) {
+                        var tKcal = 0, tP = 0, tF = 0, tC = 0;
+                        var mNames = [];
+                        dObj.meals.forEach(function(m) { 
+                            tKcal += m.kcal; tP += m.p; tF += m.f; tC += m.c; 
+                            mNames.push(m.name + " (" + m.weight + "g)");
+                        });
+                        text += "  🍽️ Dieta: " + tKcal + " kcal (B: " + Math.round(tP) + "g | T: " + Math.round(tF) + "g | W: " + Math.round(tC) + "g)\n";
+                        text += "  ↳ Posiłki: " + mNames.join(', ') + "\n";
+                    }
+                    
+                    if (hasWorkouts) {
+                        var wKcal = 0, wNames = [];
+                        dObj.workouts.forEach(function(w) { 
+                            wKcal += w.kcal; 
+                            wNames.push(w.name + " " + w.time + "min");
+                        });
+                        text += "  💪 Trening: " + wKcal + " kcal spalono\n";
+                        text += "  ↳ Aktywność: " + wNames.join(', ') + "\n";
+                    }
+                    text += "\n";
+                }
+            });
+
+            navigator.clipboard.writeText(text.trim()).then(function() {
+                alert('Pełny raport został skopiowany do schowka! Możesz go wkleić i wysłać swojemu dietetykowi lub trenerowi.');
+            }).catch(function() { alert('Nie udało się skopiować.'); });
+        };
+
 
         // --- DATA POMOCNICZA ---
         window.getPrevDayStr = function(dateStr) {
@@ -543,7 +612,7 @@
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
                         '<div class="flex justify-between items-center mb-2">' +
                         '<h3 class="font-bold text-sm flex items-center space-x-1"><span>🍽️ Posiłki</span>' + 
-                        '<button onclick="copyMealsToClipboard()" class="ml-2 bg-amber-100 text-amber-700 hover:bg-amber-200 px-2 py-0.5 rounded text-[9px] font-black uppercase shadow-sm">📋 Kopiuj posiłki</button></h3>' +
+                        '<button onclick="copyMealsToClipboard()" class="ml-2 bg-amber-100 text-amber-700 hover:bg-amber-200 px-2 py-0.5 rounded text-[9px] font-black uppercase shadow-sm">📋 Raport z Dziś</button></h3>' +
                         '<button onclick="openAiModal()" class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-sm flex items-center space-x-1"><span>🤖 Zapytaj AI</span></button>' +
                         '</div>' +
                         '<div class="flex space-x-2 mb-3 relative"><div class="relative flex-1 min-w-0">' +
@@ -743,7 +812,15 @@
                             (state.settings.measurements || []).forEach(function(m) {
                                 if (pm.m[m.id]) measHtml += '<span class="mr-2 inline-block"><b>' + m.name + ':</b> ' + pm.m[m.id] + '</span>';
                             });
-                            html += '<div class="bg-indigo-50/50 border border-indigo-100 p-2 rounded flex flex-col text-[9px]"><span class="font-black text-indigo-800 mb-0.5">' + pm.date + '</span><div class="opacity-80 leading-relaxed">' + measHtml + '</div></div>';
+                            html += '<div class="bg-indigo-50/50 border border-indigo-100 p-2 rounded flex flex-col text-[9px]">' +
+                                    '<div class="flex justify-between items-center mb-0.5">' +
+                                        '<span class="font-black text-indigo-800">' + pm.date + '</span>' +
+                                        '<div class="space-x-1 flex">' +
+                                            '<button onclick="editMeasurementHistory(\''+pm.date+'\')" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-1.5 py-0.5 rounded shadow-sm text-[8px] font-bold border border-blue-200">Edytuj</button>' +
+                                            '<button onclick="deleteMeasurementHistory(\''+pm.date+'\')" class="bg-rose-100 hover:bg-rose-200 text-rose-700 px-1.5 py-0.5 rounded shadow-sm text-[8px] font-bold border border-rose-200">Usuń</button>' +
+                                        '</div>' +
+                                    '</div>' +
+                                    '<div class="opacity-80 leading-relaxed mt-1">' + measHtml + '</div></div>';
                         });
                         html += '</div>';
                     }
@@ -802,7 +879,7 @@
                         html += '<div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-200/60 text-[9px]">' +
                             '<div class="flex flex-col"><span class="font-bold text-gray-700 text-[10px] mb-0.5">' + s.name + ' ('+s.dose+s.unit+'/d)</span>' +
                             '<span class="opacity-60">' + s.startDate + ' — ' + (s.endDate || 'Trwa') + '</span></div>' +
-                            '<button onclick="delSupplement(\''+s.id+'\')" class="text-rose-500 font-bold px-2 py-1 bg-rose-50 rounded">Usuń</button>' +
+                            '<button onclick="delSupplement(\''+s.id+'\')" class="text-rose-500 font-bold px-2 py-1 bg-rose-50 rounded border border-rose-100">Usuń</button>' +
                             '</div>';
                     });
                     html += '</div></details>';
@@ -1040,8 +1117,12 @@
                             '</div>';
                     }
 
+                    // PRZYCISK PEŁNEGO RAPORTU DLA TRENERA/DIETETYKA
                     html += '<div class="bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white border p-4 rounded-2xl mb-4 shadow-lg">' +
-                        '<h3 class="font-black text-base mb-3 text-center tracking-wide drop-shadow">📊 Statystyki z ' + dCount + ' dni</h3>' +
+                        '<div class="flex justify-between items-center mb-3">' +
+                        '<h3 class="font-black text-base tracking-wide drop-shadow">📊 Statystyki z ' + dCount + ' dni</h3>' +
+                        '<button onclick="generateFullReport()" class="bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-[9px] font-bold uppercase shadow-sm border border-white/40">📋 Pełny Raport</button>' +
+                        '</div>' +
                         '<div class="grid grid-cols-2 gap-2 mb-3">' +
                         '<div class="bg-white/15 backdrop-blur-md p-3 rounded-xl border border-white/20 text-center"><p class="text-[9px] font-bold text-indigo-100 uppercase mb-1">Średnio Kcal/dzień</p><p class="text-2xl font-black text-white drop-shadow">' + (dCount > 0 ? Math.round(tKcal / dCount) : 0) + '</p></div>' +
                         '<div class="bg-white/15 backdrop-blur-md p-3 rounded-xl border border-white/20 text-center"><p class="text-[9px] font-bold text-amber-200 uppercase mb-1">Spalone w sumie</p><p class="text-2xl font-black text-amber-300 drop-shadow">🔥 ' + tBurned + '</p></div>' +
@@ -1147,9 +1228,26 @@
         window.switchUser = function(u) { state.userId = u; saveState(); render(); };
         window.changeStartOfWeek = function(val) { state.settings.startOfWeek = parseInt(val); saveState(); render(); };
         window.addWater = function(amount) { if (amount === 0) getDayData().water = 0; else getDayData().water = (parseFloat(getDayData().water) || 0) + amount; saveState(); render(); };
+        
+        // --- POMIARY CIAŁA (EDYCJA I USUWANIE HISTORII) ---
         window.updateMeasurement = function(id, val) { getDayData().measurements[id] = val; saveState(); render(); };
         window.promptAddMeasurement = function() { var name = prompt('Podaj nazwę nowego pomiaru (np. Łydka):'); if(name && name.trim()) { if(!state.settings.measurements) state.settings.measurements = []; state.settings.measurements.push({ id: 'm_' + Date.now(), name: name.trim() }); saveState(); render(); } };
-        window.removeMeasurement = function(id) { if(confirm('Usunąć ten pomiar całkowicie ze struktury?')) { state.settings.measurements = state.settings.measurements.filter(function(m) { return m.id !== id; }); saveState(); render(); } };
+        window.removeMeasurement = function(id) { if(confirm('Usunąć ten pomiar całkowicie ze struktury w aplikacji?')) { state.settings.measurements = state.settings.measurements.filter(function(m) { return m.id !== id; }); saveState(); render(); } };
+        
+        window.editMeasurementHistory = function(d) {
+            state.date = d;
+            render();
+            alert('Zmieniono datę na ' + d + '. Możesz teraz zaktualizować pomiary dla tego dnia u góry ekranu.');
+        };
+
+        window.deleteMeasurementHistory = function(d) {
+            if(confirm('Na pewno całkowicie usunąć historię pomiarów ciała z dnia ' + d + '?')) {
+                if(state.diaries[state.userId] && state.diaries[state.userId][d]) {
+                    state.diaries[state.userId][d].measurements = {};
+                    saveState(); render();
+                }
+            }
+        };
         
         window.changeWeight = function(val) { getDayData().weight = val; saveState(); render(); };
 
