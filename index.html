@@ -57,7 +57,7 @@
     </div>
 
     <script>
-        const CURRENT_APP_VERSION = "v70-workouts-restored-smart-supplements";
+        const CURRENT_APP_VERSION = "v71-supplements-edit-workout-cleaned";
         try {
             var codeHistory = JSON.parse(localStorage.getItem('diet_code_versions_history') || '[]');
             var pageHtmlSource = document.documentElement.outerHTML;
@@ -138,7 +138,7 @@
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             products: localProducts, workoutsDb: [], diaries: localDiaries, 
             deletedProductIds: localDeletedProducts,
-            supplements: localSupplements, // <--- NOWY MODUŁ GLOBALNY
+            supplements: localSupplements,
             settings: { startOfWeek: 1, categories: DEFAULT_CATEGORIES.slice(), measurements: [] },
             collapsedCategories: {},
             date: dzis, 
@@ -539,7 +539,7 @@
                         '<button onclick="addWater(0)" class="bg-rose-500/10 text-rose-500 px-2 py-1 rounded-lg text-[10px] font-bold ml-1">Reset</button>' +
                         '</div></div></div>';
 
-                    // DODAJ POSIŁKI + KOPIOWANIE
+                    // POSIŁKI + KOPIOWANIE
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
                         '<div class="flex justify-between items-center mb-2">' +
                         '<h3 class="font-bold text-sm flex items-center space-x-1"><span>🍽️ Posiłki</span>' + 
@@ -567,7 +567,7 @@
                     });
                     html += '</div></div>';
 
-                    // DODAJ TRENING (PRZYWRÓCONE DO DZIENNIKA)
+                    // TRENINGI W DZIENNIKU
                     var isRunning = day.workouts.some(function(w) { return w.name.toLowerCase().includes('bieg'); });
                     var workoutSvg = '';
                     if (day.workouts.length > 0) {
@@ -620,7 +620,6 @@
                     }
 
                 } else if (state.tab === 'trening') {
-                    // WIDOK CIAŁO: Treningi, Pomiary z Datą, Odżywki (Inteligentne)
                     var view = state.bodyView || 'tydzien';
                     var offset = state.bodyOffset || 0;
                     var todayParts = state.date.split('-');
@@ -679,7 +678,6 @@
                                 if (hasVal) periodMeasurements.push({ date: d, m: dObj.measurements });
                             }
                         }
-                        // Przeliczanie aktywnych suplementów na dany dzień
                         (state.supplements || []).forEach(function(s) {
                             if (s.startDate <= d && (s.endDate === null || s.endDate >= d)) {
                                 if (!suppTotals[s.name]) suppTotals[s.name] = { total: 0, unit: s.unit || 'g' };
@@ -704,13 +702,12 @@
                             '</div>';
                     }
 
-                    // TRENINGI W OKRESIE
+                    // TRENINGI OKRES
                     html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
                         '<h3 class="font-black text-base mb-3 flex justify-between items-center text-orange-600"><span>💪 Treningi w okresie</span><span class="text-xs bg-orange-500 text-white px-2 py-1 rounded shadow-sm">' + weekKcal + ' kcal 🔥</span></h3>' +
-                        '<div class="grid grid-cols-2 gap-2 mb-3">' +
+                        '<div class="mb-3">' +
                         '<div class="' + th.card + ' p-3 rounded-xl border text-center"><p class="text-[10px] font-bold opacity-60 uppercase mb-1">Łączny czas</p><p class="text-xl font-black text-orange-500">' + weekTime + ' <span class="text-xs opacity-60">min</span></p></div>' +
-                        '<div class="' + th.card + ' p-3 rounded-xl border flex flex-col justify-center items-center"><p class="text-[10px] font-bold opacity-60 uppercase mb-1">Dodaj Dziś</p>' +
-                        '<button onclick="changeDateOffset(0); switchTab(\'dziennik\');" class="bg-orange-100 text-orange-700 font-bold px-3 py-1.5 text-[10px] rounded-lg shadow-sm border border-orange-200 mt-1">➕ Dziennik</button></div></div>';
+                        '</div>';
 
                     var typeKeys = Object.keys(types);
                     if (typeKeys.length > 0) {
@@ -724,7 +721,7 @@
                     }
                     html += '</div>';
 
-                    // POMIARY (DATOWANE)
+                    // POMIARY
                     html += '<div class="' + th.card + ' border p-4 rounded-xl mb-4">' +
                         '<div class="flex justify-between items-center mb-3"><h3 class="font-black text-sm text-indigo-600">📏 Aktualizuj na Dziś (' + state.date + ')</h3>' +
                         '<button onclick="promptAddMeasurement()" class="text-[9px] bg-indigo-50 text-indigo-600 border border-indigo-200 px-2 py-1 rounded font-bold shadow-sm">+ Dodaj nowy</button></div>' +
@@ -752,7 +749,7 @@
                     }
                     html += '</div>';
 
-                    // SUPLEMENTY INTELIGENTNE
+                    // SUPLEMENTY 
                     html += '<div class="' + th.card + ' border p-4 rounded-xl mb-24">' +
                         '<div class="flex justify-between items-center mb-3"><h3 class="font-black text-sm text-emerald-600">💊 Moduł Suplementów</h3>' +
                         '<button onclick="promptAddSupplement()" class="text-[9px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-1 rounded font-bold shadow-sm">+ Dodaj / Rozpocznij</button></div>';
@@ -769,12 +766,14 @@
                                         '<span class="font-bold text-xs text-emerald-800">' + s.name + '</span>' +
                                         '<span class="text-xs font-black text-emerald-600 bg-white px-2 py-0.5 rounded shadow-sm border border-emerald-50">' + s.dose + ' ' + s.unit + '/dzień</span>' +
                                     '</div>' +
-                                    '<div class="flex justify-between items-center mt-1">' +
+                                    '<div class="flex justify-between items-center mt-1 mb-2">' +
                                         '<span class="text-[9px] font-bold opacity-60">Od: ' + s.startDate + '</span>' +
-                                        '<div class="space-x-1.5 flex">' +
-                                            '<button onclick="changeSuppDose(\''+s.id+'\')" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-2 py-1 rounded text-[9px] font-bold border border-blue-200 shadow-sm">Dawka</button>' +
-                                            '<button onclick="endSupplement(\''+s.id+'\')" class="bg-rose-100 hover:bg-rose-200 text-rose-700 px-2 py-1 rounded text-[9px] font-bold border border-rose-200 shadow-sm">Zakończ</button>' +
-                                        '</div>' +
+                                    '</div>' +
+                                    '<div class="grid grid-cols-4 gap-1">' +
+                                        '<button onclick="editSupplement(\''+s.id+'\')" class="bg-amber-100 hover:bg-amber-200 text-amber-700 py-1 rounded text-[9px] font-bold border border-amber-200 shadow-sm">Edytuj</button>' +
+                                        '<button onclick="changeSuppDose(\''+s.id+'\')" class="bg-blue-100 hover:bg-blue-200 text-blue-700 py-1 rounded text-[9px] font-bold border border-blue-200 shadow-sm">Zmień daw</button>' +
+                                        '<button onclick="endSupplement(\''+s.id+'\')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 rounded text-[9px] font-bold border border-gray-300 shadow-sm">Zakończ</button>' +
+                                        '<button onclick="delSupplement(\''+s.id+'\')" class="bg-rose-100 hover:bg-rose-200 text-rose-700 py-1 rounded text-[9px] font-bold border border-rose-200 shadow-sm">Usuń</button>' +
                                     '</div>' +
                                     '</div>';
                         });
@@ -803,7 +802,7 @@
                         html += '<div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-200/60 text-[9px]">' +
                             '<div class="flex flex-col"><span class="font-bold text-gray-700 text-[10px] mb-0.5">' + s.name + ' ('+s.dose+s.unit+'/d)</span>' +
                             '<span class="opacity-60">' + s.startDate + ' — ' + (s.endDate || 'Trwa') + '</span></div>' +
-                            '<button onclick="delSupplement(\''+s.id+'\')" class="text-rose-500 font-bold px-2 py-1 bg-rose-50 rounded">Usuń wpis</button>' +
+                            '<button onclick="delSupplement(\''+s.id+'\')" class="text-rose-500 font-bold px-2 py-1 bg-rose-50 rounded">Usuń</button>' +
                             '</div>';
                     });
                     html += '</div></details>';
@@ -1168,6 +1167,26 @@
             if (!state.supplements) state.supplements = [];
             state.supplements.push({ id: Date.now().toString(), name: name.trim(), dose: parseFloat(dose), unit: unit.trim(), startDate: startD, endDate: null });
             saveState(); render();
+        };
+        
+        window.editSupplement = function(id) {
+            var s = state.supplements.find(function(x) { return String(x.id) === String(id); });
+            if(s) {
+                var name = prompt('Nazwa odżywki:', s.name); if(name === null) return;
+                var dose = prompt('Dzienna dawka:', s.dose); if(dose === null) return;
+                var unit = prompt('Jednostka:', s.unit || 'g'); if(unit === null) return;
+                var startD = prompt('Od kiedy przyjmujesz? (YYYY-MM-DD)', s.startDate); if(startD === null) return;
+                
+                if(name.trim() && !isNaN(parseFloat(dose)) && startD.trim()) {
+                    s.name = name.trim();
+                    s.dose = parseFloat(dose);
+                    s.unit = unit.trim();
+                    s.startDate = startD.trim();
+                    saveState(); render();
+                } else {
+                    alert('Błędne dane!');
+                }
+            }
         };
 
         window.endSupplement = function(id) {
