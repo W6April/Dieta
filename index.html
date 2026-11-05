@@ -57,7 +57,7 @@
     </div>
 
     <script>
-        const CURRENT_APP_VERSION = "v72-full-report-measurements-edit";
+        const CURRENT_APP_VERSION = "v73-unlimited-storage-workout-notes";
         try {
             var codeHistory = JSON.parse(localStorage.getItem('diet_code_versions_history') || '[]');
             var pageHtmlSource = document.documentElement.outerHTML;
@@ -146,7 +146,7 @@
             bodyView: 'tydzien', bodyOffset: 0, 
             isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
-            wSearch: '', wResults: [], wInputTime: '', wInputKcal: '', editProdId: null,
+            wSearch: '', wResults: [], wInputTime: '', wInputKcal: '', wInputNotes: '', editProdId: null,
             isScanning: false, scannedBarcodeInput: '', scannedProductData: null,
             aiModalOpen: false, aiQueryText: '', aiResultData: null, aiLoading: false, aiAdviceText: '', aiAdviceLoading: false,
             unknownProductModal: false, unknownName: '', unknownWeight: '',
@@ -183,6 +183,11 @@
                         var cMeals = (cDay.meals || []).length;
                         var lMeals = (lDay.meals || []).length;
                         if (lMeals > cMeals) result[uid][dt].meals = lDay.meals;
+                        
+                        var cWorkouts = (cDay.workouts || []).length;
+                        var lWorkouts = (lDay.workouts || []).length;
+                        if (lWorkouts > cWorkouts) result[uid][dt].workouts = lDay.workouts;
+
                         if (!cDay.weight && lDay.weight) result[uid][dt].weight = lDay.weight;
                         if (lDay.measurements) {
                             if (!cDay.measurements) cDay.measurements = {};
@@ -196,7 +201,12 @@
             return result;
         }
 
+        // --- ZOPTYMALIZOWANA ARCHITEKTURA BAZY DANYCH (FIREBASE) ---
+        var globalDataLoaded = false;
+        var diariesDataLoaded = false;
+
         if (typeof db !== 'undefined') {
+            // 1. Nasłuchiwanie na dane globalne (produkty, ustawienia)
             db.collection("dieta").doc("dane_wspolne").onSnapshot(function(doc) {
                 if (doc.exists) {
                     var data = doc.data();
@@ -205,20 +215,45 @@
                         initLocalDefaults(); 
                     }
                     if (data.workoutsDb) state.workoutsDb = data.workoutsDb;
-                    if (data.diaries) state.diaries = safeMergeDiaries(data.diaries, state.diaries);
                     if (data.users) state.users = data.users;
                     if (data.supplements) state.supplements = data.supplements;
                     if (data.settings) {
                         state.settings = data.settings;
                         if(!state.settings.categories) state.settings.categories = DEFAULT_CATEGORIES.slice();
                     }
+                    // Wsparcie dla starych dzienników (migracja)
+                    if (data.diaries && Object.keys(data.diaries).length > 0) {
+                        state.diaries = safeMergeDiaries(data.diaries, state.diaries);
+                    }
                 }
+                globalDataLoaded = true;
+                checkCloudSync();
+            }, function(err) { globalDataLoaded = true; checkCloudSync(); });
+
+            // 2. Nasłuchiwanie na zoptymalizowane wpisy dziennika (rozbite na dokumenty np. u1_2026)
+            db.collection("dieta_dzienniki").onSnapshot(function(snapshot) {
+                var chunkedDiaries = {};
+                snapshot.forEach(function(doc) {
+                    var idParts = doc.id.split('_'); // u1_2026
+                    var uid = idParts[0];
+                    if (!chunkedDiaries[uid]) chunkedDiaries[uid] = {};
+                    var docData = doc.data().data || {};
+                    Object.assign(chunkedDiaries[uid], docData);
+                });
+                state.diaries = safeMergeDiaries(chunkedDiaries, state.diaries);
+                diariesDataLoaded = true;
+                checkCloudSync();
+            }, function(err) { diariesDataLoaded = true; checkCloudSync(); });
+        }
+
+        function checkCloudSync() {
+            if (globalDataLoaded && diariesDataLoaded) {
                 state.isCloudSynced = true;
                 localStorage.setItem('diet_local_diaries_vault', JSON.stringify(state.diaries));
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_local_supplements', JSON.stringify(state.supplements));
                 if (!state.isScanning) render();
-            }, function(err) { if (!state.isScanning) render(); });
+            }
         }
 
         window.saveState = function() {
@@ -231,11 +266,33 @@
                 localStorage.setItem('diet_v62_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             } catch(e) {}
+            
             if (!state.isCloudSynced) return;
             if (typeof db !== 'undefined') {
+                // 1. Zapis danych globalnych BEZ historii wpisów (zwolnienie limitu 1MB)
                 db.collection("dieta").doc("dane_wspolne").set({
-                    products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, users: state.users, settings: state.settings, supplements: state.supplements
+                    products: state.products, 
+                    workoutsDb: state.workoutsDb, 
+                    users: state.users, 
+                    settings: state.settings, 
+                    supplements: state.supplements,
+                    diaries: firebase.firestore.FieldValue.delete() // Usunięcie starych obciążających wpisów
                 }, { merge: true }).catch(function(e){});
+
+                // 2. Zapis dziennika w małych paczkach (ID Użytkownika + Rok, np. "u1_2026")
+                var chunks = {};
+                Object.keys(state.diaries).forEach(function(uid) {
+                    Object.keys(state.diaries[uid]).forEach(function(dateStr) {
+                        var year = dateStr.substring(0, 4);
+                        var docId = uid + "_" + year;
+                        if (!chunks[docId]) chunks[docId] = {};
+                        chunks[docId][dateStr] = state.diaries[uid][dateStr];
+                    });
+                });
+                
+                Object.keys(chunks).forEach(function(docId) {
+                    db.collection("dieta_dzienniki").doc(docId).set({ data: chunks[docId] }, { merge: true }).catch(function(e){});
+                });
             }
         };
 
@@ -264,6 +321,7 @@
                 var wKcal = 0, wTime = 0;
                 day.workouts.forEach(function(w, i) {
                     text += "- " + w.name + " (" + w.time + " min, spalono " + w.kcal + " kcal)\n";
+                    if (w.notes) { text += "    Notatki: " + w.notes.replace(/\n/g, "\n    ") + "\n"; }
                     wKcal += w.kcal; wTime += w.time;
                 });
                 text += "➔ Razem treningi: " + wTime + " min, spalono: " + wKcal + " kcal\n\n";
@@ -274,7 +332,7 @@
             }
 
             navigator.clipboard.writeText(text.trim()).then(function() {
-                alert('Pełny raport z tego dnia (posiłki i treningi) został skopiowany!');
+                alert('Raport z tego dnia (posiłki i treningi) został skopiowany!');
             }).catch(function() { alert('Nie udało się skopiować.'); });
         };
 
@@ -312,20 +370,21 @@
                         var wKcal = 0, wNames = [];
                         dObj.workouts.forEach(function(w) { 
                             wKcal += w.kcal; 
-                            wNames.push(w.name + " " + w.time + "min");
+                            var wt = w.name + " " + w.time + "min";
+                            if (w.notes) wt += " [" + w.notes.replace(/\n/g, ", ") + "]";
+                            wNames.push(wt);
                         });
                         text += "  💪 Trening: " + wKcal + " kcal spalono\n";
-                        text += "  ↳ Aktywność: " + wNames.join(', ') + "\n";
+                        text += "  ↳ Aktywność: " + wNames.join(' | ') + "\n";
                     }
                     text += "\n";
                 }
             });
 
             navigator.clipboard.writeText(text.trim()).then(function() {
-                alert('Pełny raport został skopiowany do schowka! Możesz go wkleić i wysłać swojemu dietetykowi lub trenerowi.');
+                alert('Pełny raport skopiowany! Gotowy do wysłania trenerowi lub dietetykowi.');
             }).catch(function() { alert('Nie udało się skopiować.'); });
         };
-
 
         // --- DATA POMOCNICZA ---
         window.getPrevDayStr = function(dateStr) {
@@ -608,11 +667,11 @@
                         '<button onclick="addWater(0)" class="bg-rose-500/10 text-rose-500 px-2 py-1 rounded-lg text-[10px] font-bold ml-1">Reset</button>' +
                         '</div></div></div>';
 
-                    // POSIŁKI + KOPIOWANIE
+                    // POSIŁKI + KOPIOWANIE Z AKTYWNOŚCIAMI
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
                         '<div class="flex justify-between items-center mb-2">' +
                         '<h3 class="font-bold text-sm flex items-center space-x-1"><span>🍽️ Posiłki</span>' + 
-                        '<button onclick="copyMealsToClipboard()" class="ml-2 bg-amber-100 text-amber-700 hover:bg-amber-200 px-2 py-0.5 rounded text-[9px] font-black uppercase shadow-sm">📋 Raport z Dziś</button></h3>' +
+                        '<button onclick="copyMealsToClipboard()" class="ml-2 bg-amber-100 text-amber-700 hover:bg-amber-200 px-2 py-0.5 rounded text-[9px] font-black uppercase shadow-sm border border-amber-200">📋 Raport z Dziś</button></h3>' +
                         '<button onclick="openAiModal()" class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-sm flex items-center space-x-1"><span>🤖 Zapytaj AI</span></button>' +
                         '</div>' +
                         '<div class="flex space-x-2 mb-3 relative"><div class="relative flex-1 min-w-0">' +
@@ -636,7 +695,7 @@
                     });
                     html += '</div></div>';
 
-                    // TRENINGI W DZIENNIKU
+                    // TRENINGI (W DZIENNIKU) - Z OPCJĄ NOTATEK
                     var isRunning = day.workouts.some(function(w) { return w.name.toLowerCase().includes('bieg'); });
                     var workoutSvg = '';
                     if (day.workouts.length > 0) {
@@ -650,7 +709,7 @@
 
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-8">' +
                         '<h3 class="font-bold text-sm text-orange-500 mb-2 flex items-center">🔥 Dodaj trening ' + workoutSvg + '</h3>' +
-                        '<div class="flex space-x-2 mb-3 relative"><div class="relative flex-1 min-w-0">' +
+                        '<div class="flex space-x-2 relative"><div class="relative flex-1 min-w-0">' +
                         '<input id="wNameInp" placeholder="Nazwa np. Bieganie" value="' + state.wSearch + '" oninput="searchWorkout(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs px-2 py-2 outline-none" />';
                     
                     if (state.wResults.length > 0) {
@@ -662,12 +721,20 @@
                     }
                     html += '</div><input id="wTime" type="number" placeholder="Min" value="' + state.wInputTime + '" oninput="state.wInputTime=this.value" class="w-12 ' + th.inputBg + ' border rounded-lg text-xs text-center font-bold outline-none shrink-0" />' +
                         '<input id="wKcal" type="number" placeholder="Kcal" value="' + state.wInputKcal + '" oninput="state.wInputKcal=this.value" class="w-14 ' + th.inputBg + ' border rounded-lg text-xs text-center font-bold outline-none shrink-0" />' +
-                        '<button onclick="addWorkout()" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 rounded-lg font-bold shadow-md shrink-0">+</button></div><div class="space-y-2">';
+                        '<button onclick="addWorkout()" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 rounded-lg font-bold shadow-md shrink-0">+</button></div>' +
+                        '<textarea id="wNotesInp" placeholder="Dodatkowy opis, ćwiczenia, ciężary... (opcjonalnie)" class="w-full ' + th.inputBg + ' border rounded-lg text-xs px-2 py-2 outline-none mt-2 h-14 resize-none"></textarea>' +
+                        '<div class="space-y-2 mt-3">';
                     
                     day.workouts.forEach(function(w) {
-                        html += '<div class="flex justify-between items-center bg-orange-500/10 p-2.5 rounded-lg border border-orange-500/20">' +
-                            '<span class="font-bold text-xs text-orange-600 truncate flex-1">' + w.name + ' <span class="font-normal opacity-75">(' + w.time + ' min)</span></span>' +
-                            '<div class="flex items-center space-x-3 shrink-0"><span class="font-black text-orange-500 text-sm">' + w.kcal + ' kcal</span><button onclick="delWorkout(\'' + w.id + '\')" class="text-rose-400 font-bold px-2">✕</button></div></div>';
+                        html += '<div class="flex flex-col bg-orange-500/10 p-2.5 rounded-lg border border-orange-500/20">' +
+                                '<div class="flex justify-between items-center">' +
+                                '<span class="font-bold text-xs text-orange-600 truncate flex-1">' + w.name + ' <span class="font-normal opacity-75">(' + w.time + ' min)</span></span>' +
+                                '<div class="flex items-center space-x-3 shrink-0"><span class="font-black text-orange-500 text-sm">' + w.kcal + ' kcal</span><button onclick="delWorkout(\'' + w.id + '\')" class="text-rose-400 font-bold px-2">✕</button></div>' +
+                                '</div>';
+                        if (w.notes) {
+                            html += '<div class="mt-1.5 text-[10px] text-orange-800/80 bg-orange-500/5 p-1.5 rounded border border-orange-500/10 whitespace-pre-wrap leading-relaxed">' + w.notes + '</div>';
+                        }
+                        html += '</div>';
                     });
                     html += '</div></div>';
 
@@ -689,6 +756,7 @@
                     }
 
                 } else if (state.tab === 'trening') {
+                    // WIDOK CIAŁO: Treningi (Podsumowanie z czasu), Pomiary z Datą, Odżywki (Inteligentne)
                     var view = state.bodyView || 'tydzien';
                     var offset = state.bodyOffset || 0;
                     var todayParts = state.date.split('-');
@@ -1302,7 +1370,7 @@
                 if(newDose && !isNaN(parseFloat(newDose)) && parseFloat(newDose) !== s.dose) {
                     var changeD = prompt('Od kiedy nowa dawka (YYYY-MM-DD)? Wpisz datę:', state.date);
                     if(changeD) {
-                        s.endDate = getPrevDayStr(changeD); // Stara dawka kończy się dzień wcześniej
+                        s.endDate = getPrevDayStr(changeD);
                         state.supplements.push({ id: Date.now().toString(), name: s.name, dose: parseFloat(newDose), unit: s.unit, startDate: changeD, endDate: null });
                         saveState(); render();
                     }
@@ -1413,10 +1481,12 @@
             var nameInp = document.getElementById('wNameInp');
             var timeInp = document.getElementById('wTime');
             var kcalInp = document.getElementById('wKcal');
+            var notesInp = document.getElementById('wNotesInp');
 
             var name = nameInp ? nameInp.value.trim() : state.wSearch.trim();
             var time = parseInt(timeInp ? timeInp.value : state.wInputTime) || 0;
             var kcal = parseInt(kcalInp ? kcalInp.value : state.wInputKcal) || 0;
+            var notes = notesInp ? notesInp.value.trim() : '';
 
             if (!name || !kcal) return alert('Podaj nazwę treningu i spalone kalorie!');
             
@@ -1424,8 +1494,9 @@
                 state.workoutsDb.push({ name: name, time: time, kcal: kcal });
             }
             
-            getDayData().workouts.push({ id: Date.now(), name: name, time: time, kcal: kcal });
+            getDayData().workouts.push({ id: Date.now(), name: name, time: time, kcal: kcal, notes: notes });
             state.wSearch = ''; state.wInputTime = ''; state.wInputKcal = ''; state.wResults = []; 
+            if(notesInp) notesInp.value = '';
             saveState(); render();
         };
 
