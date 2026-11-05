@@ -57,7 +57,7 @@
     </div>
 
     <script>
-        const CURRENT_APP_VERSION = "v73-unlimited-storage-workout-notes";
+        const CURRENT_APP_VERSION = "v74-meal-times-chronological";
         try {
             var codeHistory = JSON.parse(localStorage.getItem('diet_code_versions_history') || '[]');
             var pageHtmlSource = document.documentElement.outerHTML;
@@ -145,7 +145,7 @@
             summaryView: 'tydzien', summaryOffset: 0, 
             bodyView: 'tydzien', bodyOffset: 0, 
             isEditingGoals: false, importMode: 'full', statusMsg: '',
-            prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '',
+            prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '', inputTime: '',
             wSearch: '', wResults: [], wInputTime: '', wInputKcal: '', wInputNotes: '', editProdId: null,
             isScanning: false, scannedBarcodeInput: '', scannedProductData: null,
             aiModalOpen: false, aiQueryText: '', aiResultData: null, aiLoading: false, aiAdviceText: '', aiAdviceLoading: false,
@@ -206,7 +206,6 @@
         var diariesDataLoaded = false;
 
         if (typeof db !== 'undefined') {
-            // 1. Nasłuchiwanie na dane globalne (produkty, ustawienia)
             db.collection("dieta").doc("dane_wspolne").onSnapshot(function(doc) {
                 if (doc.exists) {
                     var data = doc.data();
@@ -221,7 +220,6 @@
                         state.settings = data.settings;
                         if(!state.settings.categories) state.settings.categories = DEFAULT_CATEGORIES.slice();
                     }
-                    // Wsparcie dla starych dzienników (migracja)
                     if (data.diaries && Object.keys(data.diaries).length > 0) {
                         state.diaries = safeMergeDiaries(data.diaries, state.diaries);
                     }
@@ -230,11 +228,10 @@
                 checkCloudSync();
             }, function(err) { globalDataLoaded = true; checkCloudSync(); });
 
-            // 2. Nasłuchiwanie na zoptymalizowane wpisy dziennika (rozbite na dokumenty np. u1_2026)
             db.collection("dieta_dzienniki").onSnapshot(function(snapshot) {
                 var chunkedDiaries = {};
                 snapshot.forEach(function(doc) {
-                    var idParts = doc.id.split('_'); // u1_2026
+                    var idParts = doc.id.split('_');
                     var uid = idParts[0];
                     if (!chunkedDiaries[uid]) chunkedDiaries[uid] = {};
                     var docData = doc.data().data || {};
@@ -269,17 +266,15 @@
             
             if (!state.isCloudSynced) return;
             if (typeof db !== 'undefined') {
-                // 1. Zapis danych globalnych BEZ historii wpisów (zwolnienie limitu 1MB)
                 db.collection("dieta").doc("dane_wspolne").set({
                     products: state.products, 
                     workoutsDb: state.workoutsDb, 
                     users: state.users, 
                     settings: state.settings, 
                     supplements: state.supplements,
-                    diaries: firebase.firestore.FieldValue.delete() // Usunięcie starych obciążających wpisów
+                    diaries: firebase.firestore.FieldValue.delete()
                 }, { merge: true }).catch(function(e){});
 
-                // 2. Zapis dziennika w małych paczkach (ID Użytkownika + Rok, np. "u1_2026")
                 var chunks = {};
                 Object.keys(state.diaries).forEach(function(uid) {
                     Object.keys(state.diaries[uid]).forEach(function(dateStr) {
@@ -299,7 +294,7 @@
         window.setTheme = function(th) { state.theme = th; saveState(); render(); };
         window.saveGeminiKey = function(key) { state.geminiApiKey = key.trim(); saveState(); state.statusMsg = 'Zapisano klucz AI!'; render(); };
 
-        // --- ZAAWANSOWANE KOPIOWANIE DZIENNIKA ---
+        // --- ZAAWANSOWANE KOPIOWANIE DZIENNIKA Z GODZINAMI ---
         window.copyMealsToClipboard = function() {
             var day = getDayData();
             var text = "Raport dnia: " + state.date + "\n\n";
@@ -308,7 +303,8 @@
                 text += "🍽️ POSIŁKI:\n";
                 var tKcal = 0, tP = 0, tF = 0, tC = 0;
                 day.meals.forEach(function(m, i) {
-                    text += (i+1) + ". " + m.name + " - " + m.weight + "g (" + m.kcal + " kcal | B:" + m.p + "g T:" + m.f + "g W:" + m.c + "g)\n";
+                    var tStr = m.time ? "["+m.time+"] " : "";
+                    text += (i+1) + ". " + tStr + m.name + " - " + m.weight + "g (" + m.kcal + " kcal | B:" + m.p + "g T:" + m.f + "g W:" + m.c + "g)\n";
                     tKcal += m.kcal; tP += m.p; tF += m.f; tC += m.c;
                 });
                 text += "➔ Razem zjedzono: " + tKcal + " kcal (B: " + Math.round(tP) + "g | T: " + Math.round(tF) + "g | W: " + Math.round(tC) + "g)\n\n";
@@ -360,7 +356,8 @@
                         var mNames = [];
                         dObj.meals.forEach(function(m) { 
                             tKcal += m.kcal; tP += m.p; tF += m.f; tC += m.c; 
-                            mNames.push(m.name + " (" + m.weight + "g)");
+                            var tStr = m.time ? "["+m.time+"] " : "";
+                            mNames.push(tStr + m.name + " (" + m.weight + "g)");
                         });
                         text += "  🍽️ Dieta: " + tKcal + " kcal (B: " + Math.round(tP) + "g | T: " + Math.round(tF) + "g | W: " + Math.round(tC) + "g)\n";
                         text += "  ↳ Posiłki: " + mNames.join(', ') + "\n";
@@ -386,12 +383,20 @@
             }).catch(function() { alert('Nie udało się skopiować.'); });
         };
 
+
         // --- DATA POMOCNICZA ---
         window.getPrevDayStr = function(dateStr) {
             var parts = dateStr.split('-');
             var d = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
             d.setDate(d.getDate()-1);
             return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+        };
+
+        window.setDefaultTime = function() {
+            var now = new Date();
+            var h = String(now.getHours()).padStart(2, '0');
+            var m = String(now.getMinutes()).padStart(2, '0');
+            state.inputTime = h + ':' + m;
         };
 
         // --- MULTI-SELECT & CATEGORIES ---
@@ -667,29 +672,29 @@
                         '<button onclick="addWater(0)" class="bg-rose-500/10 text-rose-500 px-2 py-1 rounded-lg text-[10px] font-bold ml-1">Reset</button>' +
                         '</div></div></div>';
 
-                    // POSIŁKI + KOPIOWANIE Z AKTYWNOŚCIAMI
+                    // POSIŁKI + KOPIOWANIE Z AKTYWNOŚCIAMI I GODZINAMI
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
                         '<div class="flex justify-between items-center mb-2">' +
                         '<h3 class="font-bold text-sm flex items-center space-x-1"><span>🍽️ Posiłki</span>' + 
                         '<button onclick="copyMealsToClipboard()" class="ml-2 bg-amber-100 text-amber-700 hover:bg-amber-200 px-2 py-0.5 rounded text-[9px] font-black uppercase shadow-sm border border-amber-200">📋 Raport z Dziś</button></h3>' +
                         '<button onclick="openAiModal()" class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-sm flex items-center space-x-1"><span>🤖 Zapytaj AI</span></button>' +
                         '</div>' +
-                        '<div class="flex space-x-2 mb-3 relative"><div class="relative flex-1 min-w-0">' +
+                        '<div class="flex space-x-1 mb-3 relative">' +
+                        '<input id="inpTime" type="time" value="' + (state.inputTime || '') + '" oninput="state.inputTime=this.value" class="w-14 ' + th.inputBg + ' border rounded-lg text-xs font-bold text-center outline-none shrink-0 px-1" />' +
+                        '<div class="relative flex-1 min-w-0">' +
                         '<input id="pSearchInp" placeholder="Wpisz produkt..." value="' + state.prodSearch + '" oninput="filterProductsDropdown(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs font-medium px-3 py-2 outline-none" />' +
                         '<div id="prodDropdownList" class="absolute top-full left-0 w-full mt-1 ' + th.card + ' border shadow-xl rounded-lg max-h-48 overflow-y-auto z-50 hidden"></div>' +
-                        '</div><input id="inpW" type="number" placeholder="Waga(g)" value="' + state.inputWeight + '" oninput="state.inputWeight=this.value" class="w-16 ' + th.inputBg + ' border rounded-lg text-xs font-bold text-center outline-none shrink-0" />' +
-                        '<button onclick="addMeal()" class="' + th.btn + ' px-3.5 rounded-lg font-bold shadow-md shrink-0">+</button></div><div class="space-y-2 mb-3">';
+                        '</div><input id="inpW" type="number" placeholder="Waga" value="' + state.inputWeight + '" oninput="state.inputWeight=this.value" class="w-14 ' + th.inputBg + ' border rounded-lg text-xs font-bold text-center outline-none shrink-0 px-1" />' +
+                        '<button onclick="addMeal()" class="' + th.btn + ' px-3 rounded-lg font-bold shadow-md shrink-0">+</button></div><div class="space-y-2 mb-3">';
                     
                     if (day.meals.length === 0) html += '<p class="text-[10px] opacity-50 text-center py-2">Brak posiłków</p>';
                     
-                    day.meals.forEach(function(m, idx) {
+                    day.meals.forEach(function(m) {
+                        var timeStr = m.time ? m.time : '--:--';
                         html += '<div class="flex justify-between items-center ' + th.inputBg + ' p-2 rounded-lg border" title="' + m.name + '">' +
-                            '<div class="flex flex-col items-center justify-center mr-2 space-y-1">' +
-                            '<button onclick="moveMeal(' + idx + ', -1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▲</button>' +
-                            '<button onclick="moveMeal(' + idx + ', 1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▼</button>' +
-                            '</div>' +
-                            '<div class="flex-1 pr-1 min-w-0"><p class="font-bold text-xs truncate"><span class="opacity-50 font-normal mr-1 text-[10px]">' + (idx + 1) + '.</span>' + m.name + '</p><p class="text-[9px] opacity-60 mt-0.5">' + m.weight + 'g | B:' + m.p + ' T:' + m.f + ' W:' + m.c + '</p></div>' +
-                            '<div class="flex items-center space-x-2 shrink-0"><span class="font-black text-xs">' + m.kcal + ' <span class="font-normal text-[9px] opacity-60">kcal</span></span>' +
+                            '<button onclick="promptEditMealTime(\''+m.id+'\')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 py-1 rounded text-[9px] font-black mr-2 shadow-sm shrink-0">' + timeStr + '</button>' +
+                            '<div class="flex-1 pr-1 min-w-0"><p class="font-bold text-xs truncate">' + m.name + '</p><p class="text-[9px] opacity-60 mt-0.5">' + m.weight + 'g | B:' + m.p + ' T:' + m.f + ' W:' + m.c + '</p></div>' +
+                            '<div class="flex items-center space-x-1.5 shrink-0"><span class="font-black text-xs">' + m.kcal + ' <span class="font-normal text-[9px] opacity-60">kcal</span></span>' +
                             '<button onclick="promptEditMealWeight(\'' + m.id + '\')" class="text-blue-500 font-bold px-1.5 text-xs" title="Edytuj wagę">✏️</button>' +
                             '<button onclick="delMeal(\'' + m.id + '\')" class="text-rose-400 font-bold px-1.5">✕</button></div></div>';
                     });
@@ -1297,7 +1302,6 @@
         window.changeStartOfWeek = function(val) { state.settings.startOfWeek = parseInt(val); saveState(); render(); };
         window.addWater = function(amount) { if (amount === 0) getDayData().water = 0; else getDayData().water = (parseFloat(getDayData().water) || 0) + amount; saveState(); render(); };
         
-        // --- POMIARY CIAŁA (EDYCJA I USUWANIE HISTORII) ---
         window.updateMeasurement = function(id, val) { getDayData().measurements[id] = val; saveState(); render(); };
         window.promptAddMeasurement = function() { var name = prompt('Podaj nazwę nowego pomiaru (np. Łydka):'); if(name && name.trim()) { if(!state.settings.measurements) state.settings.measurements = []; state.settings.measurements.push({ id: 'm_' + Date.now(), name: name.trim() }); saveState(); render(); } };
         window.removeMeasurement = function(id) { if(confirm('Usunąć ten pomiar całkowicie ze struktury w aplikacji?')) { state.settings.measurements = state.settings.measurements.filter(function(m) { return m.id !== id; }); saveState(); render(); } };
@@ -1319,7 +1323,6 @@
         
         window.changeWeight = function(val) { getDayData().weight = val; saveState(); render(); };
 
-        // --- SUPLEMENTY ---
         window.promptAddSupplement = function() {
             var name = prompt('Nazwa odżywki (np. Kreatyna, WPC):');
             if(!name || !name.trim()) return;
@@ -1370,7 +1373,7 @@
                 if(newDose && !isNaN(parseFloat(newDose)) && parseFloat(newDose) !== s.dose) {
                     var changeD = prompt('Od kiedy nowa dawka (YYYY-MM-DD)? Wpisz datę:', state.date);
                     if(changeD) {
-                        s.endDate = getPrevDayStr(changeD);
+                        s.endDate = getPrevDayStr(changeD); 
                         state.supplements.push({ id: Date.now().toString(), name: s.name, dose: parseFloat(newDose), unit: s.unit, startDate: changeD, endDate: null });
                         saveState(); render();
                     }
@@ -1385,12 +1388,13 @@
             }
         };
 
-        // --- POSIŁKI ---
         window.addMeal = function() {
             var searchInp = document.getElementById('pSearchInp');
             var weightInp = document.getElementById('inpW');
+            var timeInp = document.getElementById('inpTime');
             var query = searchInp ? searchInp.value.trim() : state.prodSearch.trim();
             var w = parseFloat(weightInp ? weightInp.value : state.inputWeight);
+            var mealTime = timeInp ? timeInp.value : state.inputTime;
 
             if (!query || isNaN(w) || w <= 0) return alert('Wpisz nazwę posiłku i wagę!');
 
@@ -1404,10 +1408,13 @@
 
             var r = w / p.baseWeight;
             getDayData().meals.push({ 
-                id: Date.now(), name: p.name, weight: w, 
+                id: Date.now(), name: p.name, weight: w, time: mealTime,
                 kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10, 
                 f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 
             });
+            
+            getDayData().meals.sort(function(a,b) { return (a.time || '24:00').localeCompare(b.time || '24:00'); });
+            
             state.prodSearch = ''; state.inputWeight = ''; state.selectedProdId = ''; 
             if(searchInp) searchInp.value = ''; if(weightInp) weightInp.value = '';
             saveState(); render();
@@ -1419,15 +1426,18 @@
             var p = parseFloat(document.getElementById('unkP').value) || 0;
             var f = parseFloat(document.getElementById('unkF').value) || 0;
             var c = parseFloat(document.getElementById('unkC').value) || 0;
+            var t = state.inputTime;
 
             if (!kcal) return alert('Podaj kalorie!');
             state.products.unshift({ id: String(Date.now()), name: name, baseWeight: baseW, baseKcal: kcal, baseP: p, baseF: f, baseC: c, category: "Inne" });
-            getDayData().meals.push({ id: Date.now(), name: name, weight: baseW, kcal: kcal, p: p, f: f, c: c });
+            getDayData().meals.push({ id: Date.now(), name: name, weight: baseW, kcal: kcal, p: p, f: f, c: c, time: t });
+            getDayData().meals.sort(function(a,b) { return (a.time || '24:00').localeCompare(b.time || '24:00'); });
             state.unknownProductModal = false; state.prodSearch = ''; state.inputWeight = '';
             saveState(); render();
         };
 
         window.delMeal = function(id) { getDayData().meals = getDayData().meals.filter(function(x) { return String(x.id) !== String(id); }); saveState(); render(); };
+        
         window.promptEditMealWeight = function(id) {
             var meal = getDayData().meals.find(function(m) { return String(m.id) === String(id); });
             if(!meal) return;
@@ -1440,10 +1450,13 @@
             }
         };
 
-        window.moveMeal = function(idx, dir) {
-            var meals = getDayData().meals;
-            if (idx + dir >= 0 && idx + dir < meals.length) {
-                var tmp = meals[idx]; meals[idx] = meals[idx + dir]; meals[idx + dir] = tmp;
+        window.promptEditMealTime = function(id) {
+            var meal = getDayData().meals.find(function(m) { return String(m.id) === String(id); });
+            if(!meal) return;
+            var newT = prompt('Podaj godzinę posiłku (np. 08:30) lub zostaw puste:', meal.time || '');
+            if(newT !== null) {
+                meal.time = newT.trim();
+                getDayData().meals.sort(function(a,b) { return (a.time || '24:00').localeCompare(b.time || '24:00'); });
                 saveState(); render();
             }
         };
@@ -1455,15 +1468,15 @@
             if(w && !isNaN(parseFloat(w))) {
                 var weight = parseFloat(w); var r = weight / p.baseWeight;
                 getDayData().meals.push({ 
-                    id: Date.now(), name: p.name, weight: weight, 
+                    id: Date.now(), name: p.name, weight: weight, time: state.inputTime,
                     kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10, 
                     f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 
                 });
+                getDayData().meals.sort(function(a,b) { return (a.time || '24:00').localeCompare(b.time || '24:00'); });
                 saveState(); render();
             }
         };
 
-        // --- TRENINGI ---
         window.searchWorkout = function(val) {
             state.wSearch = val;
             if (val.trim().length > 0) state.wResults = state.workoutsDb.filter(function(w) { return w.name.toLowerCase().includes(val.trim().toLowerCase()); }).slice(0, 5);
@@ -1505,7 +1518,6 @@
             saveState(); render(); 
         };
 
-        // --- ZARZĄDZANIE PRODUKTAMI W BAZIE ---
         window.startEditProd = function(id) { 
             state.editProdId = id; 
             render(); 
@@ -1549,7 +1561,6 @@
             render();
         };
 
-        // --- SKANER KODÓW KRESKOWYCH ---
         window.startBarcodeScanner = function() {
             state.isScanning = true;
             state.scannedProductData = null;
@@ -1616,10 +1627,11 @@
             if(!w || isNaN(w)) return alert('Podaj wagę!');
             var sp = state.scannedProductData; var r = w / sp.baseWeight;
             getDayData().meals.push({
-                id: Date.now(), name: sp.name, weight: w,
+                id: Date.now(), name: sp.name, weight: w, time: state.inputTime,
                 kcal: Math.round(sp.baseKcal * r), p: Math.round(sp.baseP * r * 10)/10,
                 f: Math.round(sp.baseF * r * 10)/10, c: Math.round(sp.baseC * r * 10)/10
             });
+            getDayData().meals.sort(function(a,b) { return (a.time || '24:00').localeCompare(b.time || '24:00'); });
             state.scannedProductData = null; state.isScanning = false;
             saveState(); render();
         };
@@ -1642,7 +1654,10 @@
         window.openAiModal = function() { state.aiModalOpen = true; render(); };
         window.closeAiModal = function() { state.aiModalOpen = false; render(); };
 
-        render();
+        window.onload = function() {
+            window.setDefaultTime();
+            render();
+        };
     </script>
 </body>
 </html>
