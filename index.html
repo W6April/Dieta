@@ -57,7 +57,7 @@
     </div>
 
     <script>
-        const CURRENT_APP_VERSION = "v74-meal-times-chronological";
+        const CURRENT_APP_VERSION = "v75-native-time-picker-collapses";
         try {
             var codeHistory = JSON.parse(localStorage.getItem('diet_code_versions_history') || '[]');
             var pageHtmlSource = document.documentElement.outerHTML;
@@ -140,13 +140,15 @@
             deletedProductIds: localDeletedProducts,
             supplements: localSupplements,
             settings: { startOfWeek: 1, categories: DEFAULT_CATEGORIES.slice(), measurements: [] },
-            collapsedCategories: {},
+            collapsedCategories: {}, // Domyślnie undefined = zwinięte (poprawka w render)
+            expandedWorkouts: {}, // Do zwijania notatek w treningu
             date: dzis, 
             summaryView: 'tydzien', summaryOffset: 0, 
             bodyView: 'tydzien', bodyOffset: 0, 
             isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '', inputTime: '',
             wSearch: '', wResults: [], wInputTime: '', wInputKcal: '', wInputNotes: '', editProdId: null,
+            timeModalOpen: false, timeModalMealId: null, timeModalVal: '', // Moduł edycji czasu
             isScanning: false, scannedBarcodeInput: '', scannedProductData: null,
             aiModalOpen: false, aiQueryText: '', aiResultData: null, aiLoading: false, aiAdviceText: '', aiAdviceLoading: false,
             unknownProductModal: false, unknownName: '', unknownWeight: '',
@@ -700,7 +702,7 @@
                     });
                     html += '</div></div>';
 
-                    // TRENINGI (W DZIENNIKU) - Z OPCJĄ NOTATEK
+                    // TRENINGI (W DZIENNIKU) - Z OPCJĄ NOTATEK (ZWIJANE)
                     var isRunning = day.workouts.some(function(w) { return w.name.toLowerCase().includes('bieg'); });
                     var workoutSvg = '';
                     if (day.workouts.length > 0) {
@@ -731,17 +733,34 @@
                         '<div class="space-y-2 mt-3">';
                     
                     day.workouts.forEach(function(w) {
+                        var isExp = state.expandedWorkouts[w.id];
                         html += '<div class="flex flex-col bg-orange-500/10 p-2.5 rounded-lg border border-orange-500/20">' +
                                 '<div class="flex justify-between items-center">' +
                                 '<span class="font-bold text-xs text-orange-600 truncate flex-1">' + w.name + ' <span class="font-normal opacity-75">(' + w.time + ' min)</span></span>' +
                                 '<div class="flex items-center space-x-3 shrink-0"><span class="font-black text-orange-500 text-sm">' + w.kcal + ' kcal</span><button onclick="delWorkout(\'' + w.id + '\')" class="text-rose-400 font-bold px-2">✕</button></div>' +
                                 '</div>';
                         if (w.notes) {
-                            html += '<div class="mt-1.5 text-[10px] text-orange-800/80 bg-orange-500/5 p-1.5 rounded border border-orange-500/10 whitespace-pre-wrap leading-relaxed">' + w.notes + '</div>';
+                            html += '<div class="mt-1.5 flex justify-between items-center"><span class="text-[9px] opacity-60 font-bold cursor-pointer hover:opacity-100" onclick="toggleWorkoutNotes(\''+w.id+'\')">' + (isExp ? '▼ Ukryj notatkę' : '▶ Pokaż notatkę') + '</span></div>';
+                            if (isExp) {
+                                html += '<div class="mt-1 text-[10px] text-orange-800/80 bg-orange-500/5 p-1.5 rounded border border-orange-500/10 whitespace-pre-wrap leading-relaxed">' + w.notes + '</div>';
+                            }
                         }
                         html += '</div>';
                     });
                     html += '</div></div>';
+
+                    if (state.timeModalOpen) {
+                        html += '<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">' +
+                            '<div class="bg-white rounded-2xl max-w-xs w-full p-5 shadow-2xl border text-gray-900 text-center">' +
+                            '<h3 class="font-black text-sm text-indigo-900 mb-3">🕒 Ustaw godzinę posiłku</h3>' +
+                            '<input id="editTimeInp" type="time" value="' + state.timeModalVal + '" class="w-full p-3 border rounded-xl font-black text-lg text-center outline-none bg-gray-50 mb-4" />' +
+                            '<div class="flex space-x-2">' +
+                            '<button onclick="confirmEditMealTime()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow">Zapisz</button>' +
+                            '<button onclick="state.timeModalOpen=false; render();" class="flex-1 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs">Anuluj</button>' +
+                            '</div>' +
+                            '<button onclick="document.getElementById(\'editTimeInp\').value=\'\'; confirmEditMealTime();" class="w-full mt-2 text-[10px] text-rose-500 font-bold py-1">Usuń godzinę</button>' +
+                            '</div></div>';
+                    }
 
                     if (state.unknownProductModal) {
                         html += '<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">' +
@@ -1049,7 +1068,7 @@
                     allRenderCats.forEach(function(cat, catIdx) {
                         var isCustom = catIdx < cats.length; 
                         var count = groupedProducts[cat] ? groupedProducts[cat].length : 0;
-                        var isCollapsed = state.collapsedCategories[cat];
+                        var isCollapsed = state.collapsedCategories[cat] !== false; // DOMYŚLNIE ZWINIĘTE
                         
                         if (groupedProducts[cat]) {
                             html += '<div onclick="toggleCategoryCollapse(\'' + cat + '\')" class="flex justify-between items-center mt-5 mb-2 px-2 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/25 cursor-pointer hover:bg-blue-500/20 transition-colors">';
@@ -1388,6 +1407,29 @@
             }
         };
 
+        // --- EDYCJA GODZINY POSIŁKU (NOWE) ---
+        window.promptEditMealTime = function(id) {
+            var meal = getDayData().meals.find(function(m) { return String(m.id) === String(id); });
+            if(!meal) return;
+            state.timeModalMealId = id;
+            state.timeModalVal = meal.time || '';
+            state.timeModalOpen = true;
+            render();
+        };
+
+        window.confirmEditMealTime = function() {
+            var meal = getDayData().meals.find(function(m) { return String(m.id) === String(state.timeModalMealId); });
+            if(meal) {
+                var val = document.getElementById('editTimeInp').value;
+                meal.time = val;
+                getDayData().meals.sort(function(a,b) { return (a.time || '25:00').localeCompare(b.time || '25:00'); });
+                saveState();
+            }
+            state.timeModalOpen = false;
+            render();
+        };
+
+        // --- POSIŁKI ---
         window.addMeal = function() {
             var searchInp = document.getElementById('pSearchInp');
             var weightInp = document.getElementById('inpW');
@@ -1413,7 +1455,7 @@
                 f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 
             });
             
-            getDayData().meals.sort(function(a,b) { return (a.time || '24:00').localeCompare(b.time || '24:00'); });
+            getDayData().meals.sort(function(a,b) { return (a.time || '25:00').localeCompare(b.time || '25:00'); });
             
             state.prodSearch = ''; state.inputWeight = ''; state.selectedProdId = ''; 
             if(searchInp) searchInp.value = ''; if(weightInp) weightInp.value = '';
@@ -1431,7 +1473,7 @@
             if (!kcal) return alert('Podaj kalorie!');
             state.products.unshift({ id: String(Date.now()), name: name, baseWeight: baseW, baseKcal: kcal, baseP: p, baseF: f, baseC: c, category: "Inne" });
             getDayData().meals.push({ id: Date.now(), name: name, weight: baseW, kcal: kcal, p: p, f: f, c: c, time: t });
-            getDayData().meals.sort(function(a,b) { return (a.time || '24:00').localeCompare(b.time || '24:00'); });
+            getDayData().meals.sort(function(a,b) { return (a.time || '25:00').localeCompare(b.time || '25:00'); });
             state.unknownProductModal = false; state.prodSearch = ''; state.inputWeight = '';
             saveState(); render();
         };
@@ -1450,17 +1492,6 @@
             }
         };
 
-        window.promptEditMealTime = function(id) {
-            var meal = getDayData().meals.find(function(m) { return String(m.id) === String(id); });
-            if(!meal) return;
-            var newT = prompt('Podaj godzinę posiłku (np. 08:30) lub zostaw puste:', meal.time || '');
-            if(newT !== null) {
-                meal.time = newT.trim();
-                getDayData().meals.sort(function(a,b) { return (a.time || '24:00').localeCompare(b.time || '24:00'); });
-                saveState(); render();
-            }
-        };
-
         window.promptAddProductFromList = function(id) {
             var p = state.products.find(function(x) { return String(x.id) === String(id); });
             if(!p) return;
@@ -1472,9 +1503,15 @@
                     kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10, 
                     f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 
                 });
-                getDayData().meals.sort(function(a,b) { return (a.time || '24:00').localeCompare(b.time || '24:00'); });
+                getDayData().meals.sort(function(a,b) { return (a.time || '25:00').localeCompare(b.time || '25:00'); });
                 saveState(); render();
             }
+        };
+
+        // --- ZWIJANE NOTATKI TRENINGÓW ---
+        window.toggleWorkoutNotes = function(id) {
+            state.expandedWorkouts[id] = !state.expandedWorkouts[id];
+            render();
         };
 
         window.searchWorkout = function(val) {
@@ -1556,7 +1593,7 @@
         };
 
         window.toggleCategoryCollapse = function(catName) {
-            if (state.collapsedCategories[catName]) delete state.collapsedCategories[catName];
+            if (state.collapsedCategories[catName] !== false) state.collapsedCategories[catName] = false;
             else state.collapsedCategories[catName] = true;
             render();
         };
@@ -1631,7 +1668,7 @@
                 kcal: Math.round(sp.baseKcal * r), p: Math.round(sp.baseP * r * 10)/10,
                 f: Math.round(sp.baseF * r * 10)/10, c: Math.round(sp.baseC * r * 10)/10
             });
-            getDayData().meals.sort(function(a,b) { return (a.time || '24:00').localeCompare(b.time || '24:00'); });
+            getDayData().meals.sort(function(a,b) { return (a.time || '25:00').localeCompare(b.time || '25:00'); });
             state.scannedProductData = null; state.isScanning = false;
             saveState(); render();
         };
