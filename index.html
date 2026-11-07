@@ -57,7 +57,7 @@
     </div>
 
     <script>
-        const CURRENT_APP_VERSION = "v75-native-time-picker-collapses";
+        const CURRENT_APP_VERSION = "v76-meals-numbering-and-injuries";
         try {
             var codeHistory = JSON.parse(localStorage.getItem('diet_code_versions_history') || '[]');
             var pageHtmlSource = document.documentElement.outerHTML;
@@ -115,6 +115,7 @@
         var localProducts = [];
         var localDeletedProducts = [];
         var localSupplements = [];
+        var localInjuries = []; // <--- NOWE
         try {
             var savedD = localStorage.getItem('diet_local_diaries_vault') || localStorage.getItem('diet_previous_auto_backup');
             if (savedD && savedD !== "null" && savedD !== "undefined") {
@@ -127,6 +128,8 @@
             if (savedDel && savedDel !== "null" && savedDel !== "undefined") localDeletedProducts = JSON.parse(savedDel) || [];
             var savedSup = localStorage.getItem('diet_local_supplements');
             if (savedSup && savedSup !== "null" && savedSup !== "undefined") localSupplements = JSON.parse(savedSup) || [];
+            var savedInj = localStorage.getItem('diet_local_injuries');
+            if (savedInj && savedInj !== "null" && savedInj !== "undefined") localInjuries = JSON.parse(savedInj) || [];
         } catch(e) {}
 
         window.state = {
@@ -139,16 +142,17 @@
             products: localProducts, workoutsDb: [], diaries: localDiaries, 
             deletedProductIds: localDeletedProducts,
             supplements: localSupplements,
+            injuries: localInjuries, // <--- NOWY MODUŁ GLOBALNY
             settings: { startOfWeek: 1, categories: DEFAULT_CATEGORIES.slice(), measurements: [] },
-            collapsedCategories: {}, // Domyślnie undefined = zwinięte (poprawka w render)
-            expandedWorkouts: {}, // Do zwijania notatek w treningu
+            collapsedCategories: {}, 
+            expandedWorkouts: {}, 
             date: dzis, 
             summaryView: 'tydzien', summaryOffset: 0, 
             bodyView: 'tydzien', bodyOffset: 0, 
             isEditingGoals: false, importMode: 'full', statusMsg: '',
             prodSearch: '', prodResults: [], selectedProdId: '', inputWeight: '', inputTime: '',
             wSearch: '', wResults: [], wInputTime: '', wInputKcal: '', wInputNotes: '', editProdId: null,
-            timeModalOpen: false, timeModalMealId: null, timeModalVal: '', // Moduł edycji czasu
+            timeModalOpen: false, timeModalMealId: null, timeModalVal: '',
             isScanning: false, scannedBarcodeInput: '', scannedProductData: null,
             aiModalOpen: false, aiQueryText: '', aiResultData: null, aiLoading: false, aiAdviceText: '', aiAdviceLoading: false,
             unknownProductModal: false, unknownName: '', unknownWeight: '',
@@ -203,7 +207,6 @@
             return result;
         }
 
-        // --- ZOPTYMALIZOWANA ARCHITEKTURA BAZY DANYCH (FIREBASE) ---
         var globalDataLoaded = false;
         var diariesDataLoaded = false;
 
@@ -218,6 +221,7 @@
                     if (data.workoutsDb) state.workoutsDb = data.workoutsDb;
                     if (data.users) state.users = data.users;
                     if (data.supplements) state.supplements = data.supplements;
+                    if (data.injuries) state.injuries = data.injuries; // <--- NOWE
                     if (data.settings) {
                         state.settings = data.settings;
                         if(!state.settings.categories) state.settings.categories = DEFAULT_CATEGORIES.slice();
@@ -251,6 +255,7 @@
                 localStorage.setItem('diet_local_diaries_vault', JSON.stringify(state.diaries));
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_local_supplements', JSON.stringify(state.supplements));
+                localStorage.setItem('diet_local_injuries', JSON.stringify(state.injuries)); // <--- NOWE
                 if (!state.isScanning) render();
             }
         }
@@ -261,6 +266,7 @@
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_local_deleted_products', JSON.stringify(state.deletedProductIds));
                 localStorage.setItem('diet_local_supplements', JSON.stringify(state.supplements));
+                localStorage.setItem('diet_local_injuries', JSON.stringify(state.injuries)); // <--- NOWE
                 localStorage.setItem('diet_v15_curr_user', state.userId);
                 localStorage.setItem('diet_v62_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
@@ -274,6 +280,7 @@
                     users: state.users, 
                     settings: state.settings, 
                     supplements: state.supplements,
+                    injuries: state.injuries, // <--- NOWE
                     diaries: firebase.firestore.FieldValue.delete()
                 }, { merge: true }).catch(function(e){});
 
@@ -296,7 +303,6 @@
         window.setTheme = function(th) { state.theme = th; saveState(); render(); };
         window.saveGeminiKey = function(key) { state.geminiApiKey = key.trim(); saveState(); state.statusMsg = 'Zapisano klucz AI!'; render(); };
 
-        // --- ZAAWANSOWANE KOPIOWANIE DZIENNIKA Z GODZINAMI ---
         window.copyMealsToClipboard = function() {
             var day = getDayData();
             var text = "Raport dnia: " + state.date + "\n\n";
@@ -385,8 +391,6 @@
             }).catch(function() { alert('Nie udało się skopiować.'); });
         };
 
-
-        // --- DATA POMOCNICZA ---
         window.getPrevDayStr = function(dateStr) {
             var parts = dateStr.split('-');
             var d = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
@@ -401,7 +405,6 @@
             state.inputTime = h + ':' + m;
         };
 
-        // --- MULTI-SELECT & CATEGORIES ---
         window.toggleMultiSelect = function() { state.multiSelect = !state.multiSelect; state.selectedProds = {}; render(); };
         window.toggleProdSelect = function(id) { if (state.selectedProds[id]) delete state.selectedProds[id]; else state.selectedProds[id] = true; render(); };
         window.promptBulkMove = function() {
@@ -674,7 +677,7 @@
                         '<button onclick="addWater(0)" class="bg-rose-500/10 text-rose-500 px-2 py-1 rounded-lg text-[10px] font-bold ml-1">Reset</button>' +
                         '</div></div></div>';
 
-                    // POSIŁKI + KOPIOWANIE Z AKTYWNOŚCIAMI I GODZINAMI
+                    // POSIŁKI + KOPIOWANIE Z AKTYWNOŚCIAMI I GODZINAMI ORAZ NUMERACJĄ
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
                         '<div class="flex justify-between items-center mb-2">' +
                         '<h3 class="font-bold text-sm flex items-center space-x-1"><span>🍽️ Posiłki</span>' + 
@@ -691,11 +694,11 @@
                     
                     if (day.meals.length === 0) html += '<p class="text-[10px] opacity-50 text-center py-2">Brak posiłków</p>';
                     
-                    day.meals.forEach(function(m) {
+                    day.meals.forEach(function(m, idx) {
                         var timeStr = m.time ? m.time : '--:--';
                         html += '<div class="flex justify-between items-center ' + th.inputBg + ' p-2 rounded-lg border" title="' + m.name + '">' +
                             '<button onclick="promptEditMealTime(\''+m.id+'\')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 py-1 rounded text-[9px] font-black mr-2 shadow-sm shrink-0">' + timeStr + '</button>' +
-                            '<div class="flex-1 pr-1 min-w-0"><p class="font-bold text-xs truncate">' + m.name + '</p><p class="text-[9px] opacity-60 mt-0.5">' + m.weight + 'g | B:' + m.p + ' T:' + m.f + ' W:' + m.c + '</p></div>' +
+                            '<div class="flex-1 pr-1 min-w-0"><p class="font-bold text-xs truncate"><span class="opacity-50 font-normal mr-1 text-[10px]">' + (idx + 1) + '.</span>' + m.name + '</p><p class="text-[9px] opacity-60 mt-0.5">' + m.weight + 'g | B:' + m.p + ' T:' + m.f + ' W:' + m.c + '</p></div>' +
                             '<div class="flex items-center space-x-1.5 shrink-0"><span class="font-black text-xs">' + m.kcal + ' <span class="font-normal text-[9px] opacity-60">kcal</span></span>' +
                             '<button onclick="promptEditMealWeight(\'' + m.id + '\')" class="text-blue-500 font-bold px-1.5 text-xs" title="Edytuj wagę">✏️</button>' +
                             '<button onclick="delMeal(\'' + m.id + '\')" class="text-rose-400 font-bold px-1.5">✕</button></div></div>';
@@ -780,7 +783,7 @@
                     }
 
                 } else if (state.tab === 'trening') {
-                    // WIDOK CIAŁO: Treningi (Podsumowanie z czasu), Pomiary z Datą, Odżywki (Inteligentne)
+                    // WIDOK CIAŁO: Treningi, Kontuzje, Pomiary, Odżywki
                     var view = state.bodyView || 'tydzien';
                     var offset = state.bodyOffset || 0;
                     var todayParts = state.date.split('-');
@@ -880,6 +883,50 @@
                     } else {
                         html += '<p class="text-center text-xs opacity-60 font-bold mt-2">Brak treningów w wybranym czasie.</p>';
                     }
+                    html += '</div>';
+
+                    // KONTUZJE I URAZY (NOWOŚĆ)
+                    html += '<div class="' + th.card + ' border p-4 rounded-xl mb-4">' +
+                        '<div class="flex justify-between items-center mb-3"><h3 class="font-black text-sm text-rose-600">🤕 Kontuzje i Urazy</h3>' +
+                        '<button onclick="promptAddInjury()" class="text-[9px] bg-rose-50 text-rose-600 border border-rose-200 px-2 py-1 rounded font-bold shadow-sm">+ Dodaj uraz</button></div>';
+
+                    var activeInjuries = (state.injuries || []).filter(function(s) { return !s.endDate || s.endDate >= state.date; });
+                    html += '<h4 class="text-[10px] font-bold uppercase opacity-60 mb-2">Aktualne (Nie wyleczone):</h4>';
+                    if(activeInjuries.length === 0) {
+                        html += '<p class="text-[9px] opacity-60 italic mb-4 text-emerald-600 font-bold">Brak aktywnych kontuzji. Oby tak dalej!</p>';
+                    } else {
+                        html += '<div class="space-y-2 mb-4">';
+                        activeInjuries.forEach(function(s) {
+                            html += '<div class="bg-rose-50/40 border border-rose-100 p-2.5 rounded-lg flex flex-col">' +
+                                    '<div class="flex justify-between items-center mb-1.5">' +
+                                        '<span class="font-bold text-xs text-rose-800">' + s.name + '</span>' +
+                                    '</div>' +
+                                    '<div class="flex justify-between items-center mt-1 mb-2">' +
+                                        '<span class="text-[9px] font-bold opacity-60 text-rose-600">Od: ' + s.startDate + '</span>' +
+                                    '</div>' +
+                                    '<div class="grid grid-cols-3 gap-1">' +
+                                        '<button onclick="editInjury(\''+s.id+'\')" class="bg-amber-100 hover:bg-amber-200 text-amber-700 py-1 rounded text-[9px] font-bold border border-amber-200 shadow-sm">Edytuj</button>' +
+                                        '<button onclick="endInjury(\''+s.id+'\')" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 py-1 rounded text-[9px] font-bold border border-emerald-300 shadow-sm">Wyleczone</button>' +
+                                        '<button onclick="delInjury(\''+s.id+'\')" class="bg-rose-200 hover:bg-rose-300 text-rose-800 py-1 rounded text-[9px] font-bold border border-rose-300 shadow-sm">Usuń</button>' +
+                                    '</div>' +
+                                    '</div>';
+                        });
+                        html += '</div>';
+                    }
+
+                    html += '<details class="mt-2"><summary class="text-[9px] font-bold opacity-60 cursor-pointer outline-none p-2 bg-gray-50 rounded-lg border inline-block w-full text-center">Pokaż historię kontuzji</summary><div class="space-y-1.5 mt-2">';
+                    if ((state.injuries || []).length === 0) {
+                        html += '<p class="text-[9px] opacity-40 text-center">Pusto.</p>';
+                    }
+                    (state.injuries || []).sort(function(a,b){ return new Date(b.startDate) - new Date(a.startDate); }).forEach(function(s) {
+                        html += '<div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-200/60 text-[9px]">' +
+                            '<div class="flex flex-col"><span class="font-bold text-gray-700 text-[10px] mb-0.5">' + s.name + '</span>' +
+                            '<span class="opacity-60">' + s.startDate + ' — ' + (s.endDate || 'Trwa') + '</span></div>' +
+                            '<button onclick="delInjury(\''+s.id+'\')" class="text-rose-500 font-bold px-2 py-1 bg-rose-50 rounded border border-rose-100">Usuń</button>' +
+                            '</div>';
+                    });
+                    html += '</div></details>';
+
                     html += '</div>';
 
                     // POMIARY
@@ -1068,7 +1115,7 @@
                     allRenderCats.forEach(function(cat, catIdx) {
                         var isCustom = catIdx < cats.length; 
                         var count = groupedProducts[cat] ? groupedProducts[cat].length : 0;
-                        var isCollapsed = state.collapsedCategories[cat] !== false; // DOMYŚLNIE ZWINIĘTE
+                        var isCollapsed = state.collapsedCategories[cat] !== false; 
                         
                         if (groupedProducts[cat]) {
                             html += '<div onclick="toggleCategoryCollapse(\'' + cat + '\')" class="flex justify-between items-center mt-5 mb-2 px-2 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/25 cursor-pointer hover:bg-blue-500/20 transition-colors">';
@@ -1342,6 +1389,48 @@
         
         window.changeWeight = function(val) { getDayData().weight = val; saveState(); render(); };
 
+        window.promptAddInjury = function() {
+            var name = prompt('Nazwa/Opis kontuzji (np. Ból kolana):');
+            if(!name || !name.trim()) return;
+            var startD = prompt('Od kiedy występuje? (YYYY-MM-DD)', state.date);
+            if(!startD) startD = state.date;
+            
+            if (!state.injuries) state.injuries = [];
+            state.injuries.push({ id: Date.now().toString(), name: name.trim(), startDate: startD, endDate: null });
+            saveState(); render();
+        };
+
+        window.editInjury = function(id) {
+            var s = state.injuries.find(function(x) { return String(x.id) === String(id); });
+            if(s) {
+                var name = prompt('Nazwa/Opis:', s.name); if(name === null) return;
+                var startD = prompt('Od kiedy? (YYYY-MM-DD)', s.startDate); if(startD === null) return;
+                
+                if(name.trim() && startD.trim()) {
+                    s.name = name.trim();
+                    s.startDate = startD.trim();
+                    saveState(); render();
+                } else {
+                    alert('Błędne dane!');
+                }
+            }
+        };
+
+        window.endInjury = function(id) {
+            var s = state.injuries.find(function(x) { return String(x.id) === String(id); });
+            if(s) {
+                var endD = prompt('Data wyleczenia (YYYY-MM-DD):', state.date);
+                if(endD) { s.endDate = endD; saveState(); render(); }
+            }
+        };
+
+        window.delInjury = function(id) {
+            if(confirm('Całkowicie usunąć ten wpis o kontuzji z historii?')) {
+                state.injuries = state.injuries.filter(function(x) { return String(x.id) !== String(id); });
+                saveState(); render();
+            }
+        };
+
         window.promptAddSupplement = function() {
             var name = prompt('Nazwa odżywki (np. Kreatyna, WPC):');
             if(!name || !name.trim()) return;
@@ -1407,7 +1496,6 @@
             }
         };
 
-        // --- EDYCJA GODZINY POSIŁKU (NOWE) ---
         window.promptEditMealTime = function(id) {
             var meal = getDayData().meals.find(function(m) { return String(m.id) === String(id); });
             if(!meal) return;
@@ -1429,7 +1517,6 @@
             render();
         };
 
-        // --- POSIŁKI ---
         window.addMeal = function() {
             var searchInp = document.getElementById('pSearchInp');
             var weightInp = document.getElementById('inpW');
@@ -1508,7 +1595,6 @@
             }
         };
 
-        // --- ZWIJANE NOTATKI TRENINGÓW ---
         window.toggleWorkoutNotes = function(id) {
             state.expandedWorkouts[id] = !state.expandedWorkouts[id];
             render();
