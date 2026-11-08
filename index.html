@@ -57,7 +57,7 @@
     </div>
 
     <script>
-        const CURRENT_APP_VERSION = "v77-stats-days-fix-and-all-weekdays";
+        const CURRENT_APP_VERSION = "v76-meals-numbering-and-injuries";
         try {
             var codeHistory = JSON.parse(localStorage.getItem('diet_code_versions_history') || '[]');
             var pageHtmlSource = document.documentElement.outerHTML;
@@ -115,7 +115,7 @@
         var localProducts = [];
         var localDeletedProducts = [];
         var localSupplements = [];
-        var localInjuries = [];
+        var localInjuries = []; // <--- NOWE
         try {
             var savedD = localStorage.getItem('diet_local_diaries_vault') || localStorage.getItem('diet_previous_auto_backup');
             if (savedD && savedD !== "null" && savedD !== "undefined") {
@@ -142,7 +142,7 @@
             products: localProducts, workoutsDb: [], diaries: localDiaries, 
             deletedProductIds: localDeletedProducts,
             supplements: localSupplements,
-            injuries: localInjuries,
+            injuries: localInjuries, // <--- NOWY MODUŁ GLOBALNY
             settings: { startOfWeek: 1, categories: DEFAULT_CATEGORIES.slice(), measurements: [] },
             collapsedCategories: {}, 
             expandedWorkouts: {}, 
@@ -221,7 +221,7 @@
                     if (data.workoutsDb) state.workoutsDb = data.workoutsDb;
                     if (data.users) state.users = data.users;
                     if (data.supplements) state.supplements = data.supplements;
-                    if (data.injuries) state.injuries = data.injuries;
+                    if (data.injuries) state.injuries = data.injuries; // <--- NOWE
                     if (data.settings) {
                         state.settings = data.settings;
                         if(!state.settings.categories) state.settings.categories = DEFAULT_CATEGORIES.slice();
@@ -255,7 +255,7 @@
                 localStorage.setItem('diet_local_diaries_vault', JSON.stringify(state.diaries));
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_local_supplements', JSON.stringify(state.supplements));
-                localStorage.setItem('diet_local_injuries', JSON.stringify(state.injuries));
+                localStorage.setItem('diet_local_injuries', JSON.stringify(state.injuries)); // <--- NOWE
                 if (!state.isScanning) render();
             }
         }
@@ -266,7 +266,7 @@
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_local_deleted_products', JSON.stringify(state.deletedProductIds));
                 localStorage.setItem('diet_local_supplements', JSON.stringify(state.supplements));
-                localStorage.setItem('diet_local_injuries', JSON.stringify(state.injuries));
+                localStorage.setItem('diet_local_injuries', JSON.stringify(state.injuries)); // <--- NOWE
                 localStorage.setItem('diet_v15_curr_user', state.userId);
                 localStorage.setItem('diet_v62_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
@@ -280,7 +280,7 @@
                     users: state.users, 
                     settings: state.settings, 
                     supplements: state.supplements,
-                    injuries: state.injuries,
+                    injuries: state.injuries, // <--- NOWE
                     diaries: firebase.firestore.FieldValue.delete()
                 }, { merge: true }).catch(function(e){});
 
@@ -666,4 +666,1121 @@
                         '</div>' +
                         '<div class="grid grid-cols-3 gap-2 mb-3">' +
                         '<div class="bg-blue-500/10 text-blue-600 py-1 rounded text-center text-[10px] font-bold">B: ' + Math.round(eatenP) + '/' + day.goals.p + 'g</div>' +
-                        '<div class="bg-amber-500/10 text-amber-600 py-1 rounded text-center text-[10px] font-bold">T: ' + Math.round(eatenF) + '/' + day.goals.
+                        '<div class="bg-amber-500/10 text-amber-600 py-1 rounded text-center text-[10px] font-bold">T: ' + Math.round(eatenF) + '/' + day.goals.f + 'g</div>' +
+                        '<div class="bg-emerald-500/10 text-emerald-600 py-1 rounded text-center text-[10px] font-bold">W: ' + Math.round(eatenC) + '/' + day.goals.c + 'g</div></div>' +
+                        '<div class="flex justify-between items-center pt-3 border-t border-gray-200/40">' +
+                        '<span class="text-[10px] font-bold opacity-70 uppercase">Wypito: <span class="' + th.accent + ' text-sm ml-1 font-black">' + (parseFloat(day.water) || 0).toFixed(2) + ' L</span></span>' +
+                        '<div class="flex space-x-1">' +
+                        '<button onclick="addWater(0.25)" class="' + th.inputBg + ' border px-2 py-1 rounded-lg text-[10px] font-bold">+0.25L</button>' +
+                        '<button onclick="addWater(0.5)" class="' + th.inputBg + ' border px-2 py-1 rounded-lg text-[10px] font-bold">+0.5L</button>' +
+                        '<button onclick="addWater(1.0)" class="' + th.inputBg + ' border px-2 py-1 rounded-lg text-[10px] font-bold">+1L</button>' +
+                        '<button onclick="addWater(0)" class="bg-rose-500/10 text-rose-500 px-2 py-1 rounded-lg text-[10px] font-bold ml-1">Reset</button>' +
+                        '</div></div></div>';
+
+                    // POSIŁKI + KOPIOWANIE Z AKTYWNOŚCIAMI I GODZINAMI ORAZ NUMERACJĄ
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
+                        '<div class="flex justify-between items-center mb-2">' +
+                        '<h3 class="font-bold text-sm flex items-center space-x-1"><span>🍽️ Posiłki</span>' + 
+                        '<button onclick="copyMealsToClipboard()" class="ml-2 bg-amber-100 text-amber-700 hover:bg-amber-200 px-2 py-0.5 rounded text-[9px] font-black uppercase shadow-sm border border-amber-200">📋 Raport z Dziś</button></h3>' +
+                        '<button onclick="openAiModal()" class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-2.5 py-1 rounded-lg font-bold text-[10px] shadow-sm flex items-center space-x-1"><span>🤖 Zapytaj AI</span></button>' +
+                        '</div>' +
+                        '<div class="flex space-x-1 mb-3 relative">' +
+                        '<input id="inpTime" type="time" value="' + (state.inputTime || '') + '" oninput="state.inputTime=this.value" class="w-14 ' + th.inputBg + ' border rounded-lg text-xs font-bold text-center outline-none shrink-0 px-1" />' +
+                        '<div class="relative flex-1 min-w-0">' +
+                        '<input id="pSearchInp" placeholder="Wpisz produkt..." value="' + state.prodSearch + '" oninput="filterProductsDropdown(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs font-medium px-3 py-2 outline-none" />' +
+                        '<div id="prodDropdownList" class="absolute top-full left-0 w-full mt-1 ' + th.card + ' border shadow-xl rounded-lg max-h-48 overflow-y-auto z-50 hidden"></div>' +
+                        '</div><input id="inpW" type="number" placeholder="Waga" value="' + state.inputWeight + '" oninput="state.inputWeight=this.value" class="w-14 ' + th.inputBg + ' border rounded-lg text-xs font-bold text-center outline-none shrink-0 px-1" />' +
+                        '<button onclick="addMeal()" class="' + th.btn + ' px-3 rounded-lg font-bold shadow-md shrink-0">+</button></div><div class="space-y-2 mb-3">';
+                    
+                    if (day.meals.length === 0) html += '<p class="text-[10px] opacity-50 text-center py-2">Brak posiłków</p>';
+                    
+                    day.meals.forEach(function(m, idx) {
+                        var timeStr = m.time ? m.time : '--:--';
+                        html += '<div class="flex justify-between items-center ' + th.inputBg + ' p-2 rounded-lg border" title="' + m.name + '">' +
+                            '<button onclick="promptEditMealTime(\''+m.id+'\')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-1.5 py-1 rounded text-[9px] font-black mr-2 shadow-sm shrink-0">' + timeStr + '</button>' +
+                            '<div class="flex-1 pr-1 min-w-0"><p class="font-bold text-xs truncate"><span class="opacity-50 font-normal mr-1 text-[10px]">' + (idx + 1) + '.</span>' + m.name + '</p><p class="text-[9px] opacity-60 mt-0.5">' + m.weight + 'g | B:' + m.p + ' T:' + m.f + ' W:' + m.c + '</p></div>' +
+                            '<div class="flex items-center space-x-1.5 shrink-0"><span class="font-black text-xs">' + m.kcal + ' <span class="font-normal text-[9px] opacity-60">kcal</span></span>' +
+                            '<button onclick="promptEditMealWeight(\'' + m.id + '\')" class="text-blue-500 font-bold px-1.5 text-xs" title="Edytuj wagę">✏️</button>' +
+                            '<button onclick="delMeal(\'' + m.id + '\')" class="text-rose-400 font-bold px-1.5">✕</button></div></div>';
+                    });
+                    html += '</div></div>';
+
+                    // TRENINGI (W DZIENNIKU) - Z OPCJĄ NOTATEK (ZWIJANE)
+                    var isRunning = day.workouts.some(function(w) { return w.name.toLowerCase().includes('bieg'); });
+                    var workoutSvg = '';
+                    if (day.workouts.length > 0) {
+                        if (isRunning) {
+                            workoutSvg = '<svg viewBox="0 0 100 100" class="w-6 h-6 text-orange-500 ml-1 inline-block drop-shadow-md">' +
+                                '<g style="animation: runner-bounce 0.6s linear infinite;"><circle cx="65" cy="20" r="10" fill="currentColor"/><path d="M 60 30 L 45 60" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 45 40 L 25 40 M 55 40 L 75 50" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: runner-arm-f 0.6s infinite alternate transform-origin: 45% 40%;"/><path d="M 45 60 L 25 80 M 45 60 L 65 90" stroke="currentColor" stroke-width="6" stroke-linecap="round" style="animation: runner-leg-f 0.6s infinite alternate transform-origin: 45% 60%;"/></g></svg>';
+                        } else {
+                            workoutSvg = '<svg viewBox="0 0 100 100" class="w-6 h-6 text-orange-500 ml-1 inline-block drop-shadow-md"><path d="M 50 70 L 35 95 M 50 70 L 65 95" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><g style="animation: lift-squat 1s ease-in-out infinite;"><circle cx="50" cy="30" r="10" fill="currentColor"/><line x1="50" y1="40" x2="50" y2="70" stroke="currentColor" stroke-width="6" stroke-linecap="round"/><path d="M 50 45 L 25 15 M 50 45 L 75 15" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><line x1="15" y1="15" x2="85" y2="15" stroke="currentColor" stroke-width="5" stroke-linecap="round"/><circle cx="15" cy="15" r="7" fill="currentColor"/><circle cx="85" cy="15" r="7" fill="currentColor"/></g></svg>';
+                        }
+                    }
+
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-8">' +
+                        '<h3 class="font-bold text-sm text-orange-500 mb-2 flex items-center">🔥 Dodaj trening ' + workoutSvg + '</h3>' +
+                        '<div class="flex space-x-2 relative"><div class="relative flex-1 min-w-0">' +
+                        '<input id="wNameInp" placeholder="Nazwa np. Bieganie" value="' + state.wSearch + '" oninput="searchWorkout(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs px-2 py-2 outline-none" />';
+                    
+                    if (state.wResults.length > 0) {
+                        html += '<div class="absolute top-full left-0 w-full mt-1 ' + th.card + ' border shadow-xl rounded-lg max-h-40 overflow-y-auto z-50">';
+                        state.wResults.forEach(function(w) {
+                            html += '<div onclick="selectWorkoutDrop(\'' + w.name + '\')" class="p-2 border-b border-gray-200/30 text-xs cursor-pointer"><span class="font-bold text-orange-500 block truncate">' + w.name + '</span><span class="text-[9px] opacity-60">' + w.time + ' min | ' + w.kcal + ' kcal</span></div>';
+                        });
+                        html += '</div>';
+                    }
+                    html += '</div><input id="wTime" type="number" placeholder="Min" value="' + state.wInputTime + '" oninput="state.wInputTime=this.value" class="w-12 ' + th.inputBg + ' border rounded-lg text-xs text-center font-bold outline-none shrink-0" />' +
+                        '<input id="wKcal" type="number" placeholder="Kcal" value="' + state.wInputKcal + '" oninput="state.wInputKcal=this.value" class="w-14 ' + th.inputBg + ' border rounded-lg text-xs text-center font-bold outline-none shrink-0" />' +
+                        '<button onclick="addWorkout()" class="bg-orange-500 hover:bg-orange-600 text-white px-3.5 rounded-lg font-bold shadow-md shrink-0">+</button></div>' +
+                        '<textarea id="wNotesInp" placeholder="Dodatkowy opis, ćwiczenia, ciężary... (opcjonalnie)" class="w-full ' + th.inputBg + ' border rounded-lg text-xs px-2 py-2 outline-none mt-2 h-14 resize-none"></textarea>' +
+                        '<div class="space-y-2 mt-3">';
+                    
+                    day.workouts.forEach(function(w) {
+                        var isExp = state.expandedWorkouts[w.id];
+                        html += '<div class="flex flex-col bg-orange-500/10 p-2.5 rounded-lg border border-orange-500/20">' +
+                                '<div class="flex justify-between items-center">' +
+                                '<span class="font-bold text-xs text-orange-600 truncate flex-1">' + w.name + ' <span class="font-normal opacity-75">(' + w.time + ' min)</span></span>' +
+                                '<div class="flex items-center space-x-3 shrink-0"><span class="font-black text-orange-500 text-sm">' + w.kcal + ' kcal</span><button onclick="delWorkout(\'' + w.id + '\')" class="text-rose-400 font-bold px-2">✕</button></div>' +
+                                '</div>';
+                        if (w.notes) {
+                            html += '<div class="mt-1.5 flex justify-between items-center"><span class="text-[9px] opacity-60 font-bold cursor-pointer hover:opacity-100" onclick="toggleWorkoutNotes(\''+w.id+'\')">' + (isExp ? '▼ Ukryj notatkę' : '▶ Pokaż notatkę') + '</span></div>';
+                            if (isExp) {
+                                html += '<div class="mt-1 text-[10px] text-orange-800/80 bg-orange-500/5 p-1.5 rounded border border-orange-500/10 whitespace-pre-wrap leading-relaxed">' + w.notes + '</div>';
+                            }
+                        }
+                        html += '</div>';
+                    });
+                    html += '</div></div>';
+
+                    if (state.timeModalOpen) {
+                        html += '<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4">' +
+                            '<div class="bg-white rounded-2xl max-w-xs w-full p-5 shadow-2xl border text-gray-900 text-center">' +
+                            '<h3 class="font-black text-sm text-indigo-900 mb-3">🕒 Ustaw godzinę posiłku</h3>' +
+                            '<input id="editTimeInp" type="time" value="' + state.timeModalVal + '" class="w-full p-3 border rounded-xl font-black text-lg text-center outline-none bg-gray-50 mb-4" />' +
+                            '<div class="flex space-x-2">' +
+                            '<button onclick="confirmEditMealTime()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow">Zapisz</button>' +
+                            '<button onclick="state.timeModalOpen=false; render();" class="flex-1 bg-gray-200 text-gray-700 font-bold py-2.5 rounded-xl text-xs">Anuluj</button>' +
+                            '</div>' +
+                            '<button onclick="document.getElementById(\'editTimeInp\').value=\'\'; confirmEditMealTime();" class="w-full mt-2 text-[10px] text-rose-500 font-bold py-1">Usuń godzinę</button>' +
+                            '</div></div>';
+                    }
+
+                    if (state.unknownProductModal) {
+                        html += '<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">' +
+                            '<div class="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border text-gray-900">' +
+                            '<h3 class="font-black text-sm text-indigo-900 mb-1">🔍 Brak produktu w bazie</h3>' +
+                            '<p class="text-[10px] text-gray-500 mb-3">Produkt <b>„' + state.unknownName + '”</b> nie istnieje. Podaj jego skład (na <b>' + state.unknownWeight + 'g</b> lub całe opakowanie):</p>' +
+                            '<div class="space-y-2 text-xs mb-3">' +
+                            '<div><label class="font-bold text-[9px] text-gray-500 block">Kcal:</label><input id="unkKcal" type="number" placeholder="np. 350" class="w-full p-2 border rounded font-bold text-center outline-none bg-gray-50" /></div>' +
+                            '<div class="grid grid-cols-3 gap-2">' +
+                            '<div><label class="font-bold text-[9px] text-gray-500 block">Białko (g):</label><input id="unkP" type="number" step="0.1" placeholder="0" class="w-full p-2 border rounded font-bold text-center outline-none bg-gray-50" /></div>' +
+                            '<div><label class="font-bold text-[9px] text-gray-500 block">Tłuszcz (g):</label><input id="unkF" type="number" step="0.1" placeholder="0" class="w-full p-2 border rounded font-bold text-center outline-none bg-gray-50" /></div>' +
+                            '<div><label class="font-bold text-[9px] text-gray-500 block">Węglo (g):</label><input id="unkC" type="number" step="0.1" placeholder="0" class="w-full p-2 border rounded font-bold text-center outline-none bg-gray-50" /></div>' +
+                            '</div></div>' +
+                            '<button onclick="confirmAddUnknownProduct()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow mb-2">💾 Dodaj do bazy i dziennika</button>' +
+                            '<button onclick="state.unknownProductModal=false; render();" class="w-full bg-gray-200 text-gray-700 font-bold py-2 rounded-xl text-xs">Anuluj</button>' +
+                            '</div></div>';
+                    }
+
+                } else if (state.tab === 'trening') {
+                    // WIDOK CIAŁO: Treningi, Kontuzje, Pomiary, Odżywki
+                    var view = state.bodyView || 'tydzien';
+                    var offset = state.bodyOffset || 0;
+                    var todayParts = state.date.split('-');
+                    var baseD = new Date(parseInt(todayParts[0]), parseInt(todayParts[1]) - 1, parseInt(todayParts[2]));
+                    
+                    var datesToProcess = [];
+                    var periodLabel = "";
+                    var userDiary = state.diaries[state.userId] || {};
+                    var allDates = Object.keys(userDiary).sort();
+
+                    if (view === 'ogolne') {
+                        datesToProcess = allDates;
+                        periodLabel = "Od początku";
+                    } else if (view === 'rok') {
+                        var y = baseD.getFullYear() + offset;
+                        datesToProcess = allDates.filter(function(d) { return d.startsWith(y.toString()); });
+                        periodLabel = "Rok " + y;
+                    } else if (view === 'miesiac') {
+                        var mDate = new Date(baseD.getFullYear(), baseD.getMonth() + offset, 1);
+                        var yStr = mDate.getFullYear();
+                        var mStr = String(mDate.getMonth() + 1).padStart(2, '0');
+                        var prefix = yStr + '-' + mStr;
+                        datesToProcess = allDates.filter(function(d) { return d.startsWith(prefix); });
+                        var months = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
+                        periodLabel = months[mDate.getMonth()] + " " + yStr;
+                    } else {
+                        var curr = new Date(baseD.getFullYear(), baseD.getMonth(), baseD.getDate());
+                        curr.setDate(curr.getDate() + (offset * 7));
+                        var dayOfWeek = curr.getDay();
+                        var wOffset = state.settings.startOfWeek === 1 ? (dayOfWeek === 0 ? -6 : 1 - dayOfWeek) : -dayOfWeek;
+                        curr.setDate(curr.getDate() + wOffset);
+                        for (var i = 0; i < 7; i++) { 
+                            var n = new Date(curr.getFullYear(), curr.getMonth(), curr.getDate() + i); 
+                            datesToProcess.push(n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0')); 
+                        }
+                        periodLabel = datesToProcess[0] + " — " + datesToProcess[6];
+                    }
+
+                    var weekTime = 0, weekKcal = 0, types = {};
+                    var periodMeasurements = [];
+                    var suppTotals = {};
+
+                    datesToProcess.forEach(function(d) {
+                        var dObj = state.diaries[state.userId][d];
+                        if (dObj) {
+                            if (dObj.workouts) {
+                                dObj.workouts.forEach(function(w) {
+                                    weekTime += w.time; weekKcal += w.kcal;
+                                    if(!types[w.name]) types[w.name] = { time: 0, kcal: 0, count: 0 };
+                                    types[w.name].time += w.time; types[w.name].kcal += w.kcal; types[w.name].count += 1;
+                                });
+                            }
+                            if (dObj.measurements && Object.keys(dObj.measurements).length > 0) {
+                                var hasVal = false;
+                                Object.keys(dObj.measurements).forEach(function(k) { if(dObj.measurements[k] !== "") hasVal = true; });
+                                if (hasVal) periodMeasurements.push({ date: d, m: dObj.measurements });
+                            }
+                        }
+                        (state.supplements || []).forEach(function(s) {
+                            if (s.startDate <= d && (s.endDate === null || s.endDate >= d)) {
+                                if (!suppTotals[s.name]) suppTotals[s.name] = { total: 0, unit: s.unit || 'g' };
+                                suppTotals[s.name].total += s.dose;
+                            }
+                        });
+                    });
+
+                    html += '<div class="flex space-x-1 mb-3 ' + th.inputBg + ' p-1 rounded-lg border">';
+                    ['tydzien', 'miesiac', 'rok', 'ogolne'].forEach(function(v, idx) {
+                        var labels = ['Tydzień', 'Miesiąc', 'Rok', 'Ogólne'];
+                        var activeCls = (view === v) ? th.btn + ' shadow text-white' : 'opacity-60 text-xs font-bold';
+                        html += '<button onclick="state.bodyView=\'' + v + '\'; state.bodyOffset=0; render();" class="flex-1 py-1.5 rounded-md text-[10px] uppercase font-black transition-colors ' + activeCls + '">' + labels[idx] + '</button>';
+                    });
+                    html += '</div>';
+
+                    if (view !== 'ogolne') {
+                        html += '<div class="' + th.card + ' p-2.5 rounded-xl border flex items-center justify-between mb-4 shadow-sm">' +
+                            '<button onclick="state.bodyOffset-=1; render();" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-black shadow-sm">◀ Wstecz</button>' +
+                            '<span class="text-[10px] font-black text-gray-600 px-2 py-1 uppercase text-center leading-tight">' + periodLabel + '</span>' +
+                            '<button onclick="state.bodyOffset+=1; render();" class="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-black shadow-sm">Dalej ▶</button>' +
+                            '</div>';
+                    }
+
+                    // TRENINGI OKRES
+                    html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
+                        '<h3 class="font-black text-base mb-3 flex justify-between items-center text-orange-600"><span>💪 Treningi w okresie</span><span class="text-xs bg-orange-500 text-white px-2 py-1 rounded shadow-sm">' + weekKcal + ' kcal 🔥</span></h3>' +
+                        '<div class="mb-3">' +
+                        '<div class="' + th.card + ' p-3 rounded-xl border text-center"><p class="text-[10px] font-bold opacity-60 uppercase mb-1">Łączny czas</p><p class="text-xl font-black text-orange-500">' + weekTime + ' <span class="text-xs opacity-60">min</span></p></div>' +
+                        '</div>';
+
+                    var typeKeys = Object.keys(types);
+                    if (typeKeys.length > 0) {
+                        html += '<div class="space-y-1">';
+                        typeKeys.forEach(function(t) {
+                            html += '<div class="bg-white/60 p-2 rounded-lg border border-orange-500/10 flex justify-between items-center"><div class="min-w-0 pr-2"><span class="font-bold text-xs block truncate">' + t + '</span><span class="text-[9px] opacity-60 font-bold">Ilość: ' + types[t].count + '</span></div><div class="text-right shrink-0"><span class="block text-orange-500 font-black text-xs">' + types[t].kcal + ' kcal</span><span class="text-[9px] opacity-60 font-bold">' + types[t].time + ' min</span></div></div>';
+                        });
+                        html += '</div>';
+                    } else {
+                        html += '<p class="text-center text-xs opacity-60 font-bold mt-2">Brak treningów w wybranym czasie.</p>';
+                    }
+                    html += '</div>';
+
+                    // KONTUZJE I URAZY (NOWOŚĆ)
+                    html += '<div class="' + th.card + ' border p-4 rounded-xl mb-4">' +
+                        '<div class="flex justify-between items-center mb-3"><h3 class="font-black text-sm text-rose-600">🤕 Kontuzje i Urazy</h3>' +
+                        '<button onclick="promptAddInjury()" class="text-[9px] bg-rose-50 text-rose-600 border border-rose-200 px-2 py-1 rounded font-bold shadow-sm">+ Dodaj uraz</button></div>';
+
+                    var activeInjuries = (state.injuries || []).filter(function(s) { return !s.endDate || s.endDate >= state.date; });
+                    html += '<h4 class="text-[10px] font-bold uppercase opacity-60 mb-2">Aktualne (Nie wyleczone):</h4>';
+                    if(activeInjuries.length === 0) {
+                        html += '<p class="text-[9px] opacity-60 italic mb-4 text-emerald-600 font-bold">Brak aktywnych kontuzji. Oby tak dalej!</p>';
+                    } else {
+                        html += '<div class="space-y-2 mb-4">';
+                        activeInjuries.forEach(function(s) {
+                            html += '<div class="bg-rose-50/40 border border-rose-100 p-2.5 rounded-lg flex flex-col">' +
+                                    '<div class="flex justify-between items-center mb-1.5">' +
+                                        '<span class="font-bold text-xs text-rose-800">' + s.name + '</span>' +
+                                    '</div>' +
+                                    '<div class="flex justify-between items-center mt-1 mb-2">' +
+                                        '<span class="text-[9px] font-bold opacity-60 text-rose-600">Od: ' + s.startDate + '</span>' +
+                                    '</div>' +
+                                    '<div class="grid grid-cols-3 gap-1">' +
+                                        '<button onclick="editInjury(\''+s.id+'\')" class="bg-amber-100 hover:bg-amber-200 text-amber-700 py-1 rounded text-[9px] font-bold border border-amber-200 shadow-sm">Edytuj</button>' +
+                                        '<button onclick="endInjury(\''+s.id+'\')" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 py-1 rounded text-[9px] font-bold border border-emerald-300 shadow-sm">Wyleczone</button>' +
+                                        '<button onclick="delInjury(\''+s.id+'\')" class="bg-rose-200 hover:bg-rose-300 text-rose-800 py-1 rounded text-[9px] font-bold border border-rose-300 shadow-sm">Usuń</button>' +
+                                    '</div>' +
+                                    '</div>';
+                        });
+                        html += '</div>';
+                    }
+
+                    html += '<details class="mt-2"><summary class="text-[9px] font-bold opacity-60 cursor-pointer outline-none p-2 bg-gray-50 rounded-lg border inline-block w-full text-center">Pokaż historię kontuzji</summary><div class="space-y-1.5 mt-2">';
+                    if ((state.injuries || []).length === 0) {
+                        html += '<p class="text-[9px] opacity-40 text-center">Pusto.</p>';
+                    }
+                    (state.injuries || []).sort(function(a,b){ return new Date(b.startDate) - new Date(a.startDate); }).forEach(function(s) {
+                        html += '<div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-200/60 text-[9px]">' +
+                            '<div class="flex flex-col"><span class="font-bold text-gray-700 text-[10px] mb-0.5">' + s.name + '</span>' +
+                            '<span class="opacity-60">' + s.startDate + ' — ' + (s.endDate || 'Trwa') + '</span></div>' +
+                            '<button onclick="delInjury(\''+s.id+'\')" class="text-rose-500 font-bold px-2 py-1 bg-rose-50 rounded border border-rose-100">Usuń</button>' +
+                            '</div>';
+                    });
+                    html += '</div></details>';
+
+                    html += '</div>';
+
+                    // POMIARY
+                    html += '<div class="' + th.card + ' border p-4 rounded-xl mb-4">' +
+                        '<div class="flex justify-between items-center mb-3"><h3 class="font-black text-sm text-indigo-600">📏 Aktualizuj na Dziś (' + state.date + ')</h3>' +
+                        '<button onclick="promptAddMeasurement()" class="text-[9px] bg-indigo-50 text-indigo-600 border border-indigo-200 px-2 py-1 rounded font-bold shadow-sm">+ Dodaj nowy</button></div>' +
+                        '<div class="grid grid-cols-2 gap-2 mb-4">';
+                    
+                    (state.settings.measurements || []).forEach(function(m) {
+                        var val = day.measurements[m.id] || '';
+                        html += '<div class="relative"><label class="text-[9px] font-bold opacity-60 uppercase mb-1 block truncate pr-5">' + m.name + '</label>' +
+                            '<input type="number" step="0.1" value="' + val + '" onchange="updateMeasurement(\'' + m.id + '\', this.value)" placeholder="cm" class="w-full ' + th.inputBg + ' border rounded-md text-xs font-bold p-2 outline-none text-center" />' +
+                            '<button onclick="removeMeasurement(\'' + m.id + '\')" class="absolute top-0 right-0 mt-0 mr-0.5 text-rose-400 font-black text-[9px] px-1 bg-white/80 rounded">✕</button></div>';
+                    });
+                    html += '</div>';
+
+                    if (periodMeasurements.length > 0) {
+                        periodMeasurements.sort(function(a,b) { return new Date(b.date) - new Date(a.date); });
+                        html += '<h4 class="text-[10px] font-bold uppercase opacity-60 mb-2 border-t pt-3">Historia pomiarów z tego okresu:</h4><div class="space-y-2 max-h-32 overflow-y-auto pr-1">';
+                        periodMeasurements.forEach(function(pm) {
+                            var measHtml = '';
+                            (state.settings.measurements || []).forEach(function(m) {
+                                if (pm.m[m.id]) measHtml += '<span class="mr-2 inline-block"><b>' + m.name + ':</b> ' + pm.m[m.id] + '</span>';
+                            });
+                            html += '<div class="bg-indigo-50/50 border border-indigo-100 p-2 rounded flex flex-col text-[9px]">' +
+                                    '<div class="flex justify-between items-center mb-0.5">' +
+                                        '<span class="font-black text-indigo-800">' + pm.date + '</span>' +
+                                        '<div class="space-x-1 flex">' +
+                                            '<button onclick="editMeasurementHistory(\''+pm.date+'\')" class="bg-blue-100 hover:bg-blue-200 text-blue-700 px-1.5 py-0.5 rounded shadow-sm text-[8px] font-bold border border-blue-200">Edytuj</button>' +
+                                            '<button onclick="deleteMeasurementHistory(\''+pm.date+'\')" class="bg-rose-100 hover:bg-rose-200 text-rose-700 px-1.5 py-0.5 rounded shadow-sm text-[8px] font-bold border border-rose-200">Usuń</button>' +
+                                        '</div>' +
+                                    '</div>' +
+                                    '<div class="opacity-80 leading-relaxed mt-1">' + measHtml + '</div></div>';
+                        });
+                        html += '</div>';
+                    }
+                    html += '</div>';
+
+                    // SUPLEMENTY 
+                    html += '<div class="' + th.card + ' border p-4 rounded-xl mb-24">' +
+                        '<div class="flex justify-between items-center mb-3"><h3 class="font-black text-sm text-emerald-600">💊 Moduł Suplementów</h3>' +
+                        '<button onclick="promptAddSupplement()" class="text-[9px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-1 rounded font-bold shadow-sm">+ Dodaj / Rozpocznij</button></div>';
+
+                    var activeSupps = (state.supplements || []).filter(function(s) { return !s.endDate || s.endDate >= state.date; });
+                    html += '<h4 class="text-[10px] font-bold uppercase opacity-60 mb-2">Teraz stosowane:</h4>';
+                    if(activeSupps.length === 0) {
+                        html += '<p class="text-[9px] opacity-40 italic mb-4">Brak aktywnych suplementów.</p>';
+                    } else {
+                        html += '<div class="space-y-2 mb-4">';
+                        activeSupps.forEach(function(s) {
+                            html += '<div class="bg-emerald-50/40 border border-emerald-100 p-2.5 rounded-lg flex flex-col">' +
+                                    '<div class="flex justify-between items-center mb-1.5">' +
+                                        '<span class="font-bold text-xs text-emerald-800">' + s.name + '</span>' +
+                                        '<span class="text-xs font-black text-emerald-600 bg-white px-2 py-0.5 rounded shadow-sm border border-emerald-50">' + s.dose + ' ' + s.unit + '/dzień</span>' +
+                                    '</div>' +
+                                    '<div class="flex justify-between items-center mt-1 mb-2">' +
+                                        '<span class="text-[9px] font-bold opacity-60">Od: ' + s.startDate + '</span>' +
+                                    '</div>' +
+                                    '<div class="grid grid-cols-4 gap-1">' +
+                                        '<button onclick="editSupplement(\''+s.id+'\')" class="bg-amber-100 hover:bg-amber-200 text-amber-700 py-1 rounded text-[9px] font-bold border border-amber-200 shadow-sm">Edytuj</button>' +
+                                        '<button onclick="changeSuppDose(\''+s.id+'\')" class="bg-blue-100 hover:bg-blue-200 text-blue-700 py-1 rounded text-[9px] font-bold border border-blue-200 shadow-sm">Zmień daw</button>' +
+                                        '<button onclick="endSupplement(\''+s.id+'\')" class="bg-gray-200 hover:bg-gray-300 text-gray-700 py-1 rounded text-[9px] font-bold border border-gray-300 shadow-sm">Zakończ</button>' +
+                                        '<button onclick="delSupplement(\''+s.id+'\')" class="bg-rose-100 hover:bg-rose-200 text-rose-700 py-1 rounded text-[9px] font-bold border border-rose-200 shadow-sm">Usuń</button>' +
+                                    '</div>' +
+                                    '</div>';
+                        });
+                        html += '</div>';
+                    }
+
+                    var suppKeys = Object.keys(suppTotals);
+                    html += '<h4 class="text-[10px] font-bold uppercase opacity-60 mb-2 border-t pt-3">Łączne spożycie w okresie (' + periodLabel + '):</h4>';
+                    if (suppKeys.length > 0) {
+                        html += '<div class="grid grid-cols-2 gap-2 mb-3">';
+                        suppKeys.forEach(function(k) {
+                            html += '<div class="bg-gray-50 border border-gray-200 rounded-lg p-2 text-center shadow-sm">' +
+                                    '<p class="text-[9px] font-bold opacity-60 truncate mb-1">' + k + '</p>' +
+                                    '<p class="font-black text-sm text-gray-800">' + suppTotals[k].total + ' <span class="text-[9px] font-normal">' + suppTotals[k].unit + '</span></p></div>';
+                        });
+                        html += '</div>';
+                    } else {
+                        html += '<p class="text-center text-[10px] opacity-60 mb-4">W wybranym okresie nie zażyto suplementów.</p>';
+                    }
+
+                    html += '<details class="mt-2"><summary class="text-[9px] font-bold opacity-60 cursor-pointer outline-none p-2 bg-gray-50 rounded-lg border inline-block w-full text-center">Pokaż całą historię odżywek</summary><div class="space-y-1.5 mt-2">';
+                    if ((state.supplements || []).length === 0) {
+                        html += '<p class="text-[9px] opacity-40 text-center">Pusto.</p>';
+                    }
+                    (state.supplements || []).sort(function(a,b){ return new Date(b.startDate) - new Date(a.startDate); }).forEach(function(s) {
+                        html += '<div class="flex justify-between items-center bg-gray-50 p-2 rounded-lg border border-gray-200/60 text-[9px]">' +
+                            '<div class="flex flex-col"><span class="font-bold text-gray-700 text-[10px] mb-0.5">' + s.name + ' ('+s.dose+s.unit+'/d)</span>' +
+                            '<span class="opacity-60">' + s.startDate + ' — ' + (s.endDate || 'Trwa') + '</span></div>' +
+                            '<button onclick="delSupplement(\''+s.id+'\')" class="text-rose-500 font-bold px-2 py-1 bg-rose-50 rounded border border-rose-100">Usuń</button>' +
+                            '</div>';
+                    });
+                    html += '</div></details>';
+
+                    html += '</div>';
+
+                } else if (state.tab === 'baza') {
+                    var edProd = state.editProdId ? state.products.find(function(p) { return String(p.id) === String(state.editProdId); }) : null;
+                    if (state.statusMsg) html += '<div class="bg-indigo-500/20 border border-indigo-500/40 text-indigo-700 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
+
+                    html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4">' +
+                        '<h3 class="font-black mb-2 text-sm text-center">📷 Skaner Produktów</h3>' +
+                        '<div class="flex space-x-2 mb-2">' +
+                        '<input id="barcodeInput" placeholder="Wpisz kod EAN..." value="' + (state.scannedBarcodeInput || '') + '" oninput="state.scannedBarcodeInput=this.value" class="flex-1 p-2 ' + th.card + ' border rounded-lg text-xs font-bold outline-none" />' +
+                        '<button onclick="fetchProductByBarcode()" class="' + th.btn + ' font-bold px-3 py-2 rounded-lg text-xs shadow">Szukaj</button>' +
+                        '</div>';
+
+                    if (!state.isScanning) {
+                        html += '<button onclick="startBarcodeScanner()" class="w-full ' + th.btn + ' font-bold py-2.5 rounded-xl shadow text-xs">📷 Włącz aparat i skanuj kod</button>';
+                    } else {
+                        html += '<div id="reader" class="w-full mb-2 overflow-hidden rounded-lg border bg-black min-h-[220px]"></div>' +
+                                '<button onclick="stopBarcodeScanner()" class="w-full bg-rose-500 text-white font-bold py-2.5 rounded-xl text-xs shadow">❌ Zamknij aparat</button>';
+                    }
+
+                    if (state.scannedProductData) {
+                        var sp = state.scannedProductData;
+                        var existing = state.products.find(function(prod) { return prod.name.toLowerCase() === sp.name.toLowerCase(); });
+                        html += '<div class="mt-3 p-3.5 bg-white border-2 border-indigo-300 rounded-xl shadow-md text-gray-900">' +
+                            '<p class="text-xs font-black text-indigo-900 mb-1">📦 ' + sp.name + '</p>' +
+                            '<div class="grid grid-cols-2 gap-2 mb-2 text-xs">' +
+                            '<div><label class="font-bold text-[9px] text-gray-500">Waga (g):</label><input id="scannedPkgWeightInput" type="number" value="' + sp.baseWeight + '" class="w-full p-1 border rounded font-bold text-center" /></div>' +
+                            '<div><label class="font-bold text-[9px] text-gray-500">Kcal:</label><input id="scannedPkgKcalInput" type="number" value="' + sp.baseKcal + '" class="w-full p-1 border rounded font-bold text-center" /></div>' +
+                            '<div><label class="font-bold text-[9px] text-gray-500">Białko:</label><input id="scannedPkgPInput" type="number" step="0.1" value="' + sp.baseP + '" class="w-full p-1 border rounded font-bold text-center" /></div>' +
+                            '<div><label class="font-bold text-[9px] text-gray-500">Tłuszcz:</label><input id="scannedPkgFInput" type="number" step="0.1" value="' + sp.baseF + '" class="w-full p-1 border rounded font-bold text-center" /></div>' +
+                            '<div class="col-span-2"><label class="font-bold text-[9px] text-gray-500">Węglowodany:</label><input id="scannedPkgCInput" type="number" step="0.1" value="' + sp.baseC + '" class="w-full p-1 border rounded font-bold text-center" /></div>' +
+                            '</div>' +
+                            '<div class="mb-3 flex items-center space-x-2 bg-gray-50 p-2 rounded-lg border">' +
+                            '<label class="text-[10px] font-bold text-gray-700">Waga zjedzona teraz (g):</label>' +
+                            '<input id="scannedWeightInput" type="number" value="' + sp.addWeight + '" class="w-20 p-1 bg-white border rounded text-xs font-bold text-center outline-none" />' +
+                            '</div>' +
+                            '<div class="grid grid-cols-2 gap-2 mb-2">' +
+                            '<button onclick="addScannedDirectlyToDiary(\'scannedWeightInput\')" class="bg-indigo-600 text-white font-bold py-1.5 rounded text-[10px]">🍽️ Do dziennika</button>' +
+                            '<button onclick="confirmAddScannedProduct(' + (existing ? 'true' : 'false') + ')" class="bg-emerald-600 text-white font-bold py-1.5 rounded text-[10px]">💾 Zapisz w bazie</button>' +
+                            '</div>' +
+                            '<button onclick="state.scannedProductData=null; render();" class="w-full bg-gray-300 text-gray-700 py-1 rounded text-[10px] font-bold">Anuluj</button>' +
+                            '</div>';
+                    }
+                    html += '</div>';
+
+                    html += '<div class="' + th.card + ' border p-4 rounded-xl mb-4" id="prodForm">' +
+                        '<h3 class="font-bold text-sm mb-3">' + (edProd ? '✏️ Edytuj produkt' : '➕ Dodaj własny produkt') + '</h3>' +
+                        '<input id="pName" placeholder="Nazwa produktu" value="' + (edProd ? edProd.name : '') + '" class="w-full mb-2 p-2 text-xs rounded-lg border ' + th.inputBg + ' font-bold outline-none" />' +
+                        '<div class="mb-2"><label class="text-[10px] font-bold opacity-70 mb-1 block">Kategoria</label>';
+                    
+                    var catOptions = state.settings.categories.map(function(c) {
+                        var isSel = (edProd && edProd.category === c) ? 'selected' : (!edProd && c === 'Inne' ? 'selected' : '');
+                        return '<option value="' + c + '" ' + isSel + '>' + c + '</option>';
+                    }).join('');
+
+                    html += '<select id="pCat" class="w-full p-2 text-xs rounded-lg border ' + th.inputBg + ' outline-none font-bold">' + catOptions + '</select></div>' +
+                        '<div class="grid grid-cols-2 gap-2 mb-2">' +
+                        '<div><label class="text-[10px] font-bold opacity-70 mb-1 block">Waga bazowa (g)</label><input id="pW" type="number" value="' + (edProd ? edProd.baseWeight : 100) + '" class="w-full p-2 text-xs rounded-lg border ' + th.inputBg + ' outline-none" /></div>' +
+                        '<div><label class="text-[10px] font-bold opacity-70 mb-1 block">Kcal (całość)</label><input id="pK" type="number" value="' + (edProd ? edProd.baseKcal : '') + '" placeholder="Kcal" class="w-full p-2 text-xs rounded-lg border ' + th.inputBg + ' outline-none" /></div></div>' +
+                        '<div class="grid grid-cols-3 gap-2 mb-3">' +
+                        '<div><label class="text-[10px] font-bold opacity-70 mb-1 block">Białko</label><input id="pP" type="number" step="0.1" value="' + (edProd ? edProd.baseP : '') + '" placeholder="0" class="w-full p-1.5 text-xs rounded border ' + th.inputBg + ' outline-none" /></div>' +
+                        '<div><label class="text-[10px] font-bold opacity-70 mb-1 block">Tłuszcz</label><input id="pF" type="number" step="0.1" value="' + (edProd ? edProd.baseF : '') + '" placeholder="0" class="w-full p-1.5 text-xs rounded border ' + th.inputBg + ' outline-none" /></div>' +
+                        '<div><label class="text-[10px] font-bold opacity-70 mb-1 block">Węglo</label><input id="pC" type="number" step="0.1" value="' + (edProd ? edProd.baseC : '') + '" placeholder="0" class="w-full p-1.5 text-xs rounded border ' + th.inputBg + ' outline-none" /></div></div>' +
+                        '<div class="flex space-x-2"><button onclick="addProd()" class="flex-1 ' + th.btn + ' font-bold py-2 rounded-lg shadow-md text-xs">' + (edProd ? 'Zapisz zmiany' : 'Zapisz w bazie') + '</button>' +
+                        (edProd ? '<button onclick="cancelEditProd()" class="bg-gray-300 text-gray-700 font-bold px-4 py-2 rounded-lg text-xs">Anuluj</button>' : '') + '</div></div>';
+
+                    html += '<div class="' + th.card + ' p-3 rounded-xl border mb-24">' +
+                        '<div class="flex justify-between items-center mb-1">' +
+                        '<h3 class="font-bold text-sm">Baza (' + state.products.length + ')</h3>' +
+                        '<button onclick="toggleMultiSelect()" class="text-[10px] ' + (state.multiSelect ? 'bg-rose-500 text-white' : 'bg-gray-200 text-gray-700') + ' px-2 py-1 rounded-lg shadow-sm font-bold">☑️ Zaznacz</button>' +
+                        '</div>' +
+                        '<p class="text-[10px] opacity-70 mb-2 font-medium">💡 Przytrzymaj kursor lub dotknij produktu, aby zobaczyć pełną nazwę.</p><div class="overflow-y-auto pr-1 pb-4">';
+                    
+                    var cats = state.settings.categories || DEFAULT_CATEGORIES;
+                    var groupedProducts = {};
+                    cats.forEach(function(c) { groupedProducts[c] = []; });
+                    groupedProducts['Inne (Niesklasyfikowane)'] = [];
+
+                    state.products.forEach(function(p) {
+                        var c = p.category || 'Inne';
+                        if (!cats.includes(c)) {
+                            if(!groupedProducts[c]) groupedProducts['Inne (Niesklasyfikowane)'].push(p);
+                            else groupedProducts[c].push(p);
+                        } else {
+                            groupedProducts[c].push(p);
+                        }
+                    });
+
+                    var allRenderCats = cats.concat(['Inne (Niesklasyfikowane)']);
+                    allRenderCats.forEach(function(cat, catIdx) {
+                        var isCustom = catIdx < cats.length; 
+                        var count = groupedProducts[cat] ? groupedProducts[cat].length : 0;
+                        var isCollapsed = state.collapsedCategories[cat] !== false; 
+                        
+                        if (groupedProducts[cat]) {
+                            html += '<div onclick="toggleCategoryCollapse(\'' + cat + '\')" class="flex justify-between items-center mt-5 mb-2 px-2 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/25 cursor-pointer hover:bg-blue-500/20 transition-colors">';
+                            html += '<div class="flex items-center space-x-2"><span class="text-xs font-bold">' + (isCollapsed ? '▶' : '▼') + '</span>';
+                            html += '<h4 class="font-black text-[11px] uppercase tracking-widest text-blue-700">' + cat + ' <span class="opacity-60 text-[9px]">(' + count + ')</span></h4></div>';
+                            
+                            if (isCustom) {
+                                html += '<div class="flex space-x-1" onclick="event.stopPropagation()">';
+                                html += '<button onclick="moveCat('+catIdx+', -1)" class="text-[10px] px-1.5 py-0.5 opacity-60 hover:opacity-100 bg-white rounded shadow-sm font-bold">▲</button>';
+                                html += '<button onclick="moveCat('+catIdx+', 1)" class="text-[10px] px-1.5 py-0.5 opacity-60 hover:opacity-100 bg-white rounded shadow-sm font-bold">▼</button>';
+                                html += '<button onclick="editCat('+catIdx+')" class="text-[10px] px-1.5 py-0.5 opacity-60 hover:opacity-100 bg-white rounded shadow-sm text-blue-600" title="Edytuj">✏️</button>';
+                                html += '<button onclick="delCat('+catIdx+')" class="text-[10px] px-1.5 py-0.5 opacity-60 hover:opacity-100 bg-white rounded shadow-sm text-rose-500" title="Usuń">✕</button>';
+                                html += '</div>';
+                            }
+                            html += '</div>';
+
+                            if (!isCollapsed) {
+                                html += '<div class="space-y-2">';
+                                if (groupedProducts[cat].length === 0) {
+                                    html += '<p class="text-[10px] opacity-40 text-center py-2 italic border border-dashed rounded-lg">Brak produktów</p>';
+                                } else {
+                                    groupedProducts[cat].forEach(function(p) {
+                                        var selCheckbox = state.multiSelect ? '<div class="mr-2"><input type="checkbox" ' + (state.selectedProds[p.id] ? 'checked' : '') + ' class="w-5 h-5 accent-blue-600 cursor-pointer" onclick="event.stopPropagation(); toggleProdSelect(\'' + p.id + '\')" /></div>' : '';
+                                        var rowClick = state.multiSelect ? 'toggleProdSelect(\'' + p.id + '\')' : '';
+                                        
+                                        html += '<div ' + (state.multiSelect ? 'onclick="'+rowClick+'"' : '') + ' class="' + th.inputBg + ' border p-2 rounded-lg flex justify-between items-center transition-transform ' + (state.multiSelect ? 'cursor-pointer hover:bg-gray-100' : '') + '" title="' + p.name + '">' +
+                                            selCheckbox +
+                                            '<div class="pr-2 min-w-0 flex-1"><p class="font-bold text-xs truncate">' + p.name + ' <span class="' + th.accent + ' font-normal">(' + p.baseWeight + 'g)</span></p><p class="text-[9px] opacity-60 font-bold">B:' + p.baseP + ' | T:' + p.baseF + ' | W:' + p.baseC + '</p></div>' +
+                                            '<div class="flex items-center space-x-1 shrink-0">' +
+                                            '<span class="font-bold text-emerald-500 text-xs w-10 text-right mr-1">' + p.baseKcal + ' kcal</span>' +
+                                            '<button onclick="event.stopPropagation(); promptAddProductFromList(\'' + p.id + '\')" class="bg-indigo-500 text-white font-bold w-6 h-6 rounded text-xs flex items-center justify-center" title="Dodaj">➕</button>' +
+                                            '<button onclick="event.stopPropagation(); promptChangeCategory(\'' + p.id + '\')" class="bg-blue-100 text-blue-700 font-bold w-6 h-6 rounded text-[10px] flex items-center justify-center" title="Zmień kategorię">🗂️</button>' +
+                                            '<button onclick="event.stopPropagation(); startEditProd(\'' + p.id + '\')" class="opacity-60 font-bold w-6 h-6 flex items-center justify-center text-xs" title="Edytuj">✏️</button>' +
+                                            '<button onclick="event.stopPropagation(); delProd(\'' + p.id + '\')" class="text-rose-400 font-bold w-6 h-6 flex items-center justify-center text-xs" title="Usuń">✕</button>' +
+                                            '</div></div>';
+                                    });
+                                }
+                                html += '</div>';
+                            }
+                        }
+                    });
+                    html += '</div></div>';
+
+                    if (state.multiSelect) {
+                        html += '<div class="fixed bottom-14 left-1/2 transform -translate-x-1/2 w-full max-w-md p-3 bg-white shadow-[0_-4px_15px_rgba(0,0,0,0.1)] border-t flex justify-between z-[60]">' +
+                                '<button onclick="promptBulkDelete()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-md">🗑️ Usuń</button>' +
+                                '<button onclick="promptBulkMove()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-2 rounded-xl text-xs shadow-md">🗂️ Przenieś</button>' +
+                                '<button onclick="toggleMultiSelect()" class="bg-gray-200 text-gray-700 font-bold px-3 py-2 rounded-xl text-xs">Anuluj</button>' +
+                                '</div>';
+                    }
+
+                } else if (state.tab === 'podsumowanie') {
+                    var view = state.summaryView || 'tydzien';
+                    var offset = state.summaryOffset || 0;
+                    var todayParts = state.date.split('-');
+                    var baseD = new Date(parseInt(todayParts[0]), parseInt(todayParts[1]) - 1, parseInt(todayParts[2]));
+                    
+                    var datesToProcess = [];
+                    var periodLabel = "";
+                    var userDiary = state.diaries[state.userId] || {};
+                    var allDates = Object.keys(userDiary).sort();
+
+                    if (view === 'ogolne') {
+                        datesToProcess = allDates;
+                        periodLabel = "Od początku";
+                    } else if (view === 'rok') {
+                        var y = baseD.getFullYear() + offset;
+                        datesToProcess = allDates.filter(function(d) { return d.startsWith(y.toString()); });
+                        periodLabel = "Rok " + y;
+                    } else if (view === 'miesiac') {
+                        var mDate = new Date(baseD.getFullYear(), baseD.getMonth() + offset, 1);
+                        var yStr = mDate.getFullYear();
+                        var mStr = String(mDate.getMonth() + 1).padStart(2, '0');
+                        var prefix = yStr + '-' + mStr;
+                        datesToProcess = allDates.filter(function(d) { return d.startsWith(prefix); });
+                        var months = ['Styczeń','Luty','Marzec','Kwiecień','Maj','Czerwiec','Lipiec','Sierpień','Wrzesień','Październik','Listopad','Grudzień'];
+                        periodLabel = months[mDate.getMonth()] + " " + yStr;
+                    } else {
+                        var curr = new Date(baseD.getFullYear(), baseD.getMonth(), baseD.getDate());
+                        curr.setDate(curr.getDate() + (offset * 7));
+                        var dayOfWeek = curr.getDay();
+                        var wOffset = state.settings.startOfWeek === 1 ? (dayOfWeek === 0 ? -6 : 1 - dayOfWeek) : -dayOfWeek;
+                        curr.setDate(curr.getDate() + wOffset);
+                        for (var i = 0; i < 7; i++) { 
+                            var n = new Date(curr.getFullYear(), curr.getMonth(), curr.getDate() + i); 
+                            datesToProcess.push(n.getFullYear() + '-' + String(n.getMonth() + 1).padStart(2, '0') + '-' + String(n.getDate()).padStart(2, '0')); 
+                        }
+                        periodLabel = datesToProcess[0] + " — " + datesToProcess[6];
+                    }
+
+                    var tKcal = 0, tBurned = 0, dCount = 0, weightsForPeriod = [];
+                    var tP = 0, tF = 0, tC = 0, totalTarget = 0;
+
+                    datesToProcess.forEach(function(d) {
+                        var dObj = userDiary[d] || null;
+                        var dayGoal = (dObj && dObj.goals && dObj.goals.kcal) ? dObj.goals.kcal : (user.id === 'u1' ? 2500 : 2000);
+                        var e = 0, p = 0, f = 0, c = 0, b = 0;
+                        
+                        if (dObj) {
+                            (dObj.meals || []).forEach(function(m) { e += m.kcal; p += m.p; f += m.f; c += m.c; });
+                            (dObj.workouts || []).forEach(function(w) { b += w.kcal; });
+                            if (dObj.weight && !isNaN(parseFloat(dObj.weight))) weightsForPeriod.push({date: d, val: parseFloat(dObj.weight)});
+                        }
+
+                        if (e > 0) { 
+                            tKcal += e; tP += p; tF += f; tC += c; 
+                            tBurned += b; 
+                            totalTarget += dayGoal;
+                            dCount++; 
+                        } else if (b > 0) {
+                            tBurned += b;
+                        }
+                    });
+
+                    weightsForPeriod.sort(function(a,b){ return new Date(a.date) - new Date(b.date); });
+                    var wDiff = weightsForPeriod.length >= 2 ? (weightsForPeriod[weightsForPeriod.length - 1].val - weightsForPeriod[0].val) : 0;
+                    var wDiffStr = (wDiff > 0 ? '+' : '') + wDiff.toFixed(1);
+                    var netKcal = tKcal - tBurned;
+                    var balanceVsZero = netKcal - totalTarget;
+
+                    html += '<div class="flex space-x-1 mb-3 ' + th.inputBg + ' p-1 rounded-lg border">';
+                    ['tydzien', 'miesiac', 'rok', 'ogolne'].forEach(function(v, idx) {
+                        var labels = ['Tydzień', 'Miesiąc', 'Rok', 'Ogólne'];
+                        var activeCls = (view === v) ? th.btn + ' shadow text-white' : 'opacity-60 text-xs font-bold';
+                        html += '<button onclick="state.summaryView=\'' + v + '\'; state.summaryOffset=0; render();" class="flex-1 py-1.5 rounded-md text-[10px] uppercase font-black transition-colors ' + activeCls + '">' + labels[idx] + '</button>';
+                    });
+                    html += '</div>';
+
+                    if (view !== 'ogolne') {
+                        html += '<div class="' + th.card + ' p-2.5 rounded-xl border flex items-center justify-between mb-4 shadow-sm">' +
+                            '<button onclick="state.summaryOffset-=1; render();" class="bg-gradient-to-r from-blue-500 to-indigo-500 text-white border px-3 py-1.5 rounded-lg text-xs font-black shadow">◀ Wstecz</button>' +
+                            '<span class="text-xs font-black text-indigo-600 px-2 py-1 uppercase text-center leading-tight">' + periodLabel + '</span>' +
+                            '<button onclick="state.summaryOffset+=1; render();" class="bg-gradient-to-r from-blue-500 to-indigo-500 text-white border px-3 py-1.5 rounded-lg text-xs font-black shadow">Dalej ▶</button>' +
+                            '</div>';
+                    } else {
+                        html += '<div class="' + th.card + ' p-2.5 rounded-xl border flex items-center justify-center mb-4 bg-indigo-50">' +
+                            '<span class="text-xs font-black text-indigo-700 uppercase">' + periodLabel + '</span>' +
+                            '</div>';
+                    }
+
+                    // PRZYCISK PEŁNEGO RAPORTU DLA TRENERA/DIETETYKA
+                    html += '<div class="bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 text-white border p-4 rounded-2xl mb-4 shadow-lg">' +
+                        '<div class="flex justify-between items-center mb-3">' +
+                        '<h3 class="font-black text-base tracking-wide drop-shadow">📊 Statystyki z ' + dCount + ' dni</h3>' +
+                        '<button onclick="generateFullReport()" class="bg-white/20 hover:bg-white/30 px-2 py-1 rounded text-[9px] font-bold uppercase shadow-sm border border-white/40">📋 Pełny Raport</button>' +
+                        '</div>' +
+                        '<div class="grid grid-cols-2 gap-2 mb-3">' +
+                        '<div class="bg-white/15 backdrop-blur-md p-3 rounded-xl border border-white/20 text-center"><p class="text-[9px] font-bold text-indigo-100 uppercase mb-1">Średnio Kcal/dzień</p><p class="text-2xl font-black text-white drop-shadow">' + (dCount > 0 ? Math.round(tKcal / dCount) : 0) + '</p></div>' +
+                        '<div class="bg-white/15 backdrop-blur-md p-3 rounded-xl border border-white/20 text-center"><p class="text-[9px] font-bold text-amber-200 uppercase mb-1">Spalone w sumie</p><p class="text-2xl font-black text-amber-300 drop-shadow">🔥 ' + tBurned + '</p></div>' +
+                        '</div>' +
+                        '<div class="bg-black/20 backdrop-blur-md p-3 rounded-xl border border-white/20 grid grid-cols-3 gap-1 text-center mb-3 shadow-inner">' +
+                        '<div><p class="text-[9px] font-bold text-blue-200 uppercase">Śr. Białko</p><p class="font-black text-sm text-blue-300">' + (dCount > 0 ? Math.round(tP / dCount) : 0) + 'g</p></div>' +
+                        '<div><p class="text-[9px] font-bold text-amber-200 uppercase">Śr. Tłuszcz</p><p class="font-black text-sm text-amber-300">' + (dCount > 0 ? Math.round(tF / dCount) : 0) + 'g</p></div>' +
+                        '<div><p class="text-[9px] font-bold text-emerald-200 uppercase">Śr. Węglo</p><p class="font-black text-sm text-emerald-300">' + (dCount > 0 ? Math.round(tC / dCount) : 0) + 'g</p></div>' +
+                        '</div>' +
+                        '<div class="bg-white/15 backdrop-blur-md p-3 rounded-xl border border-white/20 flex justify-between items-center mb-3">' +
+                        '<div><span class="text-[10px] font-bold text-white uppercase block">Bilans względem zera:</span>' +
+                        '<span class="text-[9px] text-purple-200">Całkowity deficyt/nadwyżka</span></div>' +
+                        '<span class="text-lg font-black ' + (balanceVsZero <= 0 ? 'text-emerald-300' : 'text-rose-300') + '">' + 
+                        (balanceVsZero > 0 ? '+' + Math.round(balanceVsZero) : Math.round(balanceVsZero)) + ' kcal</span></div>' +
+                        '<div class="bg-white/20 backdrop-blur-md p-3 rounded-xl border border-white/20 flex justify-between items-center"><p class="text-[10px] font-bold text-white uppercase">Zmiana wagi:</p><p class="text-xl font-black ' + (wDiff > 0 ? 'text-rose-300' : 'text-emerald-300') + '">' + wDiffStr + ' kg</p></div>' +
+                        '</div>';
+
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border"><h3 class="font-black text-sm mb-3">📈 Wykres Wagi (Ostatnie 14 wpisów)</h3>' + renderWeightChart() + '</div>';
+
+                } else if (state.tab === 'kopia') {
+                    if (state.statusMsg) html += '<div class="bg-emerald-500/20 border border-emerald-500/40 text-emerald-700 text-xs font-bold p-3 rounded-xl mb-4 text-center">' + state.statusMsg + '</div>';
+
+                    html += '<div class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-4 rounded-2xl shadow-lg mb-4"><h3 class="font-black mb-3 text-sm flex items-center space-x-1"><span>👤 Zarządzanie Profilami</span></h3>' +
+                        '<div class="flex space-x-2 p-1 rounded-lg">';
+                    state.users.forEach(function(u, idx) {
+                        var activeCls = (state.userId === u.id) ? 'bg-white text-indigo-900 font-black ring-4 ring-white/30 scale-105' : 'bg-white/20 text-white font-bold hover:bg-white/30';
+                        html += '<button onclick="switchUser(\'' + u.id + '\')" class="flex-1 py-2.5 rounded-xl text-xs transition-all truncate ' + activeCls + '">' + u.name + '</button>';
+                    });
+                    html += '</div></div>';
+
+                    html += '<div class="bg-gradient-to-r from-emerald-600 to-teal-600 text-white p-4 rounded-2xl shadow-lg mb-4"><h3 class="font-black mb-3 text-sm">🎯 Cel Dzienny (' + user.name + ')</h3>';
+                    html += '<div class="grid grid-cols-2 gap-3 mb-2 text-gray-900">' +
+                        '<div><label class="text-[10px] font-bold text-emerald-100 block mb-1">Kcal (limit)</label><input type="number" value="' + day.goals.kcal + '" onchange="updateGoal(\'kcal\', this.value)" class="w-full p-2 text-xs rounded-xl border font-bold text-center bg-white/90 outline-none" /></div>' +
+                        '<div><label class="text-[10px] font-bold text-emerald-100 block mb-1">Białko (g)</label><input type="number" value="' + day.goals.p + '" onchange="updateGoal(\'p\', this.value)" class="w-full p-2 text-xs rounded-xl border font-bold text-center bg-white/90 outline-none" /></div>' +
+                        '<div><label class="text-[10px] font-bold text-emerald-100 block mb-1">Tłuszcz (g)</label><input type="number" value="' + day.goals.f + '" onchange="updateGoal(\'f\', this.value)" class="w-full p-2 text-xs rounded-xl border font-bold text-center bg-white/90 outline-none" /></div>' +
+                        '<div><label class="text-[10px] font-bold text-emerald-100 block mb-1">Węglo (g)</label><input type="number" value="' + day.goals.c + '" onchange="updateGoal(\'c\', this.value)" class="w-full p-2 text-xs rounded-xl border font-bold text-center bg-white/90 outline-none" /></div>' +
+                        '</div></div>';
+
+                    html += '<div class="bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white p-4 rounded-2xl shadow-lg mb-4">' +
+                        '<h3 class="font-black mb-2 text-sm text-center">🧠 Konfiguracja AI (Gemini)</h3>' +
+                        '<input type="password" id="aiKeyInput" placeholder="AQ... lub AIzaSy..." value="' + state.geminiApiKey + '" class="w-full p-2.5 bg-white/15 border border-white/30 rounded-xl text-xs font-medium outline-none mb-2 text-center text-white placeholder-purple-200" />' +
+                        '<button onclick="saveGeminiKey(document.getElementById(\'aiKeyInput\').value)" class="w-full bg-white text-purple-900 hover:bg-purple-50 font-bold py-2.5 rounded-xl shadow-md text-xs">💾 Zapisz klucz AI</button>' +
+                        '</div>';
+
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4"><div><label class="text-[10px] font-bold opacity-60 uppercase block mb-1">Pierwszy dzień tyg. statystyk</label><select onchange="changeStartOfWeek(this.value)" class="w-full p-2 ' + th.inputBg + ' border rounded-lg text-xs font-bold outline-none"><option value="1" ' + (state.settings.startOfWeek === 1 ? 'selected' : '') + '>Poniedziałek</option><option value="0" ' + (state.settings.startOfWeek === 0 ? 'selected' : '') + '>Niedziela</option></select></div></div>';
+
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
+                        '<h3 class="font-black mb-3 text-sm text-center">🎨 Wybierz Szatę Graficzną</h3>' +
+                        '<div class="grid grid-cols-1 gap-2">';
+                    Object.keys(THEMES).forEach(function(key) {
+                        var t = THEMES[key]; var isSelected = state.theme === key;
+                        var borderCls = isSelected ? 'border-2 border-pink-500 ring-2 ring-pink-300/50' : 'border opacity-85';
+                        html += '<div onclick="setTheme(\'' + key + '\')" class="p-3 rounded-xl cursor-pointer flex justify-between items-center transition-all ' + th.inputBg + ' ' + borderCls + '">' +
+                            '<span class="text-xs font-bold">' + t.name + '</span>' +
+                            '<div class="w-6 h-6 rounded-full ' + t.header + ' flex items-center justify-center text-white text-xs shadow">' + (isSelected ? '✓' : '') + '</div>' +
+                            '</div>';
+                    });
+                    html += '</div></div>';
+
+                    html += '<div class="p-3 bg-rose-50 border border-rose-200 rounded-xl text-center mb-6">' +
+                        '<p class="text-[10px] font-bold text-rose-900 mb-1.5">Coś poszło nie tak po aktualizacji?</p>' +
+                        '<button onclick="rollbackToPreviousVersion()" class="bg-rose-500 hover:bg-rose-600 text-white font-bold py-1.5 px-3 rounded-lg text-[10px] shadow">↩️ Cofnij do poprzedniej wersji kodu</button>' +
+                        '</div>';
+                }
+
+                if (state.catModalOpen) {
+                    html += '<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[70] flex items-end justify-center pb-6 px-2">' +
+                            '<div class="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-[slideUp_0.2s_ease-out]">' +
+                            '<div class="p-4 bg-gray-50 border-b flex justify-between items-center"><h3 class="font-black text-sm text-blue-900">🗂️ Wybierz kategorię</h3><button onclick="closeCatModal()" class="text-gray-400 hover:text-rose-500 font-black text-lg w-8 h-8 flex justify-center items-center">✕</button></div>' +
+                            '<div class="max-h-[60vh] overflow-y-auto p-3 space-y-1">';
+                    
+                    var allCats = state.settings.categories || DEFAULT_CATEGORIES;
+                    allCats.forEach(function(c) {
+                        var count = state.products.filter(function(p) { return (p.category || 'Inne') === c; }).length;
+                        html += '<button onclick="moveToCategory(\'' + c + '\')" class="w-full text-left p-3 rounded-xl hover:bg-blue-50 font-bold text-sm text-gray-800 border border-transparent hover:border-blue-200 transition-colors flex justify-between items-center"><span>📂 ' + c + '</span> <span class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md text-xs">' + count + '</span></button>';
+                    });
+                    
+                    var inCount = state.products.filter(function(p) { return (p.category || 'Inne') === 'Inne'; }).length;
+                    html += '<button onclick="moveToCategory(\'Inne\')" class="w-full text-left p-3 rounded-xl hover:bg-blue-50 font-bold text-sm text-gray-800 border border-transparent hover:border-blue-200 transition-colors flex justify-between items-center"><span>📂 Inne (Niesklasyfikowane)</span> <span class="bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md text-xs">' + inCount + '</span></button>';
+                    
+                    html += '<button onclick="addNewCategoryFromModal()" class="w-full mt-3 bg-blue-100 text-blue-700 hover:bg-blue-200 font-black p-3.5 rounded-xl text-xs shadow-sm transition-transform active:scale-95">➕ Dodaj nową kategorię</button>';
+                    
+                    html += '</div></div></div>';
+                }
+
+                var tabs = ['dziennik', 'baza', 'trening', 'podsumowanie', 'kopia'];
+                var icons = ['📅','🍎','💪','📊','⚙️'];
+                var labels = ['Dziennik','Baza','Ciało','Podsum.','Ustaw.'];
+                html += '</div><div class="fixed bottom-0 left-1/2 transform -translate-x-1/2 w-full max-w-md backdrop-blur border-t grid grid-cols-5 p-1 z-50 ' + th.nav + '">';
+                tabs.forEach(function(t, idx) {
+                    var col = state.tab === t ? th.tabActive : 'opacity-50';
+                    var tl = labels[idx];
+                    html += '<button onclick="switchTab(\'' + t + '\')" class="flex flex-col items-center justify-center p-1.5 rounded-xl min-w-0 transition-all ' + col + '"><span class="text-xl mb-0.5">' + icons[idx] + '</span><span class="text-[9px] font-bold truncate w-full text-center">' + tl + '</span></button>';
+                });
+                html += '</div>';
+                app.innerHTML = html;
+            } catch(globalErr) {
+                document.getElementById('app').innerHTML = '<div class="p-6 text-center text-rose-600 mt-20"><h2 class="font-black text-xl mb-2">Błąd wyświetlania</h2><p class="text-xs mb-4">' + globalErr.message + '</p><button onclick="rollbackToPreviousVersion()" class="bg-rose-500 text-white font-bold py-2 px-4 rounded-xl">Cofnij wersję</button></div>';
+            }
+        };
+
+        window.switchTab = function(t) { if (state.tab === 'baza' && t !== 'baza' && state.isScanning) { stopBarcodeScanner(); } state.tab = t; state.statusMsg = ''; render(); };
+        window.switchUser = function(u) { state.userId = u; saveState(); render(); };
+        window.changeStartOfWeek = function(val) { state.settings.startOfWeek = parseInt(val); saveState(); render(); };
+        window.addWater = function(amount) { if (amount === 0) getDayData().water = 0; else getDayData().water = (parseFloat(getDayData().water) || 0) + amount; saveState(); render(); };
+        
+        window.updateMeasurement = function(id, val) { getDayData().measurements[id] = val; saveState(); render(); };
+        window.promptAddMeasurement = function() { var name = prompt('Podaj nazwę nowego pomiaru (np. Łydka):'); if(name && name.trim()) { if(!state.settings.measurements) state.settings.measurements = []; state.settings.measurements.push({ id: 'm_' + Date.now(), name: name.trim() }); saveState(); render(); } };
+        window.removeMeasurement = function(id) { if(confirm('Usunąć ten pomiar całkowicie ze struktury w aplikacji?')) { state.settings.measurements = state.settings.measurements.filter(function(m) { return m.id !== id; }); saveState(); render(); } };
+        
+        window.editMeasurementHistory = function(d) {
+            state.date = d;
+            render();
+            alert('Zmieniono datę na ' + d + '. Możesz teraz zaktualizować pomiary dla tego dnia u góry ekranu.');
+        };
+
+        window.deleteMeasurementHistory = function(d) {
+            if(confirm('Na pewno całkowicie usunąć historię pomiarów ciała z dnia ' + d + '?')) {
+                if(state.diaries[state.userId] && state.diaries[state.userId][d]) {
+                    state.diaries[state.userId][d].measurements = {};
+                    saveState(); render();
+                }
+            }
+        };
+        
+        window.changeWeight = function(val) { getDayData().weight = val; saveState(); render(); };
+
+        window.promptAddInjury = function() {
+            var name = prompt('Nazwa/Opis kontuzji (np. Ból kolana):');
+            if(!name || !name.trim()) return;
+            var startD = prompt('Od kiedy występuje? (YYYY-MM-DD)', state.date);
+            if(!startD) startD = state.date;
+            
+            if (!state.injuries) state.injuries = [];
+            state.injuries.push({ id: Date.now().toString(), name: name.trim(), startDate: startD, endDate: null });
+            saveState(); render();
+        };
+
+        window.editInjury = function(id) {
+            var s = state.injuries.find(function(x) { return String(x.id) === String(id); });
+            if(s) {
+                var name = prompt('Nazwa/Opis:', s.name); if(name === null) return;
+                var startD = prompt('Od kiedy? (YYYY-MM-DD)', s.startDate); if(startD === null) return;
+                
+                if(name.trim() && startD.trim()) {
+                    s.name = name.trim();
+                    s.startDate = startD.trim();
+                    saveState(); render();
+                } else {
+                    alert('Błędne dane!');
+                }
+            }
+        };
+
+        window.endInjury = function(id) {
+            var s = state.injuries.find(function(x) { return String(x.id) === String(id); });
+            if(s) {
+                var endD = prompt('Data wyleczenia (YYYY-MM-DD):', state.date);
+                if(endD) { s.endDate = endD; saveState(); render(); }
+            }
+        };
+
+        window.delInjury = function(id) {
+            if(confirm('Całkowicie usunąć ten wpis o kontuzji z historii?')) {
+                state.injuries = state.injuries.filter(function(x) { return String(x.id) !== String(id); });
+                saveState(); render();
+            }
+        };
+
+        window.promptAddSupplement = function() {
+            var name = prompt('Nazwa odżywki (np. Kreatyna, WPC):');
+            if(!name || !name.trim()) return;
+            var dose = prompt('Dzienna dawka (np. 5):');
+            if(!dose || isNaN(parseFloat(dose))) return alert('Błędna dawka!');
+            var unit = prompt('Jednostka (np. g, tab, ml):', 'g');
+            if(!unit) unit = 'g';
+            var startD = prompt('Od kiedy przyjmujesz? (YYYY-MM-DD)', state.date);
+            if(!startD) startD = state.date;
+            
+            if (!state.supplements) state.supplements = [];
+            state.supplements.push({ id: Date.now().toString(), name: name.trim(), dose: parseFloat(dose), unit: unit.trim(), startDate: startD, endDate: null });
+            saveState(); render();
+        };
+        
+        window.editSupplement = function(id) {
+            var s = state.supplements.find(function(x) { return String(x.id) === String(id); });
+            if(s) {
+                var name = prompt('Nazwa odżywki:', s.name); if(name === null) return;
+                var dose = prompt('Dzienna dawka:', s.dose); if(dose === null) return;
+                var unit = prompt('Jednostka:', s.unit || 'g'); if(unit === null) return;
+                var startD = prompt('Od kiedy przyjmujesz? (YYYY-MM-DD)', s.startDate); if(startD === null) return;
+                
+                if(name.trim() && !isNaN(parseFloat(dose)) && startD.trim()) {
+                    s.name = name.trim();
+                    s.dose = parseFloat(dose);
+                    s.unit = unit.trim();
+                    s.startDate = startD.trim();
+                    saveState(); render();
+                } else {
+                    alert('Błędne dane!');
+                }
+            }
+        };
+
+        window.endSupplement = function(id) {
+            var s = state.supplements.find(function(x) { return String(x.id) === String(id); });
+            if(s) {
+                var endD = prompt('Data zakończenia suplementacji (YYYY-MM-DD):', state.date);
+                if(endD) { s.endDate = endD; saveState(); render(); }
+            }
+        };
+
+        window.changeSuppDose = function(id) {
+            var s = state.supplements.find(function(x) { return String(x.id) === String(id); });
+            if(s) {
+                var newDose = prompt('Podaj nową dzienną dawkę (' + (s.unit || 'g') + '):', s.dose);
+                if(newDose && !isNaN(parseFloat(newDose)) && parseFloat(newDose) !== s.dose) {
+                    var changeD = prompt('Od kiedy nowa dawka (YYYY-MM-DD)? Wpisz datę:', state.date);
+                    if(changeD) {
+                        s.endDate = getPrevDayStr(changeD); 
+                        state.supplements.push({ id: Date.now().toString(), name: s.name, dose: parseFloat(newDose), unit: s.unit, startDate: changeD, endDate: null });
+                        saveState(); render();
+                    }
+                }
+            }
+        };
+
+        window.delSupplement = function(id) {
+            if(confirm('Całkowicie usunąć ten wpis o suplemencie z całej historii?')) {
+                state.supplements = state.supplements.filter(function(x) { return String(x.id) !== String(id); });
+                saveState(); render();
+            }
+        };
+
+        window.promptEditMealTime = function(id) {
+            var meal = getDayData().meals.find(function(m) { return String(m.id) === String(id); });
+            if(!meal) return;
+            state.timeModalMealId = id;
+            state.timeModalVal = meal.time || '';
+            state.timeModalOpen = true;
+            render();
+        };
+
+        window.confirmEditMealTime = function() {
+            var meal = getDayData().meals.find(function(m) { return String(m.id) === String(state.timeModalMealId); });
+            if(meal) {
+                var val = document.getElementById('editTimeInp').value;
+                meal.time = val;
+                getDayData().meals.sort(function(a,b) { return (a.time || '25:00').localeCompare(b.time || '25:00'); });
+                saveState();
+            }
+            state.timeModalOpen = false;
+            render();
+        };
+
+        window.addMeal = function() {
+            var searchInp = document.getElementById('pSearchInp');
+            var weightInp = document.getElementById('inpW');
+            var timeInp = document.getElementById('inpTime');
+            var query = searchInp ? searchInp.value.trim() : state.prodSearch.trim();
+            var w = parseFloat(weightInp ? weightInp.value : state.inputWeight);
+            var mealTime = timeInp ? timeInp.value : state.inputTime;
+
+            if (!query || isNaN(w) || w <= 0) return alert('Wpisz nazwę posiłku i wagę!');
+
+            var p = state.products.find(function(x) { return String(x.id) === String(state.selectedProdId); }) || 
+                    state.products.find(function(x) { return x.name.toLowerCase() === query.toLowerCase(); });
+
+            if (!p) {
+                state.unknownProductModal = true; state.unknownName = query; state.unknownWeight = w;
+                render(); return;
+            }
+
+            var r = w / p.baseWeight;
+            getDayData().meals.push({ 
+                id: Date.now(), name: p.name, weight: w, time: mealTime,
+                kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10, 
+                f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 
+            });
+            
+            getDayData().meals.sort(function(a,b) { return (a.time || '25:00').localeCompare(b.time || '25:00'); });
+            
+            state.prodSearch = ''; state.inputWeight = ''; state.selectedProdId = ''; 
+            if(searchInp) searchInp.value = ''; if(weightInp) weightInp.value = '';
+            saveState(); render();
+        };
+
+        window.confirmAddUnknownProduct = function() {
+            var name = state.unknownName; var baseW = state.unknownWeight;
+            var kcal = parseFloat(document.getElementById('unkKcal').value) || 0;
+            var p = parseFloat(document.getElementById('unkP').value) || 0;
+            var f = parseFloat(document.getElementById('unkF').value) || 0;
+            var c = parseFloat(document.getElementById('unkC').value) || 0;
+            var t = state.inputTime;
+
+            if (!kcal) return alert('Podaj kalorie!');
+            state.products.unshift({ id: String(Date.now()), name: name, baseWeight: baseW, baseKcal: kcal, baseP: p, baseF: f, baseC: c, category: "Inne" });
+            getDayData().meals.push({ id: Date.now(), name: name, weight: baseW, kcal: kcal, p: p, f: f, c: c, time: t });
+            getDayData().meals.sort(function(a,b) { return (a.time || '25:00').localeCompare(b.time || '25:00'); });
+            state.unknownProductModal = false; state.prodSearch = ''; state.inputWeight = '';
+            saveState(); render();
+        };
+
+        window.delMeal = function(id) { getDayData().meals = getDayData().meals.filter(function(x) { return String(x.id) !== String(id); }); saveState(); render(); };
+        
+        window.promptEditMealWeight = function(id) {
+            var meal = getDayData().meals.find(function(m) { return String(m.id) === String(id); });
+            if(!meal) return;
+            var newW = prompt('Nowa waga (g):', meal.weight);
+            if(newW && !isNaN(parseFloat(newW))) {
+                var w = parseFloat(newW); var r = w / meal.weight;
+                meal.weight = w; meal.kcal = Math.round(meal.kcal * r);
+                meal.p = Math.round(meal.p * r * 10) / 10; meal.f = Math.round(meal.f * r * 10) / 10; meal.c = Math.round(meal.c * r * 10) / 10;
+                saveState(); render();
+            }
+        };
+
+        window.promptAddProductFromList = function(id) {
+            var p = state.products.find(function(x) { return String(x.id) === String(id); });
+            if(!p) return;
+            var w = prompt('Podaj wagę (g) dla: ' + p.name, p.baseWeight);
+            if(w && !isNaN(parseFloat(w))) {
+                var weight = parseFloat(w); var r = weight / p.baseWeight;
+                getDayData().meals.push({ 
+                    id: Date.now(), name: p.name, weight: weight, time: state.inputTime,
+                    kcal: Math.round(p.baseKcal * r), p: Math.round(p.baseP * r * 10) / 10, 
+                    f: Math.round(p.baseF * r * 10) / 10, c: Math.round(p.baseC * r * 10) / 10 
+                });
+                getDayData().meals.sort(function(a,b) { return (a.time || '25:00').localeCompare(b.time || '25:00'); });
+                saveState(); render();
+            }
+        };
+
+        window.toggleWorkoutNotes = function(id) {
+            state.expandedWorkouts[id] = !state.expandedWorkouts[id];
+            render();
+        };
+
+        window.searchWorkout = function(val) {
+            state.wSearch = val;
+            if (val.trim().length > 0) state.wResults = state.workoutsDb.filter(function(w) { return w.name.toLowerCase().includes(val.trim().toLowerCase()); }).slice(0, 5);
+            else state.wResults = [];
+            render(); 
+            setTimeout(function() { var el = document.getElementById('wNameInp'); if (el) { el.focus(); el.setSelectionRange(val.length, val.length); } }, 0);
+        };
+
+        window.selectWorkoutDrop = function(name) {
+            var w = state.workoutsDb.find(function(x) { return x.name === name; });
+            if (w) { state.wSearch = w.name; state.wInputTime = w.time; state.wInputKcal = w.kcal; state.wResults = []; render(); }
+        };
+
+        window.addWorkout = function() {
+            var nameInp = document.getElementById('wNameInp');
+            var timeInp = document.getElementById('wTime');
+            var kcalInp = document.getElementById('wKcal');
+            var notesInp = document.getElementById('wNotesInp');
+
+            var name = nameInp ? nameInp.value.trim() : state.wSearch.trim();
+            var time = parseInt(timeInp ? timeInp.value : state.wInputTime) || 0;
+            var kcal = parseInt(kcalInp ? kcalInp.value : state.wInputKcal) || 0;
+            var notes = notesInp ? notesInp.value.trim() : '';
+
+            if (!name || !kcal) return alert('Podaj nazwę treningu i spalone kalorie!');
+            
+            if (!state.workoutsDb.find(function(w) { return w.name.toLowerCase() === name.toLowerCase(); })) {
+                state.workoutsDb.push({ name: name, time: time, kcal: kcal });
+            }
+            
+            getDayData().workouts.push({ id: Date.now(), name: name, time: time, kcal: kcal, notes: notes });
+            state.wSearch = ''; state.wInputTime = ''; state.wInputKcal = ''; state.wResults = []; 
+            if(notesInp) notesInp.value = '';
+            saveState(); render();
+        };
+
+        window.delWorkout = function(id) { 
+            getDayData().workouts = getDayData().workouts.filter(function(x) { return String(x.id) !== String(id); }); 
+            saveState(); render(); 
+        };
+
+        window.startEditProd = function(id) { 
+            state.editProdId = id; 
+            render(); 
+            setTimeout(function() { var el = document.getElementById('prodForm'); if(el) el.scrollIntoView({behavior: 'smooth'}); }, 100); 
+        };
+        window.cancelEditProd = function() { state.editProdId = null; render(); };
+
+        window.addProd = function() {
+            var name = document.getElementById('pName').value.trim();
+            var cat = document.getElementById('pCat').value;
+            var w = parseFloat(document.getElementById('pW').value) || 100;
+            var p = parseFloat(document.getElementById('pP').value) || 0;
+            var f = parseFloat(document.getElementById('pF').value) || 0;
+            var c = parseFloat(document.getElementById('pC').value) || 0;
+            var kElem = document.getElementById('pK');
+            var kcal = (kElem && kElem.value !== '') ? parseFloat(kElem.value) : Math.round(p * 4 + c * 4 + f * 9);
+
+            if (!name) return alert('Podaj nazwę!');
+            if(state.editProdId) {
+                var prod = state.products.find(function(x) { return String(x.id) === String(state.editProdId); });
+                if(prod) { prod.name = name; prod.category = cat; prod.baseWeight = w; prod.baseKcal = kcal; prod.baseP = p; prod.baseF = f; prod.baseC = c; }
+                state.editProdId = null;
+            } else { 
+                state.products.unshift({ id: String(Date.now()), name: name, category: cat, baseWeight: w, baseKcal: kcal, baseP: p, baseF: f, baseC: c }); 
+            }
+            saveState(); render();
+        };
+
+        window.delProd = function(id) {
+            if (confirm('Usunąć produkt?')) {
+                var sId = String(id);
+                if (!state.deletedProductIds.includes(sId)) state.deletedProductIds.push(sId);
+                state.products = state.products.filter(function(x) { return String(x.id) !== sId; });
+                saveState(); render();
+            }
+        };
+
+        window.toggleCategoryCollapse = function(catName) {
+            if (state.collapsedCategories[catName] !== false) state.collapsedCategories[catName] = false;
+            else state.collapsedCategories[catName] = true;
+            render();
+        };
+
+        window.startBarcodeScanner = function() {
+            state.isScanning = true;
+            state.scannedProductData = null;
+            render(); 
+            setTimeout(function() {
+                if (!window.html5QrcodeScanner) {
+                    window.html5QrcodeScanner = new Html5Qrcode("reader");
+                }
+                window.html5QrcodeScanner.start(
+                    { facingMode: "environment" },
+                    { fps: 10, qrbox: { width: 250, height: 250 } },
+                    function onScanSuccess(decodedText) {
+                        window.html5QrcodeScanner.stop().then(function() {
+                            state.isScanning = false;
+                            state.scannedBarcodeInput = decodedText;
+                            fetchProductByBarcode();
+                        });
+                    },
+                    function onScanFailure(error) {}
+                ).catch(function(err) {
+                    alert("Błąd aparatu: " + err);
+                    state.isScanning = false; render();
+                });
+            }, 300);
+        };
+
+        window.stopBarcodeScanner = function() {
+            if (window.html5QrcodeScanner) {
+                window.html5QrcodeScanner.stop().then(function() {
+                    state.isScanning = false; render();
+                }).catch(function() { state.isScanning = false; render(); });
+            } else {
+                state.isScanning = false; render();
+            }
+        };
+
+        window.fetchProductByBarcode = function() {
+            var code = (state.scannedBarcodeInput || '').trim();
+            if (!code) return alert('Wpisz kod EAN!');
+            fetch('https://world.openfoodfacts.org/api/v0/product/' + code + '.json')
+                .then(function(res) { return res.json(); })
+                .then(function(data) {
+                    if (data.status === 1 && data.product) {
+                        var p = data.product; var nut = p.nutriments || {};
+                        state.scannedProductData = {
+                            name: p.product_name || 'Zeskanowany produkt',
+                            baseWeight: 100,
+                            baseKcal: nut['energy-kcal_100g'] || 0,
+                            baseP: nut['proteins_100g'] || 0,
+                            baseF: nut['fat_100g'] || 0,
+                            baseC: nut['carbohydrates_100g'] || 0,
+                            addWeight: 100
+                        };
+                    } else {
+                        alert('Nie znaleziono w bazie OpenFoodFacts. Wprowadź dane ręcznie.');
+                        state.scannedProductData = { name: 'Produkt (' + code + ')', baseWeight: 100, baseKcal: 0, baseP: 0, baseF: 0, baseC: 0, addWeight: 100 };
+                    }
+                    render();
+                }).catch(function(err) { alert('Błąd pobierania danych.'); });
+        };
+
+        window.addScannedDirectlyToDiary = function(inputId) {
+            var w = parseFloat(document.getElementById(inputId).value);
+            if(!w || isNaN(w)) return alert('Podaj wagę!');
+            var sp = state.scannedProductData; var r = w / sp.baseWeight;
+            getDayData().meals.push({
+                id: Date.now(), name: sp.name, weight: w, time: state.inputTime,
+                kcal: Math.round(sp.baseKcal * r), p: Math.round(sp.baseP * r * 10)/10,
+                f: Math.round(sp.baseF * r * 10)/10, c: Math.round(sp.baseC * r * 10)/10
+            });
+            getDayData().meals.sort(function(a,b) { return (a.time || '25:00').localeCompare(b.time || '25:00'); });
+            state.scannedProductData = null; state.isScanning = false;
+            saveState(); render();
+        };
+
+        window.confirmAddScannedProduct = function(isUpdate) {
+            var sp = state.scannedProductData;
+            sp.baseWeight = parseFloat(document.getElementById('scannedPkgWeightInput').value) || 100;
+            sp.baseKcal = parseFloat(document.getElementById('scannedPkgKcalInput').value) || 0;
+            sp.baseP = parseFloat(document.getElementById('scannedPkgPInput').value) || 0;
+            sp.baseF = parseFloat(document.getElementById('scannedPkgFInput').value) || 0;
+            sp.baseC = parseFloat(document.getElementById('scannedPkgCInput').value) || 0;
+            state.products.unshift({
+                id: String(Date.now()), name: sp.name, category: 'Inne',
+                baseWeight: sp.baseWeight, baseKcal: sp.baseKcal, baseP: sp.baseP, baseF: sp.baseF, baseC: sp.baseC
+            });
+            state.scannedProductData = null; state.isScanning = false;
+            saveState(); render();
+        };
+
+        window.openAiModal = function() { state.aiModalOpen = true; render(); };
+        window.closeAiModal = function() { state.aiModalOpen = false; render(); };
+
+        window.onload = function() {
+            window.setDefaultTime();
+            render();
+        };
+    </script>
+</body>
+</html>
