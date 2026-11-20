@@ -146,6 +146,10 @@
         function formatDateLocal(dObj) {
             return dObj.getFullYear() + '-' + String(dObj.getMonth() + 1).padStart(2, '0') + '-' + String(dObj.getDate()).padStart(2, '0');
         }
+        function getCurrentTimeHHMM() {
+            var now = new Date();
+            return String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        }
 
         var dzis = formatDateLocal(new Date());
         var localDiaries = {}, localProducts = [], localDeletedProducts = [];
@@ -172,7 +176,7 @@
             isCloudSynced: false,
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v73_theme') || localStorage.getItem('diet_v72_theme') || localStorage.getItem('diet_v62_theme') || 'classic',
+            theme: localStorage.getItem('diet_v74_theme') || localStorage.getItem('diet_v73_theme') || localStorage.getItem('diet_v72_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             workingModelPath: localStorage.getItem('diet_working_model_v44') || '',
             products: localProducts,
@@ -322,7 +326,7 @@
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_local_deleted_products', JSON.stringify(state.deletedProductIds));
                 localStorage.setItem('diet_v15_curr_user', state.userId);
-                localStorage.setItem('diet_v73_theme', state.theme);
+                localStorage.setItem('diet_v74_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             } catch(e) {}
             if (!state.isCloudSynced) return;
@@ -401,7 +405,6 @@
             return ['Niedziela', 'Poniedziałek', 'Wtorek', 'Środa', 'Czwartek', 'Piątek', 'Sobota'][d.getDay()];
         };
 
-        // Helper do zakresów dat (Podsumowanie i Ciało)
         function getPeriodInfo(view, offset, baseDateStr, allDates) {
             var parts = baseDateStr.split('-');
             var baseD = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
@@ -565,7 +568,7 @@
             }
             var r = w / (p.baseWeight || 100);
             getDayData().meals.push({
-                id: Date.now(), name: p.name, weight: w,
+                id: Date.now(), time: getCurrentTimeHHMM(), name: p.name, weight: w,
                 kcal: Math.round(p.baseKcal * r),
                 p: Math.round(p.baseP * r * 10) / 10,
                 f: Math.round(p.baseF * r * 10) / 10,
@@ -585,7 +588,7 @@
             if (!kcal) return alert('Podaj przynajmniej kalorie!');
 
             state.products.unshift({ id: String(Date.now()), name: name, baseWeight: baseW, baseKcal: kcal, baseP: p, baseF: f, baseC: c, category: "Inne" });
-            getDayData().meals.push({ id: Date.now(), name: name, weight: baseW, kcal: kcal, p: p, f: f, c: c });
+            getDayData().meals.push({ id: Date.now(), time: getCurrentTimeHHMM(), name: name, weight: baseW, kcal: kcal, p: p, f: f, c: c });
             state.unknownProductModal = false; state.prodSearch = ''; state.inputWeight = ''; state.selectedProdId = '';
             saveState(); render();
         };
@@ -603,9 +606,11 @@
             if (today.meals.length > 0 && !confirm('Skopiować ' + yMeals.length + ' posiłków z wczoraj i dopisać je do dzisiejszej listy?')) return;
 
             var baseTs = Date.now();
+            var nowTime = getCurrentTimeHHMM();
             yMeals.forEach(function(m, idx) {
                 today.meals.push({
                     id: baseTs + idx + 1,
+                    time: m.time || nowTime,
                     name: m.name,
                     weight: m.weight,
                     kcal: m.kcal,
@@ -628,6 +633,22 @@
                 var tmp = meals[idx]; meals[idx] = meals[idx + dir]; meals[idx + dir] = tmp;
                 saveState(); render();
             }
+        };
+
+        window.promptEditMealTime = function(mealId) {
+            var meal = getDayData().meals.find(function(m) { return String(m.id) === String(mealId); });
+            if (!meal) return;
+            var currentT = meal.time || getCurrentTimeHHMM();
+            var newT = prompt('Godzina posiłku „' + meal.name + '” (HH:MM):', currentT);
+            if (newT === null) return;
+            var trimmed = newT.trim();
+            if (!/^\d{1,2}:\d{2}$/.test(trimmed)) return alert('Podaj godzinę w formacie HH:MM, np. 08:30.');
+            var parts = trimmed.split(':');
+            var hh = parseInt(parts[0], 10);
+            var mm = parseInt(parts[1], 10);
+            if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return alert('Nieprawidłowa godzina.');
+            meal.time = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+            saveState(); render();
         };
 
         window.promptEditMealWeight = function(mealId) {
@@ -737,11 +758,12 @@
             }
         };
         window.editCat = function(idx) {
-            var old = state.settings.categories[idx];
+            var cats = state.settings.categories;
+            var old = cats[idx];
             var n = prompt('Zmień nazwę kategorii:', old);
             if (n && n.trim() && n.trim() !== old) {
                 var trimmed = n.trim();
-                state.settings.categories[idx] = trimmed;
+                cats[idx] = trimmed;
                 state.products.forEach(function(p) { if (p.category === old) p.category = trimmed; });
                 saveState(); render();
             }
@@ -797,7 +819,7 @@
             if (isNaN(weightVal) || weightVal <= 0) return alert('Podaj prawidłową wagę!');
             var r = weightVal / (p.baseWeight || 100);
             getDayData().meals.push({
-                id: Date.now(), name: p.name, weight: weightVal,
+                id: Date.now(), time: getCurrentTimeHHMM(), name: p.name, weight: weightVal,
                 kcal: Math.round(p.baseKcal * r),
                 p: Math.round(p.baseP * r * 10) / 10,
                 f: Math.round(p.baseF * r * 10) / 10,
@@ -917,7 +939,7 @@
         window.addAiMealToDiary = function() {
             if (!state.aiResultData) return;
             var res = state.aiResultData;
-            getDayData().meals.push({ id: Date.now(), name: res.name + ' (AI)', weight: res.weight, kcal: res.kcal, p: res.p, f: res.f, c: res.c });
+            getDayData().meals.push({ id: Date.now(), time: getCurrentTimeHHMM(), name: res.name + ' (AI)', weight: res.weight, kcal: res.kcal, p: res.p, f: res.f, c: res.c });
             state.products.unshift({ id: String(Date.now()), name: res.name + ' (AI)', baseWeight: res.weight, baseKcal: res.kcal, baseP: res.p, baseF: res.f, baseC: res.c, category: "Gotowe Posiłki" });
             closeAiModal(); saveState(); render();
         };
@@ -927,8 +949,8 @@
             var day = getDayData();
             var user = state.users.find(function(u) { return u.id === state.userId; }) || state.users[0];
             var eaten = 0, p = 0, f = 0, c = 0;
-            day.meals.forEach(function(m) { eaten += (m.kcal || 0); p += (m.p || 0); f += (m.f || 0); c += (m.c || 0); });
-            var burned = day.workouts.reduce(function(s, w) { return s + (w.kcal || 0); }, 0);
+            day.meals.forEach(function(m) { eaten += (parseFloat(m.kcal) || 0); p += (parseFloat(m.p) || 0); f += (parseFloat(m.f) || 0); c += (parseFloat(m.c) || 0); });
+            var burned = day.workouts.reduce(function(s, w) { return s + (parseFloat(w.kcal) || 0); }, 0);
             state.aiAdviceLoading = true; render();
             try {
                 var promptStr = 'Jesteś konkretnym trenerem i dietetykiem. Oceń dzień użytkownika ' + user.name + ': Cel ' + day.goals.kcal + ' kcal, zjedzono ' + Math.round(eaten) + ' kcal (B:' + Math.round(p) + 'g, T:' + Math.round(f) + 'g, W:' + Math.round(c) + 'g), spalone ' + burned + ' kcal, waga ' + (day.weight || 'brak') + ' kg. Napisz 2-3 krótkie, motywujące zdania z jedną praktyczną wskazówką po polsku.';
@@ -1046,7 +1068,7 @@
             var ext = state.products.find(function(p) { return p.name.toLowerCase() === sp.name.toLowerCase(); });
             if (!ext) state.products.unshift({ id: String(Date.now()), name: sp.name, baseWeight: cW, baseKcal: cK, baseP: cP, baseF: cF, baseC: cC, category: 'Inne' });
             else { ext.baseWeight = cW; ext.baseKcal = cK; ext.baseP = cP; ext.baseF = cF; ext.baseC = cC; }
-            getDayData().meals.push({ id: Date.now(), name: sp.name, weight: eW, kcal: Math.round(cK * r), p: Math.round(cP * r * 10) / 10, f: Math.round(cF * r * 10) / 10, c: Math.round(cC * r * 10) / 10 });
+            getDayData().meals.push({ id: Date.now(), time: getCurrentTimeHHMM(), name: sp.name, weight: eW, kcal: Math.round(cK * r), p: Math.round(cP * r * 10) / 10, f: Math.round(cF * r * 10) / 10, c: Math.round(cC * r * 10) / 10 });
             state.scannedProductData = null; state.statusMsg = 'Dodano do dziennika!'; saveState(); render();
         };
 
@@ -1088,7 +1110,7 @@
         };
 
         window.exportFullJson = function() {
-            var payload = { version: 73, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 74, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a');
             a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
             a.download = 'dieta_' + state.date + '.json';
@@ -1222,7 +1244,7 @@
                         '<div class="bg-emerald-500/10 text-emerald-600 py-1 px-1 rounded text-center text-[10px] font-bold flex items-center justify-center">W: ' + Math.round(eatenC) + '/' + day.goals.c + 'g</div>' +
                         '</div>' +
                         '<div class="flex justify-between items-center pt-3 border-t border-gray-200/40">' +
-                        '<span class="text-[10px] font-bold opacity-70 uppercase">Woda: <span class="' + th.accent + ' text-sm font-black">' + (parseFloat(day.water) || 0).toFixed(2) + 'L</span></span>' +
+                        '<span class="text-[10px] font-bold opacity-70 uppercase">Woda: <span class="' + th.accent + ' text-sm ml-1 font-black">' + (parseFloat(day.water) || 0).toFixed(2) + ' L</span></span>' +
                         '<div class="space-x-1"><button onclick="addWater(0.25)" class="' + th.inputBg + ' border px-2 py-1 rounded-lg text-[10px] font-bold">+0.25</button><button onclick="addWater(0.5)" class="' + th.inputBg + ' border px-2 py-1 rounded-lg text-[10px] font-bold">+0.5</button><button onclick="addWater(1.0)" class="' + th.inputBg + ' border px-2 py-1 rounded-lg text-[10px] font-bold">+1L</button><button onclick="addWater(0)" class="bg-rose-500/10 text-rose-500 px-2 py-1 rounded-lg text-[10px] font-bold">0</button></div>' +
                         '</div>' +
                         '<div class="pt-3 mt-3 border-t border-gray-200/40 flex flex-wrap items-center gap-1.5">' +
@@ -1257,9 +1279,12 @@
 
                     if (day.meals.length === 0) html += '<p class="text-[10px] opacity-50 text-center py-2">Brak posiłków</p>';
                     day.meals.forEach(function(m, idx) {
+                        var mealTimeBadge = m.time
+                            ? '<button onclick="promptEditMealTime(\'' + escJs(m.id) + '\')" class="text-[9px] font-black px-1.5 py-0.5 rounded bg-blue-500/10 ' + th.accent + ' mr-1.5" title="Kliknij, aby zmienić godzinę">' + escHtml(m.time) + '</button>'
+                            : '<button onclick="promptEditMealTime(\'' + escJs(m.id) + '\')" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-500/10 opacity-60 mr-1.5" title="Ustaw godzinę">--:--</button>';
                         html += '<div class="flex justify-between items-center ' + th.inputBg + ' p-2 rounded-lg border" title="' + escHtml(m.name) + '">' +
                             '<div class="flex flex-col items-center mr-2 space-y-1"><button onclick="moveMeal(' + idx + ',-1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▲</button><button onclick="moveMeal(' + idx + ',1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▼</button></div>' +
-                            '<div class="flex-1 min-w-0 pr-1"><p class="font-bold text-xs truncate"><span class="opacity-50 font-normal mr-1">' + (idx + 1) + '.</span>' + escHtml(m.name) + '</p><p class="text-[9px] opacity-60">' + m.weight + 'g | B:' + m.p + ' T:' + m.f + ' W:' + m.c + '</p></div>' +
+                            '<div class="flex-1 min-w-0 pr-1"><p class="font-bold text-xs truncate"><span class="opacity-50 font-normal mr-1">' + (idx + 1) + '.</span>' + mealTimeBadge + escHtml(m.name) + '</p><p class="text-[9px] opacity-60">' + m.weight + 'g | B:' + m.p + ' T:' + m.f + ' W:' + m.c + '</p></div>' +
                             '<div class="flex items-center space-x-1 shrink-0"><span class="font-black text-xs w-12 text-right">' + m.kcal + '</span><button onclick="promptEditMealWeight(\'' + escJs(m.id) + '\')" class="text-blue-500 font-bold px-1">✏️</button><button onclick="delMeal(\'' + escJs(m.id) + '\')" class="text-rose-400 font-bold px-1">✕</button></div></div>';
                     });
                     html += '</div></div>';
@@ -1493,7 +1518,6 @@
                     else html += '<p class="text-[10px] text-purple-300 text-center">Kliknij Analizuj, aby otrzymać krótkie podsumowanie dnia.</p>';
                     html += '</div>';
 
-                    // KOREKTA KALORII W PODSUMOWANIU
                     html += '<div class="' + th.card + ' p-3 rounded-xl border mb-3 flex items-center justify-between gap-2">' +
                         '<div><p class="text-[10px] font-black uppercase ' + th.accent + '">⚖️ Korekta (kcal / dzień)</p><p class="text-[9px] opacity-60">Doliczana do każdego dnia z posiłkami</p></div>' +
                         '<div class="flex items-center space-x-1">' +
@@ -1576,11 +1600,11 @@
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4"><h3 class="font-black mb-3 text-sm text-center">🎨 Motyw</h3><div class="grid grid-cols-1 gap-2">';
                     Object.keys(THEMES).forEach(function(key) {
                         var t = THEMES[key]; var isSelected = state.theme === key;
-                        html += '<div onclick="setTheme(\'' + key + '\')" class="p-3 rounded-xl cursor-pointer flex justify-between items-center ' + th.inputBg + ' ' + (isSelected ? 'border-2 border-pink-500 ring-2 ring-pink-300/50' : 'border') + '"><span class="text-xs font-bold">' + t.name + '</span><div class="w-6 h-6 rounded-full ' + t.header + ' flex items-center justify-center text-white text-xs">' + (isSelected ? '✓' : '') + '</div></div>';
+                        html += '<div onclick="setTheme(\'' + escJs(key) + '\')" class="p-3 rounded-xl cursor-pointer flex justify-between items-center ' + th.inputBg + ' ' + (isSelected ? 'border-2 border-pink-500 ring-2 ring-pink-300/50' : 'border') + '"><span class="text-xs font-bold">' + t.name + '</span><div class="w-6 h-6 rounded-full ' + t.header + ' flex items-center justify-center text-white text-xs">' + (isSelected ? '✓' : '') + '</div></div>';
                     });
                     html += '</div></div>';
 
-                    html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6"><h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ O aplikacji</h4><p class="text-xs font-bold ' + th.accent + '">Wersja: v73 (Waga posiłków, Korekta kcal, Śr. waga, Nawyki, Kopiuj z wczoraj)</p></div>';
+                    html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6"><h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ O aplikacji</h4><p class="text-xs font-bold ' + th.accent + '">Wersja: v74 (Godziny posiłków, Waga posiłków, Korekta kcal, Śr. waga, Nawyki)</p></div>';
                 }
 
                 if (state.catModalOpen) {
@@ -1609,7 +1633,6 @@
             }
         };
 
-        // --- GESTY SWIPE ---
         var touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
         var tabsOrder = ['dziennik', 'baza', 'trening', 'podsumowanie', 'kopia'];
         window.addEventListener('touchstart', function(e) {
