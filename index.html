@@ -87,6 +87,7 @@
 
         const DEFAULT_CATEGORIES = ['Białkowe i Nabiał', 'Węglowodany', 'Tłuszcze', 'Owoce i Warzywa', 'Gotowe Posiłki', 'Inne'];
         const DEFAULT_SUPPLEMENTS = ['Kreatyna', 'Witaminy', 'Elektrolity'];
+        const DEFAULT_INJURIES = [];
         const DEFAULT_MEASUREMENTS = [ { id: 'waist', name: 'Pas' }, { id: 'biceps', name: 'Biceps' }, { id: 'chest', name: 'Klatka' }, { id: 'thigh', name: 'Udo' } ];
 
         const FULL_PRODUCTS = [
@@ -176,7 +177,7 @@
             isCloudSynced: false,
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v74_theme') || localStorage.getItem('diet_v73_theme') || localStorage.getItem('diet_v72_theme') || 'classic',
+            theme: localStorage.getItem('diet_v76_theme') || localStorage.getItem('diet_v75_theme') || localStorage.getItem('diet_v74_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             workingModelPath: localStorage.getItem('diet_working_model_v44') || '',
             products: localProducts,
@@ -188,7 +189,8 @@
                 kcalCorrection: 0,
                 measurements: JSON.parse(JSON.stringify(DEFAULT_MEASUREMENTS)),
                 categories: DEFAULT_CATEGORIES.slice(),
-                supplements: DEFAULT_SUPPLEMENTS.slice()
+                supplements: DEFAULT_SUPPLEMENTS.slice(),
+                injuries: DEFAULT_INJURIES.slice()
             },
             collapsedCategories: {},
             date: dzis,
@@ -231,6 +233,7 @@
             if (!Array.isArray(state.settings.categories) || state.settings.categories.length === 0) state.settings.categories = DEFAULT_CATEGORIES.slice();
             if (!Array.isArray(state.settings.measurements) || state.settings.measurements.length === 0) state.settings.measurements = JSON.parse(JSON.stringify(DEFAULT_MEASUREMENTS));
             if (!Array.isArray(state.settings.supplements)) state.settings.supplements = DEFAULT_SUPPLEMENTS.slice();
+            if (!Array.isArray(state.settings.injuries)) state.settings.injuries = DEFAULT_INJURIES.slice();
         }
 
         function initLocalDefaults() {
@@ -275,6 +278,12 @@
                             if (!cDay.supplements) cDay.supplements = {};
                             Object.keys(lDay.supplements).forEach(function(sKey) {
                                 if (!cDay.supplements[sKey] && lDay.supplements[sKey]) cDay.supplements[sKey] = lDay.supplements[sKey];
+                            });
+                        }
+                        if (lDay.injuries) {
+                            if (!cDay.injuries) cDay.injuries = {};
+                            Object.keys(lDay.injuries).forEach(function(iKey) {
+                                if (!cDay.injuries[iKey] && lDay.injuries[iKey]) cDay.injuries[iKey] = lDay.injuries[iKey];
                             });
                         }
                     }
@@ -326,7 +335,7 @@
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_local_deleted_products', JSON.stringify(state.deletedProductIds));
                 localStorage.setItem('diet_v15_curr_user', state.userId);
-                localStorage.setItem('diet_v74_theme', state.theme);
+                localStorage.setItem('diet_v76_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             } catch(e) {}
             if (!state.isCloudSynced) return;
@@ -352,6 +361,7 @@
             if (d.water === undefined) d.water = 0;
             if (!d.measurements) d.measurements = {};
             if (!d.supplements) d.supplements = {};
+            if (!d.injuries) d.injuries = {};
             if (!Array.isArray(d.meals)) d.meals = [];
             if (!Array.isArray(d.workouts)) d.workouts = [];
             return d;
@@ -475,14 +485,14 @@
             if (n && n.trim()) { u.name = n.trim(); saveState(); render(); }
         };
 
-        // --- SUPLEMENTY / NAWYKI ---
+        // --- SUPLEMENTY I KONTUZJE ---
         window.toggleSupplement = function(name) {
             var day = getDayData();
             day.supplements[name] = !day.supplements[name];
             saveState(); render();
         };
         window.promptAddSupplement = function() {
-            var name = prompt('Dodaj nowy suplement lub nawyk (np. Witamina D3, Omega-3):');
+            var name = prompt('Dodaj suplement (np. Kreatyna, Witamina D3, Omega-3):');
             if (name && name.trim()) {
                 var clean = name.trim();
                 if (!state.settings.supplements.includes(clean)) {
@@ -492,8 +502,30 @@
             }
         };
         window.removeSupplement = function(name) {
-            if (confirm('Usunąć „' + name + '” z paska suplementów?')) {
+            if (confirm('Usunąć suplement „' + name + '”?')) {
                 state.settings.supplements = state.settings.supplements.filter(function(s) { return s !== name; });
+                saveState(); render();
+            }
+        };
+
+        window.toggleInjury = function(name) {
+            var day = getDayData();
+            day.injuries[name] = !day.injuries[name];
+            saveState(); render();
+        };
+        window.promptAddInjury = function() {
+            var name = prompt('Dodaj kontuzję / dolegliwość (np. Kolano, Bark, Ścięgno):');
+            if (name && name.trim()) {
+                var clean = name.trim();
+                if (!state.settings.injuries.includes(clean)) {
+                    state.settings.injuries.push(clean);
+                    saveState(); render();
+                }
+            }
+        };
+        window.removeInjury = function(name) {
+            if (confirm('Usunąć kontuzję „' + name + '”?')) {
+                state.settings.injuries = state.settings.injuries.filter(function(i) { return i !== name; });
                 saveState(); render();
             }
         };
@@ -918,7 +950,13 @@
             render();
         };
 
-        window.openAiModal = function() { state.aiModalOpen = true; state.aiQueryText = ''; state.aiResultData = null; render(); };
+        window.openAiModal = function() {
+            if (!state.geminiApiKey) {
+                switchTab('kopia');
+                return alert('Najpierw wklej klucz API Gemini w zakładce Ustawienia.');
+            }
+            state.aiModalOpen = true; state.aiQueryText = ''; state.aiResultData = null; render();
+        };
         window.closeAiModal = function() { state.aiModalOpen = false; render(); };
 
         window.askGeminiForMeal = async function() {
@@ -944,16 +982,23 @@
             closeAiModal(); saveState(); render();
         };
 
-        window.getGeminiDailyAdvice = async function() {
+        window.getGeminiPeriodAdvice = async function(statsPayload) {
             if (!state.geminiApiKey) { switchTab('kopia'); return alert('Wklej klucz Gemini w Ustawieniach.'); }
-            var day = getDayData();
             var user = state.users.find(function(u) { return u.id === state.userId; }) || state.users[0];
-            var eaten = 0, p = 0, f = 0, c = 0;
-            day.meals.forEach(function(m) { eaten += (parseFloat(m.kcal) || 0); p += (parseFloat(m.p) || 0); f += (parseFloat(m.f) || 0); c += (parseFloat(m.c) || 0); });
-            var burned = day.workouts.reduce(function(s, w) { return s + (parseFloat(w.kcal) || 0); }, 0);
+            var day = getDayData();
+            var activeInjuries = Object.keys(day.injuries || {}).filter(function(k) { return day.injuries[k]; });
             state.aiAdviceLoading = true; render();
             try {
-                var promptStr = 'Jesteś konkretnym trenerem i dietetykiem. Oceń dzień użytkownika ' + user.name + ': Cel ' + day.goals.kcal + ' kcal, zjedzono ' + Math.round(eaten) + ' kcal (B:' + Math.round(p) + 'g, T:' + Math.round(f) + 'g, W:' + Math.round(c) + 'g), spalone ' + burned + ' kcal, waga ' + (day.weight || 'brak') + ' kg. Napisz 2-3 krótkie, motywujące zdania z jedną praktyczną wskazówką po polsku.';
+                var p = statsPayload || {};
+                var promptStr = 'Jesteś doświadczonym trenerem i dietetykiem. Użytkownik ' + user.name + ' zauważył, że ostatnio tyje. Przeanalizuj okres "' + (p.periodLabel || 'wybrany okres') + '" (' + (p.scopeName || 'okres') + ', ' + (p.daysCount || 0) + ' dni z posiłkami): ' +
+                    'Średnio spożywane kalorie (z korektą ' + (p.corr >= 0 ? '+' : '') + (p.corr || 0) + ' kcal/dzień): ' + (p.avgKcal || 0) + ' kcal/dzień (łącznie ' + (p.totalKcal || 0) + ' kcal), ' +
+                    'średnie makro: B ' + (p.avgP || 0) + 'g, T ' + (p.avgF || 0) + 'g, W ' + (p.avgC || 0) + 'g, ' +
+                    'spalone na treningach w okresie: ' + (p.totalBurned || 0) + ' kcal, ' +
+                    'bilans względem celu w okresie: ' + ((p.balanceVsZero > 0 ? '+' : '') + (p.balanceVsZero || 0)) + ' kcal, ' +
+                    'średnia waga w okresie: ' + (p.avgWeight ? p.avgWeight + ' kg' : 'brak danych') + ', ' +
+                    'zmiana wagi w okresie: ' + ((p.weightDiff > 0 ? '+' : '') + (p.weightDiff || 0)) + ' kg' +
+                    (activeInjuries.length > 0 ? ', aktywne kontuzje dzisiaj: ' + activeInjuries.join(', ') : '') + '. ' +
+                    'Napisz zwięzłą, konkretną analizę (3-4 zdania) po polsku: oceń co realnie napędza przyrost masy ciała (nadwyżka kaloryczna, korekta, trening lub możliwe wahania wody), uwzględnij ewentualne kontuzje i podaj jedną konkretną rekomendację na kolejny okres.';
                 state.aiAdviceText = await callGeminiSmart(promptStr);
             } catch(err) { state.aiAdviceText = 'Błąd AI: ' + err.message; }
             finally { state.aiAdviceLoading = false; render(); }
@@ -1110,7 +1155,7 @@
         };
 
         window.exportFullJson = function() {
-            var payload = { version: 74, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 76, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a');
             a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
             a.download = 'dieta_' + state.date + '.json';
@@ -1248,7 +1293,7 @@
                         '<div class="space-x-1"><button onclick="addWater(0.25)" class="' + th.inputBg + ' border px-2 py-1 rounded-lg text-[10px] font-bold">+0.25</button><button onclick="addWater(0.5)" class="' + th.inputBg + ' border px-2 py-1 rounded-lg text-[10px] font-bold">+0.5</button><button onclick="addWater(1.0)" class="' + th.inputBg + ' border px-2 py-1 rounded-lg text-[10px] font-bold">+1L</button><button onclick="addWater(0)" class="bg-rose-500/10 text-rose-500 px-2 py-1 rounded-lg text-[10px] font-bold">0</button></div>' +
                         '</div>' +
                         '<div class="pt-3 mt-3 border-t border-gray-200/40 flex flex-wrap items-center gap-1.5">' +
-                        '<span class="text-[9px] font-bold opacity-60 uppercase mr-1">Nawyki:</span>';
+                        '<span class="text-[9px] font-bold opacity-60 uppercase mr-1">Suplementy:</span>';
 
                     (state.settings.supplements || []).forEach(function(sup) {
                         var done = !!(day.supplements && day.supplements[sup]);
@@ -1257,8 +1302,22 @@
                             : (th.inputBg + ' border opacity-75');
                         html += '<button onclick="toggleSupplement(\'' + escJs(sup) + '\')" class="px-2 py-1 rounded-full text-[10px] font-bold border transition-all ' + cls + '">' + (done ? '✓ ' : '') + escHtml(sup) + '</button>';
                     });
-                    html += '<button onclick="promptAddSupplement()" class="px-2 py-1 rounded-full text-[10px] font-black border border-dashed border-gray-400 opacity-60 hover:opacity-100" title="Dodaj suplement/nawyk">+</button>' +
-                        '</div></div>';
+                    html += '<button onclick="promptAddSupplement()" class="px-2 py-1 rounded-full text-[10px] font-black border border-dashed border-gray-400 opacity-60 hover:opacity-100" title="Dodaj suplement">+</button>' +
+                        '</div>';
+
+                    if ((state.settings.injuries || []).length > 0 || Object.keys(day.injuries || {}).some(function(k) { return day.injuries[k]; })) {
+                        html += '<div class="pt-2.5 mt-2.5 border-t border-gray-200/40 flex flex-wrap items-center gap-1.5">' +
+                            '<span class="text-[9px] font-bold text-rose-500 uppercase mr-1">Kontuzje:</span>';
+                        var allInj = Array.from(new Set((state.settings.injuries || []).concat(Object.keys(day.injuries || {}).filter(function(k) { return day.injuries[k]; }))));
+                        allInj.forEach(function(inj) {
+                            var active = !!(day.injuries && day.injuries[inj]);
+                            var iCls = active ? 'bg-rose-500 text-white border-rose-600 shadow-sm' : (th.inputBg + ' border opacity-75');
+                            html += '<button onclick="toggleInjury(\'' + escJs(inj) + '\')" class="px-2 py-1 rounded-full text-[10px] font-bold border transition-all ' + iCls + '">' + (active ? '🩹 ' : '') + escHtml(inj) + '</button>';
+                        });
+                        html += '</div>';
+                    }
+
+                    html += '</div>';
 
                     var mealWeightBadge = totalMealWeight > 0
                         ? '<span class="ml-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600">⚖️ ' + Math.round(totalMealWeight) + ' g (' + (totalMealWeight / 1000).toFixed(2) + ' kg)</span>'
@@ -1511,11 +1570,28 @@
 
                     var netKcal = tKcal - tBurned;
                     var balanceVsZero = netKcal - totalTarget;
+                    var avgKcalVal = dCount > 0 ? Math.round(tKcal / dCount) : 0;
+                    var scopeNames = { tydzien: 'Tydzień', miesiac: 'Miesiąc', rok: 'Rok', ogolne: 'Ogólnie' };
+                    var aiPayload = {
+                        scopeName: scopeNames[view] || view,
+                        periodLabel: pInfo.label,
+                        daysCount: dCount,
+                        corr: corr,
+                        avgKcal: avgKcalVal,
+                        totalKcal: Math.round(tKcal),
+                        avgP: dCount > 0 ? Math.round(tP / dCount) : 0,
+                        avgF: dCount > 0 ? Math.round(tF / dCount) : 0,
+                        avgC: dCount > 0 ? Math.round(tC / dCount) : 0,
+                        totalBurned: Math.round(tBurned),
+                        balanceVsZero: Math.round(balanceVsZero),
+                        avgWeight: avgW !== null ? Number(avgW.toFixed(2)) : null,
+                        weightDiff: Number(wDiff.toFixed(2))
+                    };
 
-                    html += '<div class="bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-4 rounded-xl shadow-md mb-3"><div class="flex justify-between items-center mb-2"><h3 class="font-black text-xs uppercase tracking-wide">💬 AI Porada</h3><button onclick="getGeminiDailyAdvice()" class="bg-purple-600 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold">Analizuj</button></div>';
-                    if (state.aiAdviceLoading) html += '<p class="text-xs text-purple-200 animate-pulse text-center py-2">Gemini analizuje...</p>';
-                    else if (state.aiAdviceText) html += '<p class="text-[11px] text-purple-100 font-medium italic">„' + escHtml(state.aiAdviceText) + '”</p>';
-                    else html += '<p class="text-[10px] text-purple-300 text-center">Kliknij Analizuj, aby otrzymać krótkie podsumowanie dnia.</p>';
+                    html += '<div class="bg-gradient-to-r from-purple-900 to-indigo-900 text-white p-4 rounded-xl shadow-md mb-3"><div class="flex justify-between items-center mb-2 gap-2"><h3 class="font-black text-xs uppercase tracking-wide">💬 AI Analiza (' + escHtml(scopeNames[view] || view) + ')</h3><button onclick=\'getGeminiPeriodAdvice(' + JSON.stringify(aiPayload) + ')\' class="bg-purple-600 hover:bg-purple-500 text-white px-2.5 py-1 rounded-lg text-[10px] font-bold shrink-0">Analizuj okres</button></div>';
+                    if (state.aiAdviceLoading) html += '<p class="text-xs text-purple-200 animate-pulse text-center py-2">Gemini analizuje kalorie, treningi i wagę...</p>';
+                    else if (state.aiAdviceText) html += '<p class="text-[11px] text-purple-100 font-medium italic leading-relaxed">„' + escHtml(state.aiAdviceText) + '”</p>';
+                    else html += '<p class="text-[10px] text-purple-300 text-center">Kliknij Analizuj okres, aby ocenić kalorie, treningi i wagę dla wybranego widoku.</p>';
                     html += '</div>';
 
                     html += '<div class="' + th.card + ' p-3 rounded-xl border mb-3 flex items-center justify-between gap-2">' +
@@ -1528,12 +1604,12 @@
                     html += '<div class="flex space-x-1 mb-3 ' + th.inputBg + ' p-1 rounded-lg border">';
                     ['tydzien', 'miesiac', 'rok', 'ogolne'].forEach(function(v, idx) {
                         var activeCls = (view === v) ? th.btn + ' shadow text-white' : 'opacity-60 text-[10px] font-bold';
-                        html += '<button onclick="state.summaryView=\'' + v + '\'; state.summaryOffset=0; render();" class="flex-1 py-1.5 rounded-md text-[10px] uppercase font-black ' + activeCls + '">' + ['Tydzień', 'Miesiąc', 'Rok', 'Ogólne'][idx] + '</button>';
+                        html += '<button onclick="state.summaryView=\'' + v + '\'; state.summaryOffset=0; state.aiAdviceText=\'\'; render();" class="flex-1 py-1.5 rounded-md text-[10px] uppercase font-black ' + activeCls + '">' + ['Tydzień', 'Miesiąc', 'Rok', 'Ogólne'][idx] + '</button>';
                     });
                     html += '</div>';
 
                     if (view !== 'ogolne') {
-                        html += '<div class="' + th.card + ' p-2.5 rounded-xl border flex justify-between items-center mb-4"><button onclick="state.summaryOffset-=1; render();" class="' + th.inputBg + ' border px-3 py-1.5 rounded-lg text-xs font-black">◀</button><span class="text-[10px] font-black ' + th.accent + ' px-2 py-1 uppercase text-center">' + pInfo.label + '</span><button onclick="state.summaryOffset+=1; render();" class="' + th.inputBg + ' border px-3 py-1.5 rounded-lg text-xs font-black">▶</button></div>';
+                        html += '<div class="' + th.card + ' p-2.5 rounded-xl border flex justify-between items-center mb-4"><button onclick="state.summaryOffset-=1; state.aiAdviceText=\'\'; render();" class="' + th.inputBg + ' border px-3 py-1.5 rounded-lg text-xs font-black">◀</button><span class="text-[10px] font-black ' + th.accent + ' px-2 py-1 uppercase text-center">' + pInfo.label + '</span><button onclick="state.summaryOffset+=1; state.aiAdviceText=\'\'; render();" class="' + th.inputBg + ' border px-3 py-1.5 rounded-lg text-xs font-black">▶</button></div>';
                     } else {
                         html += '<div class="' + th.card + ' p-2.5 rounded-xl border flex items-center justify-center mb-4"><span class="text-[10px] font-black ' + th.accent + ' uppercase">' + pInfo.label + '</span></div>';
                     }
@@ -1544,7 +1620,7 @@
 
                     html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4"><h3 class="font-black text-base mb-1 text-center">📊 Statystyki (' + dCount + ' dni)</h3>' + corrBadge +
                         '<div class="grid grid-cols-2 gap-2 mb-3">' +
-                        '<div class="' + th.card + ' p-3 rounded-xl border text-center"><p class="text-[9px] font-bold opacity-60 uppercase mb-1">Śr. Kcal/dzień</p><p class="text-xl font-black ' + th.accent + '">' + (dCount > 0 ? Math.round(tKcal / dCount) : 0) + '</p></div>' +
+                        '<div class="' + th.card + ' p-3 rounded-xl border text-center"><p class="text-[9px] font-bold opacity-60 uppercase mb-1">Śr. Kcal/dzień</p><p class="text-xl font-black ' + th.accent + '">' + avgKcalVal + '</p></div>' +
                         '<div class="' + th.card + ' p-3 rounded-xl border text-center"><p class="text-[9px] font-bold text-orange-500 uppercase mb-1">Spalone suma</p><p class="text-xl font-black text-orange-500">🔥 ' + Math.round(tBurned) + '</p></div>' +
                         '</div>' +
                         '<div class="' + th.inputBg + ' p-3 rounded-xl border grid grid-cols-3 gap-1 text-center mb-3">' +
@@ -1573,10 +1649,17 @@
 
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4"><h3 class="font-black mb-3 text-sm">🎯 Cel Dzienny (' + escHtml(user.name) + ')</h3><div class="grid grid-cols-2 gap-3 mb-2"><div><label class="text-[10px] font-bold opacity-80 block mb-1">Kcal (limit)</label><input type="number" value="' + day.goals.kcal + '" onchange="updateGoal(\'kcal\', this.value)" class="w-full p-2 text-xs rounded-lg border text-center ' + th.inputBg + '" /></div><div><label class="text-[10px] font-bold opacity-80 block mb-1">Białko (g)</label><input type="number" value="' + day.goals.p + '" onchange="updateGoal(\'p\', this.value)" class="w-full p-2 text-xs rounded-lg border text-center ' + th.inputBg + '" /></div><div><label class="text-[10px] font-bold opacity-80 block mb-1">Tłuszcz (g)</label><input type="number" value="' + day.goals.f + '" onchange="updateGoal(\'f\', this.value)" class="w-full p-2 text-xs rounded-lg border text-center ' + th.inputBg + '" /></div><div><label class="text-[10px] font-bold opacity-80 block mb-1">Węglo (g)</label><input type="number" value="' + day.goals.c + '" onchange="updateGoal(\'c\', this.value)" class="w-full p-2 text-xs rounded-lg border text-center ' + th.inputBg + '" /></div></div></div>';
 
-                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4"><div class="flex justify-between items-center mb-2"><h3 class="font-black text-sm">💊 Suplementy / Nawyki</h3><button onclick="promptAddSupplement()" class="text-[10px] ' + th.btn + ' px-2.5 py-1 rounded-lg font-bold">+ Dodaj</button></div><div class="flex flex-wrap gap-1.5">';
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4"><div class="flex justify-between items-center mb-2"><h3 class="font-black text-sm">💊 Suplementy</h3><button onclick="promptAddSupplement()" class="text-[10px] ' + th.btn + ' px-2.5 py-1 rounded-lg font-bold">+ Dodaj</button></div><div class="flex flex-wrap gap-1.5">';
                     (state.settings.supplements || []).forEach(function(sup) {
                         html += '<span class="' + th.inputBg + ' border px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center space-x-1.5"><span>' + escHtml(sup) + '</span><button onclick="removeSupplement(\'' + escJs(sup) + '\')" class="text-rose-500 font-black">✕</button></span>';
                     });
+                    html += '</div></div>';
+
+                    html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4"><div class="flex justify-between items-center mb-2"><h3 class="font-black text-sm">🩹 Kontuzje</h3><button onclick="promptAddInjury()" class="text-[10px] bg-rose-500 text-white px-2.5 py-1 rounded-lg font-bold">+ Dodaj</button></div><div class="flex flex-wrap gap-1.5">';
+                    (state.settings.injuries || []).forEach(function(inj) {
+                        html += '<span class="' + th.inputBg + ' border px-2.5 py-1 rounded-full text-[10px] font-bold flex items-center space-x-1.5"><span>' + escHtml(inj) + '</span><button onclick="removeInjury(\'' + escJs(inj) + '\')" class="text-rose-500 font-black">✕</button></span>';
+                    });
+                    if ((state.settings.injuries || []).length === 0) html += '<span class="text-[10px] opacity-50">Brak zdefiniowanych kontuzji</span>';
                     html += '</div></div>';
 
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4"><h3 class="font-black mb-2 text-sm text-center">🧠 Konfiguracja AI (Gemini)</h3><input type="password" id="aiKeyInput" placeholder="Klucz API Gemini..." value="' + escHtml(state.geminiApiKey) + '" class="w-full p-2.5 ' + th.inputBg + ' border rounded-lg text-xs outline-none mb-2 text-center" /><div class="grid grid-cols-2 gap-2"><button onclick="saveGeminiKey(document.getElementById(\'aiKeyInput\').value)" class="w-full ' + th.btn + ' font-bold py-2.5 rounded-xl text-xs">💾 Zapisz klucz</button><button onclick="testGeminiConnection()" class="w-full bg-purple-600 text-white font-bold py-2.5 rounded-xl text-xs">⚡ Testuj AI</button></div></div>';
@@ -1604,7 +1687,7 @@
                     });
                     html += '</div></div>';
 
-                    html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6"><h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ O aplikacji</h4><p class="text-xs font-bold ' + th.accent + '">Wersja: v74 (Godziny posiłków, Waga posiłków, Korekta kcal, Śr. waga, Nawyki)</p></div>';
+                    html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6"><h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ O aplikacji</h4><p class="text-xs font-bold ' + th.accent + '">Wersja: v76 (Pełny kod, Suplementy i Kontuzje, Analiza AI okresu)</p></div>';
                 }
 
                 if (state.catModalOpen) {
