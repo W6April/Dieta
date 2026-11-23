@@ -165,6 +165,14 @@
                 to: String(item.to || '').trim()
             };
         }
+        function extractWorkoutNote(w) {
+            if (!w || typeof w !== 'object') return '';
+            var candidates = [w.note, w.comment, w.notes, w.description, w.desc, w.uwagi, w.komentarz, w.text];
+            for (var i = 0; i < candidates.length; i++) {
+                if (typeof candidates[i] === 'string' && candidates[i].trim()) return candidates[i].trim();
+            }
+            return '';
+        }
         function downloadTextReport(filename, content) {
             var blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
             var url = URL.createObjectURL(blob);
@@ -202,7 +210,7 @@
             isCloudSynced: false,
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v78_theme') || localStorage.getItem('diet_v77_theme') || localStorage.getItem('diet_v76_theme') || 'classic',
+            theme: localStorage.getItem('diet_v79_theme') || localStorage.getItem('diet_v78_theme') || localStorage.getItem('diet_v77_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             workingModelPath: localStorage.getItem('diet_working_model_v44') || '',
             products: localProducts,
@@ -288,6 +296,121 @@
         }
         initLocalDefaults();
 
+        function collectNotesFromDiariesSource(diariesObj, notesMap) {
+            if (!diariesObj || typeof diariesObj !== 'object') return;
+            Object.keys(diariesObj).forEach(function(uid) {
+                var uDays = diariesObj[uid];
+                if (!uDays || typeof uDays !== 'object') return;
+                Object.keys(uDays).forEach(function(dt) {
+                    var dayObj = uDays[dt];
+                    if (!dayObj || !Array.isArray(dayObj.workouts)) return;
+                    dayObj.workouts.forEach(function(w, idx) {
+                        var nText = extractWorkoutNote(w);
+                        if (!nText) return;
+                        if (w && w.id !== undefined && w.id !== null) {
+                            notesMap.byId[uid + '::' + dt + '::' + String(w.id)] = nText;
+                        }
+                        var sig = uid + '::' + dt + '::' + String(w.name || '').trim().toLowerCase() + '::' + (parseInt(w.time) || 0) + '::' + (parseInt(w.kcal) || 0) + '::' + idx;
+                        notesMap.bySig[sig] = nText;
+                        var looseSig = uid + '::' + dt + '::' + String(w.name || '').trim().toLowerCase() + '::' + (parseInt(w.kcal) || 0);
+                        if (!notesMap.byLoose[looseSig]) notesMap.byLoose[looseSig] = [];
+                        if (!notesMap.byLoose[looseSig].includes(nText)) notesMap.byLoose[looseSig].push(nText);
+                    });
+                });
+            });
+        }
+
+        function recoverWorkoutNotesFromHistory(showAlert) {
+            var notesMap = { byId: {}, bySig: {}, byLoose: {} };
+            collectNotesFromDiariesSource(state.diaries, notesMap);
+
+            var storageKeys = [
+                'diet_local_diaries_vault',
+                'diet_previous_auto_backup',
+                'diet_emergency_snapshot'
+            ];
+            for (var i = 0; i < localStorage.length; i++) {
+                var k = localStorage.key(i);
+                if (k && (k.includes('diet') || k.includes('dieta')) && !storageKeys.includes(k)) {
+                    storageKeys.push(k);
+                }
+            }
+
+            storageKeys.forEach(function(key) {
+                try {
+                    var raw = localStorage.getItem(key);
+                    if (!raw || raw === 'null' || raw === 'undefined') return;
+                    var parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) {
+                        parsed.forEach(function(entry) {
+                            if (entry && entry.diaries) collectNotesFromDiariesSource(entry.diaries, notesMap);
+                            if (entry && typeof entry.html === 'string') {
+                                var m = entry.html.match(/localStorage\.setItem\(['"]diet_local_diaries_vault['"],\s*JSON\.stringify\((\{[\s\S]*?\})\)\)/);
+                                if (m && m[1]) {
+                                    try { collectNotesFromDiariesSource(JSON.parse(m[1]), notesMap); } catch(e2) {}
+                                }
+                            }
+                        });
+                    } else if (parsed && typeof parsed === 'object') {
+                        collectNotesFromDiariesSource(parsed.diaries ? parsed.diaries : parsed, notesMap);
+                    }
+                } catch(e) {}
+            });
+
+            var restoredCount = 0;
+            Object.keys(state.diaries || {}).forEach(function(uid) {
+                var uDays = state.diaries[uid];
+                if (!uDays || typeof uDays !== 'object') return;
+                Object.keys(uDays).forEach(function(dt) {
+                    var dayObj = uDays[dt];
+                    if (!dayObj || !Array.isArray(dayObj.workouts)) return;
+                    dayObj.workouts.forEach(function(w, idx) {
+                        var currentNote = extractWorkoutNote(w);
+                        if (!w.note && currentNote) {
+                            w.note = currentNote;
+                            restoredCount++;
+                            return;
+                        }
+                        if (w.note) return;
+
+                        var found = '';
+                        if (w && w.id !== undefined && w.id !== null) {
+                            found = notesMap.byId[uid + '::' + dt + '::' + String(w.id)] || '';
+                        }
+                        if (!found) {
+                            var sig = uid + '::' + dt + '::' + String(w.name || '').trim().toLowerCase() + '::' + (parseInt(w.time) || 0) + '::' + (parseInt(w.kcal) || 0) + '::' + idx;
+                            found = notesMap.bySig[sig] || '';
+                        }
+                        if (!found) {
+                            var looseSig = uid + '::' + dt + '::' + String(w.name || '').trim().toLowerCase() + '::' + (parseInt(w.kcal) || 0);
+                            var pool = notesMap.byLoose[looseSig] || [];
+                            if (pool.length > 0) found = pool.shift();
+                        }
+                        if (found) {
+                            w.note = found;
+                            restoredCount++;
+                        }
+                    });
+                });
+            });
+
+            if (restoredCount > 0) {
+                saveState();
+            }
+            if (showAlert) {
+                if (restoredCount > 0) {
+                    state.statusMsg = '✅ Odzyskano komentarze dla treningów: ' + restoredCount;
+                    alert('Odzyskano komentarze dla ' + restoredCount + ' treningów.');
+                } else {
+                    alert('Nie znaleziono dodatkowych zapisanych komentarzy do treningów w dostępnych kopiach.');
+                }
+                render();
+            }
+            return restoredCount;
+        }
+
+        recoverWorkoutNotesFromHistory(false);
+
         function safeMergeDiaries(cloudDiaries, locDiaries) {
             var result = JSON.parse(JSON.stringify(cloudDiaries || {}));
             Object.keys(locDiaries || {}).forEach(function(uid) {
@@ -299,6 +422,17 @@
                         result[uid][dt] = lDay;
                     } else {
                         if ((lDay.meals || []).length > (cDay.meals || []).length) result[uid][dt].meals = lDay.meals;
+                        if (Array.isArray(cDay.workouts) && Array.isArray(lDay.workouts)) {
+                            lDay.workouts.forEach(function(lw, idx) {
+                                var lNote = extractWorkoutNote(lw);
+                                if (!lNote) return;
+                                var matchW = cDay.workouts.find(function(cw, cIdx) {
+                                    return (cw.id && lw.id && String(cw.id) === String(lw.id)) ||
+                                        (cIdx === idx && String(cw.name || '').toLowerCase() === String(lw.name || '').toLowerCase());
+                                });
+                                if (matchW && !extractWorkoutNote(matchW)) matchW.note = lNote;
+                            });
+                        }
                         if ((lDay.workouts || []).length > (cDay.workouts || []).length) result[uid][dt].workouts = lDay.workouts;
                         if (!cDay.weight && lDay.weight) result[uid][dt].weight = lDay.weight;
                         if (!cDay.water && lDay.water) result[uid][dt].water = lDay.water;
@@ -340,7 +474,10 @@
                         initLocalDefaults();
                     }
                     if (Array.isArray(data.workoutsDb)) state.workoutsDb = data.workoutsDb;
-                    if (data.diaries) state.diaries = safeMergeDiaries(data.diaries, state.diaries);
+                    if (data.diaries) {
+                        state.diaries = safeMergeDiaries(data.diaries, state.diaries);
+                        recoverWorkoutNotesFromHistory(false);
+                    }
                     if (Array.isArray(data.users) && data.users.length > 0) state.users = data.users;
                     if (data.settings) {
                         state.settings = Object.assign({}, state.settings, data.settings);
@@ -369,7 +506,7 @@
                 localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                 localStorage.setItem('diet_local_deleted_products', JSON.stringify(state.deletedProductIds));
                 localStorage.setItem('diet_v15_curr_user', state.userId);
-                localStorage.setItem('diet_v78_theme', state.theme);
+                localStorage.setItem('diet_v79_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             } catch(e) {}
             if (!state.isCloudSynced) return;
@@ -398,6 +535,10 @@
             if (!d.injuries) d.injuries = {};
             if (!Array.isArray(d.meals)) d.meals = [];
             if (!Array.isArray(d.workouts)) d.workouts = [];
+            d.workouts.forEach(function(w) {
+                var n = extractWorkoutNote(w);
+                if (n && !w.note) w.note = n;
+            });
             return d;
         };
 
@@ -538,7 +679,8 @@
                 lines.push('- brak');
             } else {
                 day.workouts.forEach(function(w, i) {
-                    var noteStr = w.note ? ' — "' + w.note + '"' : '';
+                    var noteVal = extractWorkoutNote(w);
+                    var noteStr = noteVal ? ' — "' + noteVal + '"' : '';
                     lines.push((i + 1) + '. ' + w.name + ' (' + w.time + ' min) — ' + w.kcal + ' kcal' + noteStr);
                 });
             }
@@ -936,7 +1078,7 @@
         window.promptEditWorkoutNote = function(workoutId) {
             var w = getDayData().workouts.find(function(x) { return String(x.id) === String(workoutId); });
             if (!w) return;
-            var newNote = prompt('Komentarz do treningu „' + w.name + '”:', w.note || '');
+            var newNote = prompt('Komentarz do treningu „' + w.name + '”:', extractWorkoutNote(w));
             if (newNote === null) return;
             w.note = newNote.trim();
             saveState(); render();
@@ -1343,7 +1485,10 @@
                     var data = doc.data();
                     if (Array.isArray(data.products) && data.products.length > 0) { state.products = data.products; initLocalDefaults(); }
                     if (Array.isArray(data.workoutsDb)) state.workoutsDb = data.workoutsDb;
-                    if (data.diaries) state.diaries = safeMergeDiaries(data.diaries, state.diaries);
+                    if (data.diaries) {
+                        state.diaries = safeMergeDiaries(data.diaries, state.diaries);
+                        recoverWorkoutNotesFromHistory(false);
+                    }
                     if (Array.isArray(data.users) && data.users.length > 0) state.users = data.users;
                     if (data.settings) { state.settings = Object.assign({}, state.settings, data.settings); ensureSettingsIntegrity(); }
                     state.isCloudSynced = true;
@@ -1361,12 +1506,13 @@
                 var parsed = JSON.parse(backupStr);
                 var diariesToRestore = parsed.diaries ? parsed.diaries : parsed;
                 state.diaries = safeMergeDiaries(diariesToRestore, state.diaries);
+                recoverWorkoutNotesFromHistory(false);
                 saveState(); state.statusMsg = '✅ Przywrócono dane z migawki!'; render();
             } catch(e) { alert('Błąd przywracania: ' + e.message); }
         };
 
         window.exportFullJson = function() {
-            var payload = { version: 78, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
+            var payload = { version: 79, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, theme: state.theme };
             var a = document.createElement('a');
             a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
             a.download = 'dieta_' + state.date + '.json';
@@ -1389,7 +1535,10 @@
                 } else {
                     if (!confirm('Połączyć wgrywaną kopię z obecną historią?')) return;
                     if (Array.isArray(data.products)) { state.products = data.products; initLocalDefaults(); }
-                    if (data.diaries) state.diaries = safeMergeDiaries(data.diaries, state.diaries);
+                    if (data.diaries) {
+                        state.diaries = safeMergeDiaries(data.diaries, state.diaries);
+                        recoverWorkoutNotesFromHistory(false);
+                    }
                     if (Array.isArray(data.users)) state.users = data.users;
                     if (data.settings) { state.settings = Object.assign({}, state.settings, data.settings); ensureSettingsIntegrity(); }
                     if (Array.isArray(data.workoutsDb)) state.workoutsDb = data.workoutsDb;
@@ -1560,10 +1709,10 @@
                         var mealTimeBadge = m.time
                             ? '<button onclick="promptEditMealTime(\'' + escJs(m.id) + '\')" class="text-[9px] font-black px-1.5 py-0.5 rounded bg-blue-500/10 ' + th.accent + ' mr-1.5" title="Kliknij, aby zmienić godzinę">' + escHtml(m.time) + '</button>'
                             : '<button onclick="promptEditMealTime(\'' + escJs(m.id) + '\')" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-500/10 opacity-60 mr-1.5" title="Ustaw godzinę">--:--</button>';
-                        html += '<div class="flex justify-between items-center ' + th.inputBg + ' p-2 rounded-lg border" title="' + escHtml(m.name) + '">' +
-                            '<div class="flex flex-col items-center mr-2 space-y-1"><button onclick="moveMeal(' + idx + ',-1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▲</button><button onclick="moveMeal(' + idx + ',1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▼</button></div>' +
-                            '<div class="flex-1 min-w-0 pr-1"><p class="font-bold text-xs truncate"><span class="opacity-50 font-normal mr-1">' + (idx + 1) + '.</span>' + mealTimeBadge + escHtml(m.name) + '</p><p class="text-[9px] opacity-60">' + m.weight + 'g | B:' + m.p + ' T:' + m.f + ' W:' + m.c + '</p></div>' +
-                            '<div class="flex items-center space-x-1 shrink-0"><span class="font-black text-xs w-12 text-right">' + m.kcal + '</span><button onclick="promptEditMealWeight(\'' + escJs(m.id) + '\')" class="text-blue-500 font-bold px-1">✏️</button><button onclick="delMeal(\'' + escJs(m.id) + '\')" class="text-rose-400 font-bold px-1">✕</button></div></div>';
+                        html += '<div class="flex justify-between items-start ' + th.inputBg + ' p-2 rounded-lg border">' +
+                            '<div class="flex flex-col items-center mr-2 mt-0.5 space-y-1 shrink-0"><button onclick="moveMeal(' + idx + ',-1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▲</button><button onclick="moveMeal(' + idx + ',1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▼</button></div>' +
+                            '<div class="flex-1 min-w-0 pr-1.5"><p class="font-bold text-xs break-words leading-snug"><span class="opacity-50 font-normal mr-1">' + (idx + 1) + '.</span>' + mealTimeBadge + escHtml(m.name) + '</p><p class="text-[9px] opacity-60 mt-0.5">' + m.weight + 'g | B:' + m.p + ' T:' + m.f + ' W:' + m.c + '</p></div>' +
+                            '<div class="flex items-center space-x-1 shrink-0 mt-0.5"><span class="font-black text-xs w-12 text-right">' + m.kcal + '</span><button onclick="promptEditMealWeight(\'' + escJs(m.id) + '\')" class="text-blue-500 font-bold px-1">✏️</button><button onclick="delMeal(\'' + escJs(m.id) + '\')" class="text-rose-400 font-bold px-1">✕</button></div></div>';
                     });
                     html += '</div></div>';
 
@@ -1600,8 +1749,9 @@
                         '<input id="wNoteInp" placeholder="Komentarz do treningu (opcjonalnie)..." value="' + escHtml(state.wInputNote) + '" oninput="state.wInputNote=this.value" class="w-full mb-3 ' + th.inputBg + ' border rounded-lg text-xs px-2.5 py-1.5 outline-none" />' +
                         '<div class="space-y-2">';
                     day.workouts.forEach(function(w) {
-                        var noteHtml = w.note
-                            ? '<p class="text-[10px] opacity-75 italic mt-0.5 break-words">💬 ' + escHtml(w.note) + '</p>'
+                        var noteVal = extractWorkoutNote(w);
+                        var noteHtml = noteVal
+                            ? '<p class="text-[10px] opacity-75 italic mt-0.5 break-words">💬 ' + escHtml(noteVal) + '</p>'
                             : '';
                         html += '<div class="flex justify-between items-center bg-orange-500/10 p-2.5 rounded-lg border border-orange-500/20">' +
                             '<div class="flex-1 min-w-0 pr-2"><span class="font-bold text-xs text-orange-600 block truncate">' + escHtml(w.name) + ' <span class="opacity-75 font-normal">(' + w.time + ' min)</span></span>' + noteHtml + '</div>' +
@@ -1625,7 +1775,8 @@
                                 types[w.name].time += (parseInt(w.time) || 0);
                                 types[w.name].kcal += (parseInt(w.kcal) || 0);
                                 types[w.name].count += 1;
-                                if (w.note) types[w.name].notes.push(d + ': ' + w.note);
+                                var nVal = extractWorkoutNote(w);
+                                if (nVal) types[w.name].notes.push(d + ': ' + nVal);
                             });
                         }
                     });
@@ -1657,6 +1808,7 @@
                     } else {
                         html += '<p class="text-center text-xs opacity-60 font-bold mt-2">Brak treningów w tym okresie.</p>';
                     }
+                    html += '<div class="mt-3 pt-2 border-t border-gray-200/40 text-center"><button onclick="recoverWorkoutNotesFromHistory(true)" class="' + th.inputBg + ' border px-3 py-1.5 rounded-lg text-[10px] font-bold">🔎 Odzyskaj komentarze treningów z pamięci</button></div>';
                     html += '</div>';
 
                     html += '<div class="' + th.card + ' border p-4 rounded-xl mb-4"><div class="flex justify-between items-center mb-4"><h3 class="font-black text-sm">📏 Pomiary Ciała (cm)</h3><button onclick="promptAddMeasurement()" class="text-[10px] ' + th.btn + ' px-3 py-1.5 rounded-lg font-bold">+ Dodaj</button></div><div class="grid grid-cols-2 gap-3 mb-4">';
@@ -1921,7 +2073,7 @@
                     });
                     html += '</div></div>';
 
-                    html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6"><h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ O aplikacji</h4><p class="text-xs font-bold ' + th.accent + '">Wersja: v78 (Komentarze treningów, Suplementy z dawką i datami, Raporty, Zegar)</p></div>';
+                    html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6"><h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ O aplikacji</h4><p class="text-xs font-bold ' + th.accent + '">Wersja: v79 (Pełne nazwy posiłków + Odzyskiwanie komentarzy treningów)</p></div>';
                 }
 
                 if (state.supModalOpen) {
