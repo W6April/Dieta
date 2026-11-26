@@ -240,7 +240,7 @@
             isCloudSynced: false,
             users: [{ id: 'u1', name: 'Marek', startDate: dzis }, { id: 'u2', name: 'Marta', startDate: dzis }],
             userId: localStorage.getItem('diet_v15_curr_user') || 'u1',
-            theme: localStorage.getItem('diet_v81_theme') || localStorage.getItem('diet_v80_theme') || localStorage.getItem('diet_v79_theme') || 'classic',
+            theme: localStorage.getItem('diet_v82_theme') || localStorage.getItem('diet_v81_theme') || localStorage.getItem('diet_v80_theme') || 'classic',
             geminiApiKey: localStorage.getItem('diet_gemini_key') || '',
             workingModelPath: localStorage.getItem('diet_working_model_v44') || '',
             products: localProducts,
@@ -252,12 +252,14 @@
             settings: {
                 startOfWeek: 1,
                 kcalCorrection: 0,
+                includeWorkoutKcalInStats: true,
                 measurements: JSON.parse(JSON.stringify(DEFAULT_MEASUREMENTS)),
                 categories: DEFAULT_CATEGORIES.slice(),
                 supplements: JSON.parse(JSON.stringify(DEFAULT_SUPPLEMENTS)),
                 injuries: DEFAULT_INJURIES.slice()
             },
             collapsedCategories: {},
+            expandedWorkoutNotes: {},
             date: dzis,
             summaryView: 'tydzien',
             summaryOffset: 0,
@@ -269,6 +271,11 @@
             selectedProdId: '',
             inputWeight: '',
             inputMealTime: getCurrentTimeHHMM(),
+            clockModalOpen: false,
+            clockTargetMealId: null,
+            clockMode: 'hour',
+            clockHour: parseInt(getCurrentTimeHHMM().split(':')[0], 10) || 8,
+            clockMinute: parseInt(getCurrentTimeHHMM().split(':')[1], 10) || 0,
             wSearch: '',
             wResults: [],
             wInputTime: '',
@@ -300,6 +307,7 @@
             if (!state.settings || typeof state.settings !== 'object') state.settings = {};
             if (state.settings.startOfWeek === undefined || isNaN(parseInt(state.settings.startOfWeek))) state.settings.startOfWeek = 1;
             if (state.settings.kcalCorrection === undefined || isNaN(parseFloat(state.settings.kcalCorrection))) state.settings.kcalCorrection = 0;
+            if (state.settings.includeWorkoutKcalInStats === undefined) state.settings.includeWorkoutKcalInStats = true;
             if (!Array.isArray(state.settings.categories) || state.settings.categories.length === 0) state.settings.categories = DEFAULT_CATEGORIES.slice();
             if (!Array.isArray(state.settings.measurements) || state.settings.measurements.length === 0) state.settings.measurements = JSON.parse(JSON.stringify(DEFAULT_MEASUREMENTS));
             if (!Array.isArray(state.settings.supplements)) {
@@ -309,6 +317,7 @@
             }
             if (!Array.isArray(state.settings.injuries)) state.settings.injuries = DEFAULT_INJURIES.slice();
             if (!Array.isArray(state.shoppingList)) state.shoppingList = [];
+            if (!state.expandedWorkoutNotes || typeof state.expandedWorkoutNotes !== 'object') state.expandedWorkoutNotes = {};
         }
 
         function initLocalDefaults() {
@@ -328,6 +337,143 @@
             }
         }
         initLocalDefaults();
+
+        // --- KOMENTARZE TRENINGÓW: ROZWIJANIE ---
+        window.toggleWorkoutNoteExpand = function(key) {
+            if (!state.expandedWorkoutNotes) state.expandedWorkoutNotes = {};
+            if (state.expandedWorkoutNotes[key]) delete state.expandedWorkoutNotes[key];
+            else state.expandedWorkoutNotes[key] = true;
+            render();
+        };
+
+        // --- OKRĄGŁY ZEGAR GODZIN POSIŁKÓW ---
+        window.openClockModal = function(mealId) {
+            var sourceTime = getCurrentTimeHHMM();
+            if (mealId !== undefined && mealId !== null) {
+                var meal = getDayData().meals.find(function(m) { return String(m.id) === String(mealId); });
+                if (meal && normalizeTimeHHMM(meal.time)) sourceTime = normalizeTimeHHMM(meal.time);
+                state.clockTargetMealId = String(mealId);
+            } else {
+                sourceTime = normalizeTimeHHMM(state.inputMealTime) || getCurrentTimeHHMM();
+                state.clockTargetMealId = null;
+            }
+            var parts = sourceTime.split(':');
+            state.clockHour = parseInt(parts[0], 10) || 0;
+            state.clockMinute = parseInt(parts[1], 10) || 0;
+            state.clockMode = 'hour';
+            state.clockModalOpen = true;
+            render();
+        };
+
+        window.closeClockModal = function() {
+            state.clockModalOpen = false;
+            state.clockTargetMealId = null;
+            render();
+        };
+
+        window.setClockHour = function(h) {
+            state.clockHour = ((parseInt(h, 10) % 24) + 24) % 24;
+            state.clockMode = 'minute';
+            render();
+        };
+
+        window.setClockMinute = function(m) {
+            state.clockMinute = ((parseInt(m, 10) % 60) + 60) % 60;
+            render();
+        };
+
+        window.adjustClockMinuteStep = function(delta) {
+            state.clockMinute = (((state.clockMinute + delta) % 60) + 60) % 60;
+            render();
+        };
+
+        window.confirmClockModal = function() {
+            var hh = String(state.clockHour || 0).padStart(2, '0');
+            var mm = String(state.clockMinute || 0).padStart(2, '0');
+            var finalTime = hh + ':' + mm;
+
+            if (state.clockTargetMealId !== null) {
+                var day = getDayData();
+                var meal = day.meals.find(function(m) { return String(m.id) === String(state.clockTargetMealId); });
+                if (meal) {
+                    meal.time = finalTime;
+                    sortMealsChronologically(day.meals);
+                    saveState();
+                }
+            } else {
+                state.inputMealTime = finalTime;
+            }
+            state.clockModalOpen = false;
+            state.clockTargetMealId = null;
+            render();
+        };
+
+        window.renderAnalogClockSvg = function() {
+            var cx = 110, cy = 110;
+            var isHour = state.clockMode === 'hour';
+            var items = [];
+
+            if (isHour) {
+                // Zewnętrzny krąg: 1..12 (lub 0..11)
+                for (var h1 = 1; h1 <= 12; h1++) {
+                    var ang1 = ((h1 % 12) * 30 - 90) * (Math.PI / 180);
+                    var r1 = 84;
+                    var x1 = cx + r1 * Math.cos(ang1);
+                    var y1 = cy + r1 * Math.sin(ang1);
+                    var active1 = (state.clockHour === (h1 % 12)) || (h1 === 12 && state.clockHour === 12);
+                    items.push({ val: h1 % 12, label: String(h1), x: x1, y: y1, active: active1, r: 14, fontSize: 11 });
+                }
+                // Wewnętrzny krąg: 13..23 oraz 00
+                var innerHours = [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 0];
+                for (var idx = 0; idx < innerHours.length; idx++) {
+                    var h2 = innerHours[idx];
+                    var ang2 = (((idx + 1) % 12) * 30 - 90) * (Math.PI / 180);
+                    var r2 = 56;
+                    var x2 = cx + r2 * Math.cos(ang2);
+                    var y2 = cy + r2 * Math.sin(ang2);
+                    var active2 = state.clockHour === h2;
+                    items.push({ val: h2, label: h2 === 0 ? '00' : String(h2), x: x2, y: y2, active: active2, r: 12, fontSize: 9.5 });
+                }
+            } else {
+                for (var m = 0; m < 60; m += 5) {
+                    var angM = (m * 6 - 90) * (Math.PI / 180);
+                    var rM = 84;
+                    var xm = cx + rM * Math.cos(angM);
+                    var ym = cy + rM * Math.sin(angM);
+                    var activeM = Math.abs(state.clockMinute - m) < 3;
+                    items.push({ val: m, label: String(m).padStart(2, '0'), x: xm, y: ym, active: activeM, r: 14, fontSize: 10.5 });
+                }
+            }
+
+            var selItem = items.find(function(it) { return it.active; });
+            if (!selItem && !isHour) {
+                var angCurr = (state.clockMinute * 6 - 90) * (Math.PI / 180);
+                selItem = { x: cx + 84 * Math.cos(angCurr), y: cy + 84 * Math.sin(angCurr) };
+            }
+
+            var handSvg = '';
+            if (selItem) {
+                handSvg = '<line x1="' + cx + '" y1="' + cy + '" x2="' + selItem.x.toFixed(1) + '" y2="' + selItem.y.toFixed(1) + '" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" opacity="0.7" />';
+            }
+
+            var nodesSvg = items.map(function(it) {
+                var fnCall = isHour ? ('setClockHour(' + it.val + ')') : ('setClockMinute(' + it.val + ')');
+                var fillCircle = it.active ? '#2563eb' : '#ffffff';
+                var strokeCircle = it.active ? '#1d4ed8' : '#e2e8f0';
+                var textColor = it.active ? '#ffffff' : '#1e293b';
+                return '<g onclick="' + fnCall + '" class="cursor-pointer">' +
+                    '<circle cx="' + it.x.toFixed(1) + '" cy="' + it.y.toFixed(1) + '" r="' + it.r + '" fill="' + fillCircle + '" stroke="' + strokeCircle + '" stroke-width="1.5" />' +
+                    '<text x="' + it.x.toFixed(1) + '" y="' + (it.y + it.fontSize * 0.35).toFixed(1) + '" font-size="' + it.fontSize + '" font-weight="800" fill="' + textColor + '" text-anchor="middle">' + it.label + '</text>' +
+                    '</g>';
+            }).join('');
+
+            return '<svg viewBox="0 0 220 220" class="w-56 h-56 mx-auto select-none drop-shadow-sm">' +
+                '<circle cx="' + cx + '" cy="' + cy + '" r="104" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2" />' +
+                handSvg +
+                nodesSvg +
+                '<circle cx="' + cx + '" cy="' + cy + '" r="4" fill="#1d4ed8" />' +
+                '</svg>';
+        };
 
         function collectNotesFromDiariesSource(diariesObj, notesMap) {
             if (!diariesObj || typeof diariesObj !== 'object') return;
@@ -529,10 +675,10 @@
                         localStorage.setItem('diet_local_products_vault', JSON.stringify(state.products));
                         localStorage.setItem('diet_local_shopping_vault', JSON.stringify(state.shoppingList));
                     } catch(e) {}
-                    if (!state.isScanning && !state.supModalOpen) render();
+                    if (!state.isScanning && !state.supModalOpen && !state.clockModalOpen) render();
                 }, function(err) {
                     console.log("Błąd chmury:", err);
-                    if (!state.isScanning && !state.supModalOpen) render();
+                    if (!state.isScanning && !state.supModalOpen && !state.clockModalOpen) render();
                 });
             } catch(e) { console.log("Snapshot error:", e); }
         }
@@ -548,7 +694,7 @@
                 localStorage.setItem('diet_local_deleted_products', JSON.stringify(state.deletedProductIds));
                 localStorage.setItem('diet_local_shopping_vault', JSON.stringify(state.shoppingList));
                 localStorage.setItem('diet_v15_curr_user', state.userId);
-                localStorage.setItem('diet_v81_theme', state.theme);
+                localStorage.setItem('diet_v82_theme', state.theme);
                 localStorage.setItem('diet_gemini_key', state.geminiApiKey);
             } catch(e) {}
             if (!state.isCloudSynced) return;
@@ -819,6 +965,7 @@
                 'Zakres: ' + (s.periodLabel || ''),
                 'Dni z wpisanymi posiłkami: ' + (s.daysCount || 0),
                 'Korekta dzienna: ' + ((s.corr > 0 ? '+' : '') + (s.corr || 0)) + ' kcal/dzień',
+                'Kalorie treningów w statystykach: ' + (s.includeWorkouts ? 'TAK' : 'NIE'),
                 '',
                 'STATYSTYKI:',
                 'Średnio Kcal/dzień: ' + (s.avgKcal || 0) + ' kcal (łącznie ' + (s.totalKcal || 0) + ' kcal)',
@@ -853,6 +1000,10 @@
         window.updateKcalCorrection = function(val) {
             var num = parseInt(val);
             state.settings.kcalCorrection = isNaN(num) ? 0 : num;
+            saveState(); render();
+        };
+        window.toggleWorkoutKcalInStats = function() {
+            state.settings.includeWorkoutKcalInStats = !(state.settings.includeWorkoutKcalInStats !== false);
             saveState(); render();
         };
         window.changeStartOfWeek = function(val) { state.settings.startOfWeek = parseInt(val); saveState(); render(); };
@@ -1042,10 +1193,9 @@
         window.addMeal = function() {
             var searchInp = document.getElementById('pSearchInp');
             var weightInp = document.getElementById('inpW');
-            var timeInp = document.getElementById('inpMealTime');
             var query = searchInp ? searchInp.value.trim() : state.prodSearch.trim();
             var w = parseFloat(weightInp ? weightInp.value : state.inputWeight);
-            var mealTime = normalizeTimeHHMM(timeInp ? timeInp.value : state.inputMealTime) || getCurrentTimeHHMM();
+            var mealTime = normalizeTimeHHMM(state.inputMealTime) || getCurrentTimeHHMM();
             if (!query || isNaN(w) || w <= 0) return alert('Wpisz nazwę posiłku i wagę!');
 
             var p = state.products.find(function(x) { return String(x.id) === String(state.selectedProdId); }) ||
@@ -1137,17 +1287,7 @@
         };
 
         window.promptEditMealTime = function(mealId) {
-            var day = getDayData();
-            var meal = day.meals.find(function(m) { return String(m.id) === String(mealId); });
-            if (!meal) return;
-            var currentT = normalizeTimeHHMM(meal.time) || getCurrentTimeHHMM();
-            var newT = prompt('Godzina posiłku „' + meal.name + '” (HH:MM):', currentT);
-            if (newT === null) return;
-            var normalized = normalizeTimeHHMM(newT);
-            if (!normalized) return alert('Podaj godzinę w formacie HH:MM, np. 08:30.');
-            meal.time = normalized;
-            sortMealsChronologically(day.meals);
-            saveState(); render();
+            openClockModal(mealId);
         };
 
         window.promptEditMealWeight = function(mealId) {
@@ -1205,6 +1345,7 @@
             var newNote = prompt('Komentarz do treningu „' + w.name + '”:', extractWorkoutNote(w));
             if (newNote === null) return;
             w.note = newNote.replace(/\r\n/g, '\n').trim();
+            if (w.note) state.expandedWorkoutNotes['day_' + workoutId] = true;
             saveState(); render();
         };
         window.delWorkout = function(id) {
@@ -1474,7 +1615,7 @@
                 var promptStr = 'Jesteś doświadczonym trenerem i dietetykiem. Użytkownik ' + user.name + ' zauważył, że ostatnio tyje. Przeanalizuj okres "' + (p.periodLabel || 'wybrany okres') + '" (' + (p.scopeName || 'okres') + ', ' + (p.daysCount || 0) + ' dni z posiłkami): ' +
                     'Średnio spożywane kalorie (z korektą ' + (p.corr >= 0 ? '+' : '') + (p.corr || 0) + ' kcal/dzień): ' + (p.avgKcal || 0) + ' kcal/dzień (łącznie ' + (p.totalKcal || 0) + ' kcal), ' +
                     'średnie makro: B ' + (p.avgP || 0) + 'g, T ' + (p.avgF || 0) + 'g, W ' + (p.avgC || 0) + 'g, ' +
-                    'spalone na treningach w okresie: ' + (p.totalBurned || 0) + ' kcal, ' +
+                    'kalorie treningów w statystykach: ' + (p.includeWorkouts ? ('włączone, spalone ' + (p.totalBurned || 0) + ' kcal') : 'wyłączone (osad samej diety)') + ', ' +
                     'bilans względem celu w okresie: ' + ((p.balanceVsZero > 0 ? '+' : '') + (p.balanceVsZero || 0)) + ' kcal, ' +
                     'średnia waga w okresie: ' + (p.avgWeight ? p.avgWeight + ' kg' : 'brak danych') + ', ' +
                     'zmiana wagi w okresie: ' + ((p.weightDiff > 0 ? '+' : '') + (p.weightDiff || 0)) + ' kg' +
@@ -1645,7 +1786,7 @@
         };
 
         window.exportFullJson = function() {
-            var payload = { version: 81, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, shoppingList: state.shoppingList, theme: state.theme };
+            var payload = { version: 82, users: state.users, settings: state.settings, products: state.products, workoutsDb: state.workoutsDb, diaries: state.diaries, shoppingList: state.shoppingList, theme: state.theme };
             var a = document.createElement('a');
             a.href = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
             a.download = 'dieta_' + state.date + '.json';
@@ -1823,6 +1964,8 @@
                         ? '<span class="ml-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-600">⚖️ ' + Math.round(totalMealWeight) + ' g (' + (totalMealWeight / 1000).toFixed(2) + ' kg)</span>'
                         : '';
 
+                    var currentMealTimeVal = normalizeTimeHHMM(state.inputMealTime) || getCurrentTimeHHMM();
+
                     html += '<div class="' + th.card + ' p-4 rounded-xl border mb-4">' +
                         '<div class="flex justify-between items-center mb-2 gap-1 flex-wrap">' +
                         '<h3 class="font-bold text-sm flex items-center">🍽️ Posiłki' + mealWeightBadge + '</h3>' +
@@ -1835,15 +1978,15 @@
                         '<input id="pSearchInp" placeholder="Wpisz produkt..." value="' + escHtml(state.prodSearch) + '" oninput="filterProductsDropdown(this.value)" autocomplete="off" class="w-full ' + th.inputBg + ' border rounded-lg text-xs px-2.5 py-2 outline-none" />' +
                         '<div id="prodDropdownList" class="absolute top-full left-0 w-full mt-1 ' + th.card + ' border shadow-xl rounded-lg max-h-60 overflow-y-auto z-50 hidden"></div>' +
                         '</div>' +
-                        '<input id="inpMealTime" type="time" value="' + escHtml(state.inputMealTime || getCurrentTimeHHMM()) + '" onchange="state.inputMealTime=this.value" class="' + th.inputBg + ' border rounded-lg text-[11px] font-bold px-1.5 py-2 outline-none shrink-0" title="Wybierz godzinę (godzina, potem minuty)" />' +
+                        '<button type="button" onclick="openClockModal()" class="' + th.inputBg + ' border rounded-lg text-[11px] font-black px-2 py-2 outline-none shrink-0 flex items-center space-x-1 ' + th.accent + '" title="Otwórz okrągły zegar"><span>🕒</span><span>' + escHtml(currentMealTimeVal) + '</span></button>' +
                         '<input id="inpW" type="number" inputmode="decimal" placeholder="g" value="' + escHtml(state.inputWeight) + '" oninput="state.inputWeight=this.value" class="w-14 ' + th.inputBg + ' border rounded-lg text-xs text-center py-2 outline-none shrink-0" />' +
                         '<button onclick="addMeal()" class="' + th.btn + ' px-3 py-2 rounded-lg font-bold shrink-0 text-sm">+</button></div><div class="space-y-2">';
 
                     if (day.meals.length === 0) html += '<p class="text-[10px] opacity-50 text-center py-2">Brak posiłków</p>';
                     day.meals.forEach(function(m, idx) {
                         var mealTimeBadge = m.time
-                            ? '<button onclick="promptEditMealTime(\'' + escJs(m.id) + '\')" class="text-[9px] font-black px-1.5 py-0.5 rounded bg-blue-500/10 ' + th.accent + ' mr-1.5" title="Kliknij, aby zmienić godzinę">' + escHtml(m.time) + '</button>'
-                            : '<button onclick="promptEditMealTime(\'' + escJs(m.id) + '\')" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-500/10 opacity-60 mr-1.5" title="Ustaw godzinę">--:--</button>';
+                            ? '<button onclick="promptEditMealTime(\'' + escJs(m.id) + '\')" class="text-[9px] font-black px-1.5 py-0.5 rounded bg-blue-500/10 ' + th.accent + ' mr-1.5" title="Kliknij, aby otworzyć zegar i zmienić godzinę">🕒 ' + escHtml(m.time) + '</button>'
+                            : '<button onclick="promptEditMealTime(\'' + escJs(m.id) + '\')" class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-gray-500/10 opacity-60 mr-1.5" title="Ustaw godzinę na zegarze">🕒 --:--</button>';
                         html += '<div class="flex justify-between items-start ' + th.inputBg + ' p-2 rounded-lg border">' +
                             '<div class="flex flex-col items-center mr-2 mt-0.5 space-y-1 shrink-0"><button onclick="moveMeal(' + idx + ',-1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▲</button><button onclick="moveMeal(' + idx + ',1)" class="text-[8px] opacity-40 hover:opacity-100 p-1">▼</button></div>' +
                             '<div class="flex-1 min-w-0 pr-1.5"><p class="font-bold text-xs break-words leading-snug"><span class="opacity-50 font-normal mr-1">' + (idx + 1) + '.</span>' + mealTimeBadge + escHtml(m.name) + '</p><p class="text-[9px] opacity-60 mt-0.5">' + m.weight + 'g | B:' + m.p + ' T:' + m.f + ' W:' + m.c + '</p></div>' +
@@ -1885,12 +2028,20 @@
                         '<div class="space-y-2">';
                     day.workouts.forEach(function(w) {
                         var noteVal = extractWorkoutNote(w);
-                        var noteHtml = noteVal
-                            ? '<p class="text-[10px] opacity-80 mt-1 break-words whitespace-pre-line leading-relaxed border-l-2 border-orange-400/60 pl-2">' + escHtml(noteVal) + '</p>'
-                            : '';
+                        var noteKey = 'day_' + w.id;
+                        var isNoteOpen = !!state.expandedWorkoutNotes[noteKey];
+                        var noteHtml = '';
+                        if (noteVal) {
+                            if (isNoteOpen) {
+                                noteHtml = '<div class="mt-1.5"><button type="button" onclick="toggleWorkoutNoteExpand(\'' + escJs(noteKey) + '\')" class="text-[9px] font-bold text-orange-600 underline mb-1">Ukryj komentarz ▲</button>' +
+                                    '<p class="text-[10px] opacity-85 break-words whitespace-pre-line leading-relaxed border-l-2 border-orange-400/60 pl-2">' + escHtml(noteVal) + '</p></div>';
+                            } else {
+                                noteHtml = '<button type="button" onclick="toggleWorkoutNoteExpand(\'' + escJs(noteKey) + '\')" class="mt-1 inline-flex items-center space-x-1 text-[9px] font-bold px-2 py-0.5 rounded bg-orange-500/15 text-orange-700"><span>💬 Komentarz</span><span>▾</span></button>';
+                            }
+                        }
                         html += '<div class="flex justify-between items-start bg-orange-500/10 p-2.5 rounded-lg border border-orange-500/20">' +
                             '<div class="flex-1 min-w-0 pr-2"><span class="font-bold text-xs text-orange-600 block break-words">' + escHtml(w.name) + ' <span class="opacity-75 font-normal">(' + w.time + ' min)</span></span>' + noteHtml + '</div>' +
-                            '<div class="flex items-center space-x-1.5 shrink-0"><span class="font-black text-orange-500 text-xs">' + w.kcal + ' kcal</span><button onclick="promptEditWorkoutNote(\'' + escJs(w.id) + '\')" class="text-blue-500 font-bold px-1 text-xs" title="Edytuj komentarz">💬</button><button onclick="delWorkout(\'' + escJs(w.id) + '\')" class="text-rose-400 font-bold px-1">✕</button></div></div>';
+                            '<div class="flex items-center space-x-1.5 shrink-0"><span class="font-black text-orange-500 text-xs">' + w.kcal + ' kcal</span><button onclick="promptEditWorkoutNote(\'' + escJs(w.id) + '\')" class="text-blue-500 font-bold px-1 text-xs" title="Edytuj komentarz">✏️</button><button onclick="delWorkout(\'' + escJs(w.id) + '\')" class="text-rose-400 font-bold px-1">✕</button></div></div>';
                     });
                     html += '</div></div>';
 
@@ -1933,10 +2084,18 @@
                     var tKeys = Object.keys(types);
                     if (tKeys.length > 0) {
                         html += '<h4 class="text-xs font-black mb-2">Treningi w okresie:</h4><div class="space-y-2">';
-                        tKeys.forEach(function(t) {
-                            var notesSummary = types[t].notes.length > 0
-                                ? '<span class="block text-[9px] opacity-80 mt-1 break-words whitespace-pre-line leading-relaxed border-l-2 border-orange-400/60 pl-2">' + escHtml(types[t].notes.join('\n\n')) + '</span>'
-                                : '';
+                        tKeys.forEach(function(t, tIdx) {
+                            var notesSummary = '';
+                            if (types[t].notes.length > 0) {
+                                var pKey = 'period_' + tIdx + '_' + t;
+                                var isPOpen = !!state.expandedWorkoutNotes[pKey];
+                                if (isPOpen) {
+                                    notesSummary = '<div class="mt-1"><button type="button" onclick="toggleWorkoutNoteExpand(\'' + escJs(pKey) + '\')" class="text-[9px] font-bold text-orange-600 underline mb-1">Ukryj komentarze (' + types[t].notes.length + ') ▲</button>' +
+                                        '<span class="block text-[9px] opacity-85 break-words whitespace-pre-line leading-relaxed border-l-2 border-orange-400/60 pl-2">' + escHtml(types[t].notes.join('\n\n')) + '</span></div>';
+                                } else {
+                                    notesSummary = '<button type="button" onclick="toggleWorkoutNoteExpand(\'' + escJs(pKey) + '\')" class="mt-1 inline-flex items-center space-x-1 text-[9px] font-bold px-2 py-0.5 rounded bg-orange-500/15 text-orange-700"><span>💬 Komentarze (' + types[t].notes.length + ')</span><span>▾</span></button>';
+                                }
+                            }
                             html += '<div class="' + th.card + ' p-3 rounded-xl border flex justify-between items-start"><div class="min-w-0 pr-2"><span class="font-bold text-sm block break-words">' + escHtml(t) + '</span><span class="text-[10px] opacity-60 font-bold">Ilość: ' + types[t].count + '</span>' + notesSummary + '</div><div class="text-right shrink-0"><span class="block text-orange-500 font-black text-sm">' + types[t].kcal + ' kcal</span><span class="text-[10px] opacity-60 font-bold">' + types[t].time + ' min</span></div></div>';
                         });
                         html += '</div>';
@@ -2039,6 +2198,7 @@
                     var allDates = Object.keys(userDiary).sort();
                     var pInfo = getPeriodInfo(view, offset, state.date, allDates);
                     var corr = parseFloat(state.settings.kcalCorrection) || 0;
+                    var includeWorkouts = state.settings.includeWorkoutKcalInStats !== false;
 
                     var tKcal = 0, tBurned = 0, dCount = 0, weightsForPeriod = [];
                     var tP = 0, tF = 0, tC = 0, totalTarget = 0;
@@ -2085,7 +2245,8 @@
                         }
                     }
 
-                    var netKcal = tKcal - tBurned;
+                    var effectiveBurned = includeWorkouts ? tBurned : 0;
+                    var netKcal = tKcal - effectiveBurned;
                     var balanceVsZero = netKcal - totalTarget;
                     var avgKcalVal = dCount > 0 ? Math.round(tKcal / dCount) : 0;
                     var scopeNames = { tydzien: 'Tydzień', miesiac: 'Miesiąc', rok: 'Rok', ogolne: 'Ogólnie' };
@@ -2094,12 +2255,13 @@
                         periodLabel: pInfo.label,
                         daysCount: dCount,
                         corr: corr,
+                        includeWorkouts: includeWorkouts,
                         avgKcal: avgKcalVal,
                         totalKcal: Math.round(tKcal),
                         avgP: dCount > 0 ? Math.round(tP / dCount) : 0,
                         avgF: dCount > 0 ? Math.round(tF / dCount) : 0,
                         avgC: dCount > 0 ? Math.round(tC / dCount) : 0,
-                        totalBurned: Math.round(tBurned),
+                        totalBurned: Math.round(effectiveBurned),
                         balanceVsZero: Math.round(balanceVsZero),
                         avgWeight: avgW !== null ? Number(avgW.toFixed(2)) : null,
                         weightDiff: Number(wDiff.toFixed(2))
@@ -2111,12 +2273,21 @@
                     else html += '<p class="text-[10px] text-purple-300 text-center">Kliknij Analizuj, aby ocenić kalorie, treningi i wagę dla wybranego widoku, lub 📥 Raport aby pobrać podsumowanie.</p>';
                     html += '</div>';
 
-                    html += '<div class="' + th.card + ' p-3 rounded-xl border mb-3 flex items-center justify-between gap-2">' +
-                        '<div><p class="text-[10px] font-black uppercase ' + th.accent + '">⚖️ Korekta (kcal / dzień)</p><p class="text-[9px] opacity-60">Doliczana do każdego dnia z posiłkami</p></div>' +
-                        '<div class="flex items-center space-x-1">' +
-                        '<input type="number" value="' + corr + '" onchange="updateKcalCorrection(this.value)" class="w-20 p-1.5 text-xs font-black text-center rounded-lg border ' + th.inputBg + ' outline-none" />' +
-                        (corr !== 0 ? '<button onclick="updateKcalCorrection(0)" class="text-[10px] px-2 py-1.5 rounded-lg bg-rose-500/10 text-rose-500 font-bold">0</button>' : '') +
-                        '</div></div>';
+                    var wToggleCls = includeWorkouts
+                        ? 'bg-orange-500 text-white border-orange-600'
+                        : (th.inputBg + ' opacity-70');
+
+                    html += '<div class="' + th.card + ' p-3 rounded-xl border mb-3 grid grid-cols-2 gap-2 items-center">' +
+                        '<div><p class="text-[10px] font-black uppercase ' + th.accent + '">⚖️ Korekta (kcal/dzień)</p>' +
+                        '<div class="flex items-center space-x-1 mt-1">' +
+                        '<input type="number" value="' + corr + '" onchange="updateKcalCorrection(this.value)" class="w-16 p-1 text-xs font-black text-center rounded-lg border ' + th.inputBg + ' outline-none" />' +
+                        (corr !== 0 ? '<button onclick="updateKcalCorrection(0)" class="text-[10px] px-1.5 py-1 rounded-lg bg-rose-500/10 text-rose-500 font-bold">0</button>' : '') +
+                        '</div></div>' +
+                        '<div class="text-right"><p class="text-[10px] font-black uppercase text-orange-500 mb-1">🔥 Treningi w stat.</p>' +
+                        '<button type="button" onclick="toggleWorkoutKcalInStats()" class="px-2.5 py-1.5 rounded-lg border text-[10px] font-black transition-all ' + wToggleCls + '">' +
+                        (includeWorkouts ? '✓ Liczone' : '✕ Pominięte') +
+                        '</button></div>' +
+                        '</div>';
 
                     html += '<div class="flex space-x-1 mb-3 ' + th.inputBg + ' p-1 rounded-lg border">';
                     ['tydzien', 'miesiac', 'rok', 'ogolne'].forEach(function(v, idx) {
@@ -2132,20 +2303,23 @@
                     }
 
                     var corrBadge = corr !== 0
-                        ? '<p class="text-[10px] text-center font-bold mb-3 px-2 py-1 rounded-lg bg-amber-500/15 text-amber-700">Aktywna korekta: ' + (corr > 0 ? '+' : '') + corr + ' kcal/dzień (łącznie ' + (corr * dCount > 0 ? '+' : '') + Math.round(corr * dCount) + ' kcal)</p>'
+                        ? '<p class="text-[10px] text-center font-bold mb-2 px-2 py-1 rounded-lg bg-amber-500/15 text-amber-700">Aktywna korekta: ' + (corr > 0 ? '+' : '') + corr + ' kcal/dzień (łącznie ' + (corr * dCount > 0 ? '+' : '') + Math.round(corr * dCount) + ' kcal)</p>'
+                        : '';
+                    var workoutInfoBadge = !includeWorkouts
+                        ? '<p class="text-[10px] text-center font-bold mb-3 px-2 py-1 rounded-lg bg-slate-500/15 opacity-80">Kalorie z treningów wyłączone z bilansu (pokazany osad samej diety)</p>'
                         : '';
 
-                    html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4"><h3 class="font-black text-base mb-1 text-center">📊 Statystyki (' + dCount + ' dni)</h3>' + corrBadge +
+                    html += '<div class="' + th.softBox + ' border p-4 rounded-xl mb-4"><h3 class="font-black text-base mb-1 text-center">📊 Statystyki (' + dCount + ' dni)</h3>' + corrBadge + workoutInfoBadge +
                         '<div class="grid grid-cols-2 gap-2 mb-3">' +
                         '<div class="' + th.card + ' p-3 rounded-xl border text-center"><p class="text-[9px] font-bold opacity-60 uppercase mb-1">Śr. Kcal/dzień</p><p class="text-xl font-black ' + th.accent + '">' + avgKcalVal + '</p></div>' +
-                        '<div class="' + th.card + ' p-3 rounded-xl border text-center"><p class="text-[9px] font-bold text-orange-500 uppercase mb-1">Spalone suma</p><p class="text-xl font-black text-orange-500">🔥 ' + Math.round(tBurned) + '</p></div>' +
+                        '<div class="' + th.card + ' p-3 rounded-xl border text-center"><p class="text-[9px] font-bold text-orange-500 uppercase mb-1">Spalone ' + (includeWorkouts ? 'suma' : '(wył.)') + '</p><p class="text-xl font-black text-orange-500">' + (includeWorkouts ? ('🔥 ' + Math.round(tBurned)) : '0') + '</p></div>' +
                         '</div>' +
                         '<div class="' + th.inputBg + ' p-3 rounded-xl border grid grid-cols-3 gap-1 text-center mb-3">' +
                         '<div><p class="text-[9px] font-bold opacity-60">ŚR. BIAŁKO</p><p class="font-black text-sm text-blue-600">' + (dCount > 0 ? Math.round(tP / dCount) : 0) + 'g</p></div>' +
                         '<div><p class="text-[9px] font-bold opacity-60">ŚR. TŁUSZCZ</p><p class="font-black text-sm text-amber-600">' + (dCount > 0 ? Math.round(tF / dCount) : 0) + 'g</p></div>' +
                         '<div><p class="text-[9px] font-bold opacity-60">ŚR. WĘGLO</p><p class="font-black text-sm text-emerald-600">' + (dCount > 0 ? Math.round(tC / dCount) : 0) + 'g</p></div>' +
                         '</div>' +
-                        '<div class="' + th.card + ' p-3 rounded-xl border flex justify-between items-center mb-3"><div><span class="text-[10px] font-bold opacity-75 uppercase block">Bilans względem zera:</span><span class="text-[9px] opacity-60">Deficyt / nadwyżka w okresie</span></div><span class="text-lg font-black ' + (balanceVsZero <= 0 ? 'text-emerald-500' : 'text-rose-500') + '">' + (balanceVsZero > 0 ? '+' : '') + Math.round(balanceVsZero) + ' kcal</span></div>' +
+                        '<div class="' + th.card + ' p-3 rounded-xl border flex justify-between items-center mb-3"><div><span class="text-[10px] font-bold opacity-75 uppercase block">Bilans względem zera:</span><span class="text-[9px] opacity-60">' + (includeWorkouts ? 'Deficyt / nadwyżka w okresie' : 'Osad diety bez treningów') + '</span></div><span class="text-lg font-black ' + (balanceVsZero <= 0 ? 'text-emerald-500' : 'text-rose-500') + '">' + (balanceVsZero > 0 ? '+' : '') + Math.round(balanceVsZero) + ' kcal</span></div>' +
                         '<div class="grid grid-cols-2 gap-2">' +
                         '<div class="' + th.inputBg + ' p-3 rounded-xl border text-center"><p class="text-[9px] font-bold opacity-60 uppercase mb-0.5">Średnia waga</p><p class="text-lg font-black ' + th.accent + '">' + (avgW !== null ? avgW.toFixed(1) + ' kg' : '—') + '</p>' + prevAvgDiffHtml + '</div>' +
                         '<div class="' + th.inputBg + ' p-3 rounded-xl border text-center"><p class="text-[9px] font-bold opacity-60 uppercase mb-0.5">Zmiana w okresie</p><p class="text-lg font-black ' + (wDiff > 0 ? 'text-rose-500' : 'text-emerald-500') + '">' + (wDiff > 0 ? '+' : '') + wDiff.toFixed(1) + ' kg</p></div>' +
@@ -2244,7 +2418,34 @@
                     });
                     html += '</div></div>';
 
-                    html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6"><h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ O aplikacji</h4><p class="text-xs font-bold ' + th.accent + '">Wersja: v81 (Sortowanie po godzinach, Akapity w treningach, Zakupy)</p></div>';
+                    html += '<div class="' + th.card + ' border p-4 rounded-xl text-center mb-6"><h4 class="font-black text-xs opacity-70 uppercase mb-1">ℹ️ O aplikacji</h4><p class="text-xs font-bold ' + th.accent + '">Wersja: v82 (Okrągły zegar, Ukryte komentarze, Treningi w statystykach)</p></div>';
+                }
+
+                // --- MODAL OKRĄGŁEGO ZEGARA ---
+                if (state.clockModalOpen) {
+                    var hhStr = String(state.clockHour || 0).padStart(2, '0');
+                    var mmStr = String(state.clockMinute || 0).padStart(2, '0');
+                    var hBtnCls = state.clockMode === 'hour' ? 'bg-blue-600 text-white shadow' : 'bg-gray-100 text-gray-700';
+                    var mBtnCls = state.clockMode === 'minute' ? 'bg-blue-600 text-white shadow' : 'bg-gray-100 text-gray-700';
+
+                    html += '<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[80] flex items-center justify-center p-4"><div class="bg-white rounded-2xl w-full max-w-xs p-4 shadow-2xl text-gray-900">' +
+                        '<div class="flex justify-between items-center mb-2">' +
+                        '<span class="text-xs font-black text-gray-700">🕒 Wybierz godzinę</span>' +
+                        '<button onclick="closeClockModal()" class="text-gray-400 hover:text-rose-500 font-black text-base px-1">✕</button>' +
+                        '</div>' +
+                        '<div class="flex justify-center items-center space-x-2 mb-3">' +
+                        '<button type="button" onclick="state.clockMode=\'hour\'; render();" class="px-3 py-1.5 rounded-xl text-xl font-black transition-all ' + hBtnCls + '">' + hhStr + '</button>' +
+                        '<span class="text-xl font-black text-gray-400">:</span>' +
+                        '<button type="button" onclick="state.clockMode=\'minute\'; render();" class="px-3 py-1.5 rounded-xl text-xl font-black transition-all ' + mBtnCls + '">' + mmStr + '</button>' +
+                        '</div>' +
+                        renderAnalogClockSvg() +
+                        '<div class="flex justify-between items-center mt-2 mb-3 px-2">' +
+                        '<button type="button" onclick="adjustClockMinuteStep(-1)" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-black px-3 py-1 rounded-lg text-xs">-1 min</button>' +
+                        '<span class="text-[10px] font-bold text-gray-500">' + (state.clockMode === 'hour' ? 'Wybierz godzinę na tarczy' : 'Wybierz minuty na tarczy') + '</span>' +
+                        '<button type="button" onclick="adjustClockMinuteStep(1)" class="bg-gray-100 hover:bg-gray-200 text-gray-800 font-black px-3 py-1 rounded-lg text-xs">+1 min</button>' +
+                        '</div>' +
+                        '<button type="button" onclick="confirmClockModal()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl text-xs shadow">✓ Zatwierdź ' + hhStr + ':' + mmStr + '</button>' +
+                        '</div></div>';
                 }
 
                 if (state.supModalOpen) {
